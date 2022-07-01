@@ -1,0 +1,24 @@
+# permissions for end users to edit nodeendpoints.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nodeendpoint-editor-role
+rules:
+- apiGroups:
+  - ingress-nodefw.io.ingress-nodefw.io
+  resources:
+  - nodeendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress-nodefw.io.ingress-nodefw.io
+  resources:
+  - nodeendpoints/status
+  verbs:
+  - get

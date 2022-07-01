@@ -1,0 +1,136 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.0
+  creationTimestamp: null
+  name: ingressnodefirewalls.ingress-nodefw.io.ingress-nodefw.io
+spec:
+  group: ingress-nodefw.io.ingress-nodefw.io
+  names:
+    kind: IngressNodeFirewall
+    listKind: IngressNodeFirewallList
+    plural: ingressnodefirewalls
+    singular: ingressnodefirewall
+  scope: Cluster
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: IngressNodeFirewall is the Schema for the ingressnodefirewalls
+          API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: IngressNodeFirewallSpec defines the desired state of IngressNodeFirewall
+            properties:
+              ingress:
+                description: A list of ingress firewall policy rules. empty list indicates
+                  no ingress firewall i.e allow all incoming traffic.
+                items:
+                  description: IngressNodeFirewallRules define ingress node firewall
+                    rule
+                  properties:
+                    firewallProtocolRules:
+                      description: FirewallProtocolRules is A list of per protocol
+                        ingress node firewall rules
+                      items:
+                        description: IngressNodeFirewallProtocolRule define ingress
+                          node firewall rule per protocol
+                        properties:
+                          action:
+                            description: Action can be Allow or Deny.
+                            enum:
+                            - Allow
+                            - Deny
+                            pattern: ^Allow|Deny$
+                            type: string
+                          icmpRule:
+                            description: IngressNodeFirewallICMPRule define ingress
+                              node firewall rule for ICMP and ICMPv6 protocols.
+                            properties:
+                              icmpCode:
+                                description: ICMPCode define ICMP Code ID (RFC 792).
+                                maximum: 16
+                                minimum: 0
+                                type: integer
+                              icmpType:
+                                description: ICMPType define ICMP Type Numbers (RFC
+                                  792).
+                                maximum: 43
+                                minimum: 0
+                                type: integer
+                            required:
+                            - icmpCode
+                            - icmpType
+                            type: object
+                          protoRule:
+                            description: IngressNodeFirewallProtoRule define ingress
+                              node firewall rule for TCP, UDP and SCTP protocols.
+                            properties:
+                              ports:
+                                description: start-end range of dstPorts or [port1,
+                                  port2,..., portn].
+                                items:
+                                  format: int32
+                                  type: integer
+                                type: array
+                            type: object
+                          protocol:
+                            description: Protocol can be ICMP, ICMPv6, TCP, SCTP or
+                              UDP.
+                            enum:
+                            - ICMP
+                            - ICMPv6
+                            - TCP
+                            - UDP
+                            - SCTP
+                            type: string
+                        required:
+                        - action
+                        - icmpRule
+                        - protoRule
+                        - protocol
+                        type: object
+                      type: array
+                    fromCIDRs:
+                      description: FromCIDRS is A list of CIDR from which we apply
+                        node firewall rule
+                      items:
+                        description: IngressNodeFirewallFromCIDR define ingress node
+                          CIDR matching field
+                        properties:
+                          fromCIDR:
+                            description: FromCIDR is the IPv4/IPv6 CIDR from which
+                              we apply node firewall rule
+                            type: string
+                        required:
+                        - fromCIDR
+                        type: object
+                      type: array
+                  required:
+                  - firewallProtocolRules
+                  - fromCIDRs
+                  type: object
+                type: array
+            type: object
+          status:
+            description: IngressNodeFirewallStatus defines the observed state of IngressNodeFirewall
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

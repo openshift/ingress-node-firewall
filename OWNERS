@@ -1,0 +1,15 @@
+reviewers:
+  - danwinship
+  - dcbw
+  - msherif1234
+  - trozet
+approvers:
+  - danwinship
+  - dcbw
+  - knobunc
+  - msherif1234
+  - trozet
+
+# Bugzilla info
+component: "Networking"
+subcomponent: "ingress-node-firewall"

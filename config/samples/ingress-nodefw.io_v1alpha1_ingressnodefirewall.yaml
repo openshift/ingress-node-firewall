@@ -1,0 +1,41 @@
+apiVersion: ingress-nodefw.io.ingress-nodefw.io/v1alpha1
+kind: IngressNodeFirewall
+metadata:
+  name: ingressnodefirewall-sample
+spec:
+  nodeSelector: has(do-node-ingress-firewall)
+  ingress:
+  - fromCIDRS:
+       - 1.1.1.1/24
+       - 100:1::1/64
+    rules:
+    - order: 10
+      protocol: tcp
+      ports: [100]
+      action: allow
+    - order: 20
+      protocol: udp
+      ports: [8000, 8080, 9000]
+      action: allow
+  - fromCIDRS:
+       - 3.3.3.3/24
+    rules:
+    - order: 10
+      protocol: icmp
+      type: 3 # Destination unreachable
+      code: 1 # Host unreachable
+      action: allow
+  - fromCIDRS:
+       - 10:10::1/64
+    rules:
+    - order: 10
+      protocol: icmpv6
+      type: 128 # Ping request
+      action: deny
+  - fromCIDRS:
+       - 0.0.0.0/0
+       - 0::0/0
+    rules:
+    - order: 10
+      protocol: tcp
+      action: allow
