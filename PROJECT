@@ -13,7 +13,7 @@ resources:
   domain: ingress-nodefw.io
   group: ingress-nodefw.io
   kind: IngressNodeFirewall
-  path: ingress-node-firewall-test/api/v1alpha1
+  path: ingress-node-firewall/api/v1alpha1
   version: v1alpha1
   webhooks:
     validation: true
@@ -24,6 +24,6 @@ resources:
   domain: ingress-nodefw.io
   group: ingress-nodefw.io
   kind: NodeEndpoint
-  path: ingress-node-firewall-test/api/v1alpha1
+  path: ingress-node-firewall/api/v1alpha1
   version: v1alpha1
 version: "3"
