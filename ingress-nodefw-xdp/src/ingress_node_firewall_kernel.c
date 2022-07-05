@@ -230,3 +230,5 @@ SEC("xdp_ingress_node_firewall_process")
 int ingres_node_firewall_process(struct xdp_md *ctx) {
     return ingress_node_firewall_main(ctx);
 }
+
+char __license[] SEC("license") = "Dual BSD/GPL";
