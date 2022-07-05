@@ -19,20 +19,20 @@
 #define likely(expr)   __builtin_expect(!!(expr), 1)
 #endif
 
-struct bpf_map_def SEC("maps") eventTbl = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(int),
-    .value_size = sizeof(int),
-    .max_entries = MAX_CPUS,
-};
+struct {
+	__uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+	__uint(max_entries, MAX_CPUS);
+	__type(key, __u32);   // ruleId
+	__type(value, struct ruleStatistics);
+} ingress_node_firewall_stats_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") ingressRulesTbl = {
-    .type = BPF_MAP_TYPE_LPM_TRIE,
-    .key_size = sizeof(struct bpf_lpm_ip_key),
-    .value_size = sizeof(struct rulesValue) + (sizeof(struct ruleType)*MAX_RULES_PER_TARGET),
-    .max_entries = MAX_TARGETS,
-    .map_flags = BPF_F_NO_PREALLOC,
-};
+struct {
+	__uint(type, BPF_MAP_TYPE_LPM_TRIE);
+	__uint(max_entries, MAX_TARGETS);
+	__type(key_size, sizeof(struct bpf_lpm_ip_key));
+	__type(value_size, sizeof(struct rulesValue) + (sizeof(struct ruleType)*MAX_RULES_PER_TARGET));
+	__type(map_flags, BPF_F_NO_PREALLOC);
+} ingress_node_firewall_table_map SEC(".maps");
 
 __attribute__((__always_inline__))
 static inline void sendEvent(struct xdp_md *ctx, __u16 interface_id, __u16 packet_len, __u8 action, __u16 ruleId) {
