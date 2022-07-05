@@ -1,6 +1,7 @@
 #ifndef __INGRESS_NODE_FW_H
 #define __INGRESS_NODE_FW_H
 
+#define UNDEF 0
 #define DENY XDP_DROP
 #define ALLOW XDP_PASS
 #define MAX_DST_PORTS 100
@@ -12,13 +13,13 @@ struct ruleType {
     __u32 ruleId;
     __u8 protocol;
     union {
-        __u8 srcAddr[4];
-        __u8 srcAddr[16];
-    } srcAddr;
+        __u32 ip4_srcAddr;
+        __u32 ip6_srcAddr[4];
+    } srcAddrU;
     union {
-        __u8 srcMask[4];
-        __u8 srcMask[16];
-    } srcMask;
+        __u32 ip4_srcMask;
+        __u32 ip6_srcMask[4];
+    } srcMaskU;
      __u16 dstPort[MAX_DST_PORTS];
     __u8 icmpType;
     __u8 icmpCode;
@@ -30,8 +31,8 @@ struct ruleType {
 struct bpf_lpm_ip_key {
     __u32 prefixLen;
     union {
-        __u8 data[4];
-        __u8 data[16];
+        __u8 ip4_data[4];
+        __u8 ip6_data[16];
     } u;
 } __packed;
 
