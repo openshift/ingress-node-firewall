@@ -9,6 +9,13 @@
 #define MAX_RULES_PER_TARGET (100)
 #define MAX_EVENT_DATA 512ul
 
+struct event_hdr {
+    __u16 ifId;
+    __u16 ruleId;
+    __u8  action;
+    __u8  fill;
+};
+
 struct ruleType {
     __u32 ruleId;
     __u8 protocol;
@@ -20,11 +27,11 @@ struct ruleType {
         __u32 ip4_srcMask;
         __u32 ip6_srcMask[4];
     } srcMaskU;
-     __u16 dstPort[MAX_DST_PORTS];
+    __u16 dstPorts[MAX_DST_PORTS];
     __u8 icmpType;
     __u8 icmpCode;
     __u8 action;
-} __packed;
+};
 
 
 // using Longest prefix match in case of overlapping CIDRs we need to match to the more specific CIDR.
@@ -34,16 +41,16 @@ struct bpf_lpm_ip_key {
         __u8 ip4_data[4];
         __u8 ip6_data[16];
     } u;
-} __packed;
+};
 
 struct rulesVal {
     __u32 numRules;
     struct ruleType rules[0];
-} __packed;
+};
 
 struct ruleStatistics {
     __u64 packets;
     __u64 bytes;
-} __packed;
+};
 
 #endif

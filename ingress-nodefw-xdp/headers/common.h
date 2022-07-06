@@ -56,6 +56,25 @@ enum bpf_map_type {
 	BPF_MAP_TYPE_INODE_STORAGE         = 28,
 };
 
+enum xdp_action {
+	XDP_ABORTED = 0,
+	XDP_DROP = 1,
+	XDP_PASS = 2,
+	XDP_TX = 3,
+	XDP_REDIRECT = 4,
+};
+
+struct xdp_md {
+	__u32 data;
+	__u32 data_end;
+	__u32 data_meta;
+	__u32 ingress_ifindex;
+	__u32 rx_queue_index;
+	__u32 egress_ifindex;
+};
+
+typedef __u16 __sum16;
+
 enum {
 	BPF_ANY     = 0,
 	BPF_NOEXIST = 1,
@@ -68,6 +87,7 @@ enum {
  */
 #define BPF_F_INDEX_MASK 0xffffffffULL
 #define BPF_F_CURRENT_CPU BPF_F_INDEX_MASK
+#define BPF_F_NO_PREALLOC (1U << 0)
 
 #if defined(__TARGET_ARCH_x86)
 struct pt_regs {
