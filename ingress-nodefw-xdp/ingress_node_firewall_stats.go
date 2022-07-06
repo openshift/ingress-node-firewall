@@ -2,15 +2,16 @@ package nodefw
 
 import (
 	"fmt"
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/link"
 	"log"
 	"net"
 	"strings"
+
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
 )
 
 // $BPF_CLANG and $BPF_CFLAGS are set by the Makefile.
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS bpf ingress_node_firewall_kernel.c -- -I../headers
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS bpf ./src/ingress_node_firewall_kernel.c -- -I ./headers -I/usr/include/x86_64-linux-gnu/
 
 func IngressNodeFwStatsLoader(ifacesName []string) {
 	// Load pre-compiled programs into the kernel.
