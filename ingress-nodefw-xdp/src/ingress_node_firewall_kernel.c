@@ -29,21 +29,21 @@
 #define likely(expr) __builtin_expect(!!(expr), 1)
 #endif
 
-struct {
-  __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-  __uint(max_entries, 1 << 24);
-  __type(key, __u32); // ruleId
-  __type(value, struct ruleStatistics);
-} ingress_node_firewall_stats_map SEC(".maps");
+struct bpf_map_def SEC("maps") ingress_node_firewall_stats_map = {
+    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u64),
+    .max_entries = 1 << 24,
+};
 
-struct {
-  __uint(type, BPF_MAP_TYPE_LPM_TRIE);
-  __uint(max_entries, MAX_TARGETS);
-  __type(key_size, sizeof(struct bpf_lpm_ip_key));
-  __type(value_size, sizeof(struct rulesVal) +
-                         (sizeof(struct ruleType) * MAX_RULES_PER_TARGET));
-  __type(map_flags, BPF_F_NO_PREALLOC);
-} ingress_node_firewall_table_map SEC(".maps");
+struct bpf_map_def SEC("maps") ingress_node_firewall_table_map = {
+    .type = BPF_MAP_TYPE_LPM_TRIE,
+    .key_size = sizeof(struct bpf_lpm_ip_key),
+    .value_size = sizeof(struct rulesVal) +
+                  (sizeof(struct ruleType) * MAX_RULES_PER_TARGET),
+    .max_entries = MAX_TARGETS,
+    .map_flags = BPF_F_NO_PREALLOC,
+};
 
 __attribute__((__always_inline__)) static inline int
 ip_extract_l4Info(void *dataStart, void *dataEnd, __u16 *dstPort,
