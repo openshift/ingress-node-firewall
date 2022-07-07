@@ -2,7 +2,6 @@
 #include "bpf_endian.h"
 #include "bpf_tracing.h"
 #include "common.h"
-#include "ingress_node_fw.h"
 #include <linux/icmp.h>
 #include <linux/icmpv6.h>
 #include <linux/if_ether.h>
@@ -29,6 +28,58 @@
 #define likely(expr) __builtin_expect(!!(expr), 1)
 #endif
 
+#define UNDEF 0
+#define DENY XDP_DROP
+#define ALLOW XDP_PASS
+#define MAX_DST_PORTS 100
+#define MAX_TARGETS (1024)
+#define MAX_RULES_PER_TARGET (100)
+#define MAX_EVENT_DATA 512ul
+
+typedef struct {
+  __u16 ifId;
+  __u16 ruleId;
+  __u8 action;
+  __u8 fill;
+} event_hdr_st;
+
+typedef struct {
+  __u32 ruleId;
+  __u8 protocol;
+  union {
+    __u32 ip4_srcAddr;
+    __u32 ip6_srcAddr[4];
+  } srcAddrU;
+  union {
+    __u32 ip4_srcMask;
+    __u32 ip6_srcMask[4];
+  } srcMaskU;
+  __u16 dstPorts[MAX_DST_PORTS];
+  __u8 icmpType;
+  __u8 icmpCode;
+  __u8 action;
+} ruleType_st;
+
+// using Longest prefix match in case of overlapping CIDRs we need to match to
+// the more specific CIDR.
+typedef struct {
+  __u32 prefixLen;
+  union {
+    __u8 ip4_data[4];
+    __u8 ip6_data[16];
+  } u;
+} bpf_lpm_ip_key_st;
+
+typedef struct {
+  __u32 numRules;
+  ruleType_st rules[0];
+} rulesVal_st;
+
+typedef struct {
+  __u64 packets;
+  __u64 bytes;
+} ruleStatistics_st;
+
 struct bpf_map_def SEC("maps") ingress_node_firewall_stats_map = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(u32),
@@ -38,9 +89,9 @@ struct bpf_map_def SEC("maps") ingress_node_firewall_stats_map = {
 
 struct bpf_map_def SEC("maps") ingress_node_firewall_table_map = {
     .type = BPF_MAP_TYPE_LPM_TRIE,
-    .key_size = sizeof(struct bpf_lpm_ip_key),
-    .value_size = sizeof(struct rulesVal) +
-                  (sizeof(struct ruleType) * MAX_RULES_PER_TARGET),
+    .key_size = sizeof(bpf_lpm_ip_key_st),
+    .value_size = sizeof(rulesVal_st) +
+                  (sizeof(ruleType_st) * MAX_RULES_PER_TARGET),
     .max_entries = MAX_TARGETS,
     .map_flags = BPF_F_NO_PREALLOC,
 };
@@ -105,7 +156,7 @@ dstPort_match(__u16 *dstPorts, __u16 dstPort) {
 __attribute__((__always_inline__)) static inline __u32
 ipv4_checkTuple(void *dataStart, void *dataEnd) {
   struct iphdr *iph = dataStart;
-  struct bpf_lpm_ip_key key;
+  bpf_lpm_ip_key_st key;
   __u32 *srcAddr = &iph->saddr;
   __u16 dstPort = 0;
   __u8 icmpCode = 0, icmpType = 0;
@@ -121,7 +172,7 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
     key.u.ip4_data[i] = (*srcAddr >> (i * 4)) & 0xFF;
   }
 
-  struct rulesVal *rulesVal = (struct rulesVal *)bpf_map_lookup_elem(
+  rulesVal_st *rulesVal = (rulesVal_st *)bpf_map_lookup_elem(
       &ingress_node_firewall_table_map, &key);
 
   if (NULL != rulesVal) {
@@ -129,7 +180,7 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
     for (i = 0; i < MAX_RULES_PER_TARGET; ++i) {
       if (unlikely(i >= rulesVal->numRules))
         break;
-      const struct ruleType *rule = &rulesVal->rules[i];
+      ruleType_st *rule = &rulesVal->rules[i];
       if (rule->protocol != 0) {
         if ((rule->protocol == IPPROTO_TCP) ||
             (rule->protocol == IPPROTO_UDP)) {
@@ -155,7 +206,7 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
 __attribute__((__always_inline__)) static inline __u32
 ipv6_checkTuple(void *dataStart, void *dataEnd) {
   struct iphdr *iph = dataStart;
-  struct bpf_lpm_ip_key key;
+  bpf_lpm_ip_key_st key;
   __u32 *srcAddr = &iph->saddr;
   __u16 dstPort = 0;
   __u8 icmpCode = 0, icmpType = 0;
@@ -171,7 +222,7 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
     key.u.ip6_data[i] = (srcAddr[i / 4] >> ((i % 4) * 4)) & 0xFF;
   }
 
-  struct rulesVal *rulesVal = (struct rulesVal *)bpf_map_lookup_elem(
+  rulesVal_st *rulesVal = (rulesVal_st *)bpf_map_lookup_elem(
       &ingress_node_firewall_table_map, &key);
 
   if (NULL != rulesVal) {
@@ -180,7 +231,7 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
       if (unlikely(i >= rulesVal->numRules))
         break;
 
-      const struct ruleType *rule = &rulesVal->rules[i];
+      ruleType_st *rule = &rulesVal->rules[i];
       if (rule->protocol != 0) {
         if ((rule->protocol == IPPROTO_TCP) ||
             (rule->protocol == IPPROTO_UDP)) {
@@ -217,7 +268,7 @@ __attribute__((__always_inline__)) static inline void
 sendEvent(struct xdp_md *ctx, __u16 packet_len, __u8 action, __u16 ruleId) {
   __u64 flags = 0; // BPF_F_CURRENT_CPU;
   __u16 headerSize;
-  struct event_hdr hdr;
+  event_hdr_st hdr;
 
   hdr.ruleId = ruleId;
   hdr.action = action;

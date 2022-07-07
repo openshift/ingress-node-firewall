@@ -2,12 +2,11 @@ package nodefw
 
 import (
 	"fmt"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
 	"log"
 	"net"
 	"strings"
-
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/link"
 )
 
 // $BPF_CLANG and $BPF_CFLAGS are set by the Makefile.

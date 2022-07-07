@@ -83,7 +83,3 @@ generate:
 	$(CLANG) $(CFLAGS) -target bpfeb -c $< -o $@
 	$(STRIP) -g $@
 
-run: 
-	go generate ./
-	go build 
-	sudo ./ebpf
