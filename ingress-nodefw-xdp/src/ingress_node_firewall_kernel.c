@@ -53,6 +53,7 @@ ip_extract_l4Info(void *dataStart, void *dataEnd, __u16 *dstPort,
   if (unlikely(dataStart > dataEnd)) {
     return -1;
   }
+
   if (likely(IPPROTO_TCP == iph->protocol)) {
     struct tcphdr *tcph = (struct tcphdr *)dataStart;
     dataStart += sizeof(struct tcphdr);
@@ -86,6 +87,7 @@ ip_extract_l4Info(void *dataStart, void *dataEnd, __u16 *dstPort,
   } else {
     return -1;
   }
+
   return 0;
 }
 
@@ -137,6 +139,7 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
             return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
           }
         }
+
         if (rule->protocol == IPPROTO_ICMP) {
           if ((rule->icmpType == icmpType) && (rule->icmpCode == icmpCode)) {
             return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
@@ -176,6 +179,7 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
     for (i = 0; i < MAX_RULES_PER_TARGET; ++i) {
       if (unlikely(i >= rulesVal->numRules))
         break;
+
       const struct ruleType *rule = &rulesVal->rules[i];
       if (rule->protocol != 0) {
         if ((rule->protocol == IPPROTO_TCP) ||
@@ -196,6 +200,7 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
             return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
           }
         }
+
         if (rule->protocol == IPPROTO_ICMPV6) {
           if ((rule->icmpType == icmpType) && (rule->icmpCode == icmpCode)) {
             return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
@@ -204,6 +209,7 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
       }
     }
   }
+
   return SET_ACTION(UNDEF);
 }
 

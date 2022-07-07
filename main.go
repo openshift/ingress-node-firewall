@@ -31,8 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	ingressnodefwiov1alpha1 "ingress-node-firewall-test/api/v1alpha1"
-	"ingress-node-firewall-test/controllers"
+	ingressnodefwiov1alpha1 "ingress-node-firewall/api/v1alpha1"
+	"ingress-node-firewall/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
