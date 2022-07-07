@@ -65,7 +65,7 @@ clean:
 format:
 	find . -type f -name "*.c" | xargs clang-format -i
 
-all: format $(addsuffix -el.elf,$(TARGETS)) $(addsuffix -eb.elf,$(TARGETS)) generate
+all: format $(addsuffix -el.elf,$(TARGETS)) $(addsuffix -eb.elf,$(TARGETS)) generate build
 	ln -srf testdata/loader-$(CLANG)-el.elf testdata/loader-el.elf
 	ln -srf testdata/loader-$(CLANG)-eb.elf testdata/loader-eb.elf
 
@@ -74,6 +74,9 @@ generate: export BPF_CLANG := $(CLANG)
 generate: export BPF_CFLAGS := $(CFLAGS)
 generate:
 	go generate ./
+
+build:
+	go build
 
 %-el.elf: %.c
 	$(CLANG) $(CFLAGS) -target bpfel -c $< -o $@

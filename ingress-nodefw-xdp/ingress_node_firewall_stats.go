@@ -20,7 +20,7 @@ func IngressNodeFwStatsLoader(ifacesName []string) {
 	}
 	defer objs.Close()
 
-	for ifaceName := range ifacesName {
+	for _, ifaceName := range ifacesName {
 		// Look up the network interface by name.
 		iface, err := net.InterfaceByName(ifaceName)
 		if err != nil {
@@ -28,7 +28,7 @@ func IngressNodeFwStatsLoader(ifacesName []string) {
 		}
 		// Attach the program.
 		l, err := link.AttachXDP(link.XDPOptions{
-			Program:   objs.XdpProgFunc,
+			Program:   objs.IngresNodeFirewallProcess,
 			Interface: iface.Index,
 		})
 		if err != nil {
