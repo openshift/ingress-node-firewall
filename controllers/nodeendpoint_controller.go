@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	ingressnodefwiov1alpha1 "ingress-node-firewall-test/api/v1alpha1"
+	ingressnodefwiov1alpha1 "ingress-node-firewall/api/v1alpha1"
 )
 
 // NodeEndpointReconciler reconciles a NodeEndpoint object

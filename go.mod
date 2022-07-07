@@ -1,4 +1,4 @@
-module ingress-node-firewall-test
+module ingress-node-firewall
 
 go 1.18
 

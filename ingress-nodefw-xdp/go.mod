@@ -1,4 +1,4 @@
-module ingress-node-firewall-test/ingress-nodefw-xdp
+module ingress-node-firewall/ingress-nodefw-xdp
 
 go 1.18
 
