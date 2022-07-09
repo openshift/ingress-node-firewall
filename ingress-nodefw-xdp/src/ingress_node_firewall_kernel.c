@@ -36,14 +36,14 @@
 #define MAX_RULES_PER_TARGET (100)
 #define MAX_EVENT_DATA 512ul
 
-typedef struct {
+struct event_hdr_st {
   __u16 ifId;
   __u16 ruleId;
   __u8 action;
   __u8 fill;
-} event_hdr_st;
+} __attribute__((packed));
 
-typedef struct {
+struct ruleType_st {
   __u32 ruleId;
   __u8 protocol;
   union {
@@ -58,43 +58,42 @@ typedef struct {
   __u8 icmpType;
   __u8 icmpCode;
   __u8 action;
-} ruleType_st;
+} __attribute__((packed));
 
 // using Longest prefix match in case of overlapping CIDRs we need to match to
 // the more specific CIDR.
-typedef struct {
+struct bpf_lpm_ip_key_st {
   __u32 prefixLen;
   union {
     __u8 ip4_data[4];
     __u8 ip6_data[16];
   } u;
-} bpf_lpm_ip_key_st;
+} __attribute__((packed));
 
-typedef struct {
+struct rulesVal_st {
   __u32 numRules;
-  ruleType_st rules[0];
-} rulesVal_st;
+  struct ruleType_st rules[0];
+} __attribute__((packed));
 
-typedef struct {
+struct ruleStatistics_st {
   __u64 packets;
   __u64 bytes;
-} ruleStatistics_st;
+} __attribute__((packed));
 
-struct bpf_map_def SEC("maps") ingress_node_firewall_stats_map = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u64),
-    .max_entries = 1 << 24,
-};
+struct {
+  __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+  __type(key, u32);
+  __type(value, struct ruleStatistics_st);
+  __uint(max_entries, 1 << 24);
+} ingress_node_firewall_stats_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") ingress_node_firewall_table_map = {
-    .type = BPF_MAP_TYPE_LPM_TRIE,
-    .key_size = sizeof(bpf_lpm_ip_key_st),
-    .value_size = sizeof(rulesVal_st) +
-                  (sizeof(ruleType_st) * MAX_RULES_PER_TARGET),
-    .max_entries = MAX_TARGETS,
-    .map_flags = BPF_F_NO_PREALLOC,
-};
+struct {
+  __uint(type, BPF_MAP_TYPE_LPM_TRIE);
+  __type(key, struct bpf_lpm_ip_key_st);
+  __type(value, struct rulesVal_st);
+  __uint(max_entries, MAX_TARGETS);
+  __uint(map_flags, BPF_F_NO_PREALLOC);
+} ingress_node_firewall_table_map SEC(".maps");
 
 __attribute__((__always_inline__)) static inline int
 ip_extract_l4Info(void *dataStart, void *dataEnd, __u16 *dstPort,
@@ -156,7 +155,7 @@ dstPort_match(__u16 *dstPorts, __u16 dstPort) {
 __attribute__((__always_inline__)) static inline __u32
 ipv4_checkTuple(void *dataStart, void *dataEnd) {
   struct iphdr *iph = dataStart;
-  bpf_lpm_ip_key_st key;
+  struct bpf_lpm_ip_key_st key;
   __u32 *srcAddr = &iph->saddr;
   __u16 dstPort = 0;
   __u8 icmpCode = 0, icmpType = 0;
@@ -172,7 +171,7 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
     key.u.ip4_data[i] = (*srcAddr >> (i * 4)) & 0xFF;
   }
 
-  rulesVal_st *rulesVal = (rulesVal_st *)bpf_map_lookup_elem(
+  struct rulesVal_st *rulesVal = (struct rulesVal_st *)bpf_map_lookup_elem(
       &ingress_node_firewall_table_map, &key);
 
   if (NULL != rulesVal) {
@@ -180,7 +179,7 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
     for (i = 0; i < MAX_RULES_PER_TARGET; ++i) {
       if (unlikely(i >= rulesVal->numRules))
         break;
-      ruleType_st *rule = &rulesVal->rules[i];
+      struct ruleType_st *rule = &rulesVal->rules[i];
       if (rule->protocol != 0) {
         if ((rule->protocol == IPPROTO_TCP) ||
             (rule->protocol == IPPROTO_UDP)) {
@@ -206,7 +205,7 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
 __attribute__((__always_inline__)) static inline __u32
 ipv6_checkTuple(void *dataStart, void *dataEnd) {
   struct iphdr *iph = dataStart;
-  bpf_lpm_ip_key_st key;
+  struct bpf_lpm_ip_key_st key;
   __u32 *srcAddr = &iph->saddr;
   __u16 dstPort = 0;
   __u8 icmpCode = 0, icmpType = 0;
@@ -222,7 +221,7 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
     key.u.ip6_data[i] = (srcAddr[i / 4] >> ((i % 4) * 4)) & 0xFF;
   }
 
-  rulesVal_st *rulesVal = (rulesVal_st *)bpf_map_lookup_elem(
+  struct rulesVal_st *rulesVal = (struct rulesVal_st *)bpf_map_lookup_elem(
       &ingress_node_firewall_table_map, &key);
 
   if (NULL != rulesVal) {
@@ -231,7 +230,7 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
       if (unlikely(i >= rulesVal->numRules))
         break;
 
-      ruleType_st *rule = &rulesVal->rules[i];
+      struct ruleType_st *rule = &rulesVal->rules[i];
       if (rule->protocol != 0) {
         if ((rule->protocol == IPPROTO_TCP) ||
             (rule->protocol == IPPROTO_UDP)) {
@@ -268,7 +267,7 @@ __attribute__((__always_inline__)) static inline void
 sendEvent(struct xdp_md *ctx, __u16 packet_len, __u8 action, __u16 ruleId) {
   __u64 flags = 0; // BPF_F_CURRENT_CPU;
   __u16 headerSize;
-  event_hdr_st hdr;
+  struct event_hdr_st hdr;
 
   hdr.ruleId = ruleId;
   hdr.action = action;
