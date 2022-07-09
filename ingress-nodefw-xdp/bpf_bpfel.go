@@ -13,6 +13,39 @@ import (
 	"github.com/cilium/ebpf"
 )
 
+type bpfBpfLpmIpKeySt struct {
+	PrefixLen uint32
+	U         struct {
+		Ip4Data [4]uint8
+		_       [12]byte
+	}
+}
+
+type bpfRuleStatisticsSt struct {
+	Packets uint64
+	Bytes   uint64
+}
+
+type bpfRulesValSt struct {
+	NumRules uint32
+	Rules    [0]struct {
+		RuleId   uint32
+		Protocol uint8
+		SrcAddrU struct {
+			Ip4SrcAddr uint32
+			_          [12]byte
+		}
+		SrcMaskU struct {
+			Ip4SrcMask uint32
+			_          [12]byte
+		}
+		DstPorts [100]uint16
+		IcmpType uint8
+		IcmpCode uint8
+		Action   uint8
+	}
+}
+
 // loadBpf returns the embedded CollectionSpec for bpf.
 func loadBpf() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_BpfBytes)
