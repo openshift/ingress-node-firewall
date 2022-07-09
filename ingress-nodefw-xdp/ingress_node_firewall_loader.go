@@ -7,7 +7,7 @@ import (
 )
 
 // $BPF_CLANG and $BPF_CFLAGS are set by the Makefile.
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS  bpf ./src/ingress_node_firewall_kernel.c -- -I ./headers -I/usr/include/x86_64-linux-gnu/
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS bpf ./src/ingress_node_firewall_kernel.c -- -I ./headers -I/usr/include/x86_64-linux-gnu/
 
 func IngressNodeFwRulesLoader(key bpfBpfLpmIpKeySt , rules bpfRulesValSt) error {
 	// Load pre-compiled programs into the kernel.
