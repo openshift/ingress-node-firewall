@@ -80,5 +80,5 @@ More information can be found via the [Kubebuilder Documentation](https://book.k
 If you are editing or modifying kernel hook or eBPF loaders, to rebuild all run:
 
 ```sh
-make build-ebpf
+make build
 ```
