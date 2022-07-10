@@ -91,7 +91,7 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: generate
-generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+generate: controller-gen ebpf-generate ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 .PHONY: fmt
@@ -109,7 +109,7 @@ test: manifests generate fmt vet envtest ## Run tests.
 ##@ Build
 
 .PHONY: build
-build: generate fmt vet ## Build manager binary.
+build: prereqs generate fmt vet ## Build manager binary.
 	go build -o bin/manager main.go
 
 .PHONY: run
@@ -211,6 +211,11 @@ OPM = $(shell which opm)
 endif
 endif
 
+.PHONY: vendors
+vendors: ## Updating vendors
+	go mod tidy && go mod vendor
+
+
 # A comma-separated list of bundle images (e.g. make catalog-build BUNDLE_IMGS=example.com/operator-bundle:v0.1.0,example.com/operator-bundle:v0.2.0).
 # These images MUST exist in a registry and be pull-able.
 BUNDLE_IMGS ?= $(BUNDLE_IMG)
@@ -235,8 +240,33 @@ catalog-build: opm ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
 
+CILIUM_EBPF_VERSION := v0.9.0
+GOLANGCI_LINT_VERSION = v1.46.2
+CLANG ?= clang
+CFLAGS := -O2 -g -Wall -Werror $(CFLAGS)
+GOOS ?= linux
+LOCAL_GENERATOR_IMAGE ?= ebpf-generator:latest
+
 ##@ eBPF development
-# Build eBPF code.
-.PHONY: build-ebpf
-build-ebpf: ## Build IngressFW eBPF code.
-	$(MAKE) -C ./ingress-nodefw-xdp/
+.PHONY: prereqs
+prereqs: ## Check if prerequisites are met, and installing missing dependencies
+	test -f $(shell go env GOPATH)/bin/golangci-lint || GOFLAGS="" go install github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}
+	test -f $(shell go env GOPATH)/bin/bpf2go || go install github.com/cilium/ebpf/cmd/bpf2go@${CILIUM_EBPF_VERSION}
+	test -f $(shell go env GOPATH)/bin/kind || go install sigs.k8s.io/kind@latest
+
+
+# As generated artifacts are part of the code repo (pkg/ebpf and pkg/proto packages), you don't have
+# to run this target for each build. Only when you change the C code inside the bpf folder or the
+# protobuf definitions in the proto folder.
+# You might want to use the docker-generate target instead of this.
+.PHONY: ebpf-generate
+generate: export BPF_CLANG := $(CLANG)
+generate: export BPF_CFLAGS := $(CFLAGS)
+ebpf-generate: prereqs
+	@echo "### Generating BPF Go bindings"
+	go generate ./pkg/...
+
+.PHONY: docker-generate
+docker-generate: ## Creating the container that generates the eBPF binaries
+	docker build . -f hack/generators.Dockerfile -t $(LOCAL_GENERATOR_IMAGE)
+	docker run --rm -v $(shell pwd):/src $(LOCAL_GENERATOR_IMAGE)
