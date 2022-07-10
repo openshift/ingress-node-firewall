@@ -2,6 +2,7 @@
 #include "bpf_endian.h"
 #include "bpf_tracing.h"
 #include "common.h"
+#include "ingress_node_firewall.h"
 #include <linux/icmp.h>
 #include <linux/icmpv6.h>
 #include <linux/if_ether.h>
@@ -13,72 +14,6 @@
 #include <linux/tcp.h>
 #include <linux/udp.h>
 
-#define GET_ACTION(a) (__u8)((a)&0xFF)
-#define SET_ACTION(a) (__u32)(((__u32)a) & 0xFF)
-#define GET_RULE_ID(r) (__u16)(((r) >> 8) & 0xFFFFFF)
-#define SET_RULE_ID(r) (__u32)((((__u32)(r)) & 0xFFFFFF) << 8)
-#define SET_ACTIONRULE_RESPONSE(a, r)                                          \
-  (__u32)((((__u32)(r)) & 0xFFFFFF) << 8 | (a)&0xFF)
-
-#ifndef unlikely
-#define unlikely(expr) __builtin_expect(!!(expr), 0)
-#endif
-
-#ifndef likely
-#define likely(expr) __builtin_expect(!!(expr), 1)
-#endif
-
-#define UNDEF 0
-#define DENY XDP_DROP
-#define ALLOW XDP_PASS
-#define MAX_DST_PORTS 100
-#define MAX_TARGETS (1024)
-#define MAX_RULES_PER_TARGET (100)
-#define MAX_EVENT_DATA 512ul
-
-struct event_hdr_st {
-  __u16 ifId;
-  __u16 ruleId;
-  __u8 action;
-  __u8 fill;
-} __attribute__((packed));
-
-struct ruleType_st {
-  __u32 ruleId;
-  __u8 protocol;
-  union {
-    __u32 ip4_srcAddr;
-    __u32 ip6_srcAddr[4];
-  } srcAddrU;
-  union {
-    __u32 ip4_srcMask;
-    __u32 ip6_srcMask[4];
-  } srcMaskU;
-  __u16 dstPorts[MAX_DST_PORTS];
-  __u8 icmpType;
-  __u8 icmpCode;
-  __u8 action;
-} __attribute__((packed));
-
-// using Longest prefix match in case of overlapping CIDRs we need to match to
-// the more specific CIDR.
-struct bpf_lpm_ip_key_st {
-  __u32 prefixLen;
-  union {
-    __u8 ip4_data[4];
-    __u8 ip6_data[16];
-  } u;
-} __attribute__((packed));
-
-struct rulesVal_st {
-  __u32 numRules;
-  struct ruleType_st rules[0];
-} __attribute__((packed));
-
-struct ruleStatistics_st {
-  __u64 packets;
-  __u64 bytes;
-} __attribute__((packed));
 
 struct {
   __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
