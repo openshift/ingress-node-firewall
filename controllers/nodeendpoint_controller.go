@@ -18,19 +18,22 @@ package controllers
 
 import (
 	"context"
+	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
+	nodefwloader "ingress-node-firewall/pkg/ebpf"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
+	ingressnodefwiov1alpha1 "ingress-node-firewall/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	ingressnodefwiov1alpha1 "ingress-node-firewall/api/v1alpha1"
 )
 
 // NodeEndpointReconciler reconciles a NodeEndpoint object
 type NodeEndpointReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Log    logr.Logger
 }
 
 //+kubebuilder:rbac:groups=ingress-nodefw.io.ingress-nodefw.io,resources=nodeendpoints,verbs=get;list;watch;create;update;patch;delete
@@ -39,19 +42,42 @@ type NodeEndpointReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the NodeEndpoint object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
 func (r *NodeEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	_ = context.Background()
+	instance := &ingressnodefwiov1alpha1.NodeEndpoint{}
+	err := r.Get(context.TODO(), req.NamespacedName, instance)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// Request object not found, could have been deleted after reconcile request.
+			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
+			// Return and don't requeue
+			return r.reconcileResource(ctx, req, instance, true)
+		}
+		// Error reading the object - requeue the request.
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+	return r.reconcileResource(ctx, req, instance, false)
+}
 
-	// TODO(user): your logic here
-
+func (r *NodeEndpointReconciler) reconcileResource(ctx context.Context, req ctrl.Request, instance *ingressnodefwiov1alpha1.NodeEndpoint, isDelete bool) (ctrl.Result, error) {
+	if err := r.syncIngressNodeEndPointResources(instance, isDelete); err != nil {
+		return ctrl.Result{}, errors.Wrapf(err, "FailedToSyncIngressNodeEndPointResources")
+	}
 	return ctrl.Result{}, nil
+}
+
+func (r *NodeEndpointReconciler) syncIngressNodeEndPointResources(instance *ingressnodefwiov1alpha1.NodeEndpoint, isDelete bool) error {
+	logger := r.Log.WithName("syncIngressNodeEndPointResources")
+	logger.Info("Start")
+	// HACK-POC: we can't attach the operator
+	if err := nodefwloader.IngessNodeFwAttach(instance.Spec.Interfaces, isDelete); err != nil {
+		logger.Error(err, "Fail to attach ingress node fw to %v", instance.Spec.Interfaces)
+		return err
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

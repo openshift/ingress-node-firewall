@@ -35,7 +35,7 @@ spec:
           spec:
             description: NodeEndpointSpec defines the desired state of NodeEndpoint
             properties:
-              interface:
+              interfaces:
                 description: A list of interfaces where the ingress firewall policy
                   will be applied on. empty list indicates the firewall policy applied
                   on all interfaces

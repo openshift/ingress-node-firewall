@@ -92,6 +92,7 @@ func main() {
 	if err = (&controllers.IngressNodeFirewallReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Log:    ctrl.Log.WithName("controllers").WithName("IngressNodeFirewall"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "IngressNodeFirewall")
 		os.Exit(1)
@@ -99,14 +100,17 @@ func main() {
 	if err = (&controllers.NodeEndpointReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Log:    ctrl.Log.WithName("controllers").WithName("IngressNodeEndpoint"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NodeEndpoint")
 		os.Exit(1)
 	}
+	/* FIXME: enable webhook
 	if err = (&ingressnodefwiov1alpha1.IngressNodeFirewall{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "IngressNodeFirewall")
 		os.Exit(1)
 	}
+	*/
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

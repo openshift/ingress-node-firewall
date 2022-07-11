@@ -43,7 +43,13 @@ spec:
                   description: IngressNodeFirewallRules define ingress node firewall
                     rule
                   properties:
-                    firewallProtocolRules:
+                    fromCIDRs:
+                      description: FromCIDRS is A list of CIDR from which we apply
+                        node firewall rule
+                      items:
+                        type: string
+                      type: array
+                    rules:
                       description: FirewallProtocolRules is A list of per protocol
                         ingress node firewall rules
                       items:
@@ -51,11 +57,11 @@ spec:
                           node firewall rule per protocol
                         properties:
                           action:
-                            description: Action can be Allow or Deny.
+                            description: Action can be allow or deny.
                             enum:
-                            - Allow
-                            - Deny
-                            pattern: ^Allow|Deny$
+                            - allow
+                            - deny
+                            pattern: ^allow|deny$
                             type: string
                           icmpRule:
                             description: IngressNodeFirewallICMPRule define ingress
@@ -69,12 +75,9 @@ spec:
                               icmpType:
                                 description: ICMPType define ICMP Type Numbers (RFC
                                   792).
-                                maximum: 43
+                                maximum: 255
                                 minimum: 0
                                 type: integer
-                            required:
-                            - icmpCode
-                            - icmpType
                             type: object
                           order:
                             description: Order define order of execution of ingress
@@ -97,29 +100,17 @@ spec:
                             description: Protocol can be ICMP, ICMPv6, TCP, SCTP or
                               UDP.
                             enum:
-                            - ICMP
-                            - ICMPv6
-                            - TCP
-                            - UDP
-                            - SCTP
+                            - icmp
+                            - icmpv6
+                            - tcp
+                            - udp
+                            - sctp
                             type: string
-                        required:
-                        - action
-                        - icmpRule
-                        - order
-                        - protoRule
-                        - protocol
                         type: object
                       type: array
-                    fromCIDRs:
-                      description: FromCIDRS is A list of CIDR from which we apply
-                        node firewall rule
-                      items:
-                        type: string
-                      type: array
                   required:
-                  - firewallProtocolRules
                   - fromCIDRs
+                  - rules
                   type: object
                 type: array
               nodeSelector:

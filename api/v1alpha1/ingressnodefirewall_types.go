@@ -24,14 +24,16 @@ import (
 type IngressNodeFirewallICMPRule struct {
 	// ICMPType define ICMP Type Numbers (RFC 792).
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Maximum:=43
+	// +kubebuilder:validation:Maximum:=255
 	// +kubebuilder:validation:Minimum:=0
+	// +optional
 	ICMPType uint8 `json:"icmpType"`
 
 	// ICMPCode define ICMP Code ID (RFC 792).
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Maximum:=16
 	// +kubebuilder:validation:Minimum:=0
+	// +optional
 	ICMPCode uint8 `json:"icmpCode"`
 }
 
@@ -48,22 +50,27 @@ type IngressNodeFirewallProtocolRule struct {
 	// Order define order of execution of ingress firewall rules .
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Minimum:=1
+	// +optional
 	Order uint32 `json:"order"`
 
 	// IngressNodeFirewallProtoRule define ingress node firewall rule for TCP, UDP and SCTP protocols.
+	// +optional
 	ProtocolRule IngressNodeFirewallProtoRule `json:"protoRule"`
 
 	// IngressNodeFirewallICMPRule define ingress node firewall rule for ICMP and ICMPv6 protocols.
+	// +optional
 	ICMPRule IngressNodeFirewallICMPRule `json:"icmpRule"`
 
 	// Protocol can be ICMP, ICMPv6, TCP, SCTP or UDP.
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum="ICMP";"ICMPv6";"TCP";"UDP";"SCTP"
+	// +kubebuilder:validation:Enum="icmp";"icmpv6";"tcp";"udp";"sctp"
+	// +optional
 	Protocol IngressNodeFirewallRuleProtocolType `json:"protocol"`
 
-	// Action can be Allow or Deny.
+	// Action can be allow or deny.
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum="Allow";"Deny"
+	// +kubebuilder:validation:Enum="allow";"deny"
+	// +optional
 	Action IngressNodeFirewallActionType `json:"action"`
 }
 
@@ -72,28 +79,28 @@ type IngressNodeFirewallRuleProtocolType string
 
 const (
 	// ProtocolTypeICMP refers to the ICMP protocol
-	ProtocolTypeICMP IngressNodeFirewallRuleProtocolType = "ICMP"
+	ProtocolTypeICMP IngressNodeFirewallRuleProtocolType = "icmp"
 
 	// ProtocolTypeICMPv6 refers to the ICMPv6 protocol
-	ProtocolTypeICMPv6 IngressNodeFirewallRuleProtocolType = "ICMPv6"
+	ProtocolTypeICMPv6 IngressNodeFirewallRuleProtocolType = "icmp6"
 
 	// ProtocolTypeTCP refers to the TCP protocol, for either IPv4 or IPv6
-	ProtocolTypeTCP IngressNodeFirewallRuleProtocolType = "TCP"
+	ProtocolTypeTCP IngressNodeFirewallRuleProtocolType = "tcp"
 
 	// ProtocolTypeUDP refers to the UDP protocol, for either IPv4 or IPv6
-	ProtocolTypeUDP IngressNodeFirewallRuleProtocolType = "UDP"
+	ProtocolTypeUDP IngressNodeFirewallRuleProtocolType = "udp"
 
 	// ProtocolTypeSCTP refers to the SCTP protocol, for either IPv4 or IPv6
-	ProtocolTypeSCTP IngressNodeFirewallRuleProtocolType = "SCTP"
+	ProtocolTypeSCTP IngressNodeFirewallRuleProtocolType = "sctp"
 )
 
 // IngressNodeFirewallActionType indicates whether an IngressNodeFirewallRule allows or denies traffic
-// +kubebuilder:validation:Pattern=`^Allow|Deny$`
+// +kubebuilder:validation:Pattern=`^allow|deny$`
 type IngressNodeFirewallActionType string
 
 const (
-	IngressNodeFirewallAllow IngressNodeFirewallActionType = "Allow"
-	IngressNodeFirewallDeny  IngressNodeFirewallActionType = "Deny"
+	IngressNodeFirewallAllow IngressNodeFirewallActionType = "allow"
+	IngressNodeFirewallDeny  IngressNodeFirewallActionType = "deny"
 )
 
 // IngressNodeFirewallRules define ingress node firewall rule
@@ -101,7 +108,7 @@ type IngressNodeFirewallRules struct {
 	// FromCIDRS is A list of CIDR from which we apply node firewall rule
 	FromCIDRs []string `json:"fromCIDRs"`
 	// FirewallProtocolRules is A list of per protocol ingress node firewall rules
-	FirewallProtocolRules []IngressNodeFirewallProtocolRule `json:"firewallProtocolRules"`
+	FirewallProtocolRules []IngressNodeFirewallProtocolRule `json:"rules"`
 }
 
 // IngressNodeFirewallSpec defines the desired state of IngressNodeFirewall

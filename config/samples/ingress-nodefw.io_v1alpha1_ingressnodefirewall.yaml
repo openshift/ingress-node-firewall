@@ -3,36 +3,41 @@ kind: IngressNodeFirewall
 metadata:
   name: ingressnodefirewall-sample
 spec:
-  nodeSelector: has(do-node-ingress-firewall)
+  nodeSelector:
+    do-node-ingress-firewall: 'true'
   ingress:
-  - fromCIDRS:
+  - fromCIDRs:
        - 1.1.1.1/24
        - 100:1::1/64
     rules:
     - order: 10
       protocol: tcp
-      ports: [100]
+      protoRule:
+        ports: [100]
       action: allow
     - order: 20
       protocol: udp
-      ports: [8000, 8080, 9000]
+      protoRule:
+        ports: [8000, 8080, 9000]
       action: allow
-  - fromCIDRS:
+  - fromCIDRs:
        - 3.3.3.3/24
     rules:
     - order: 10
       protocol: icmp
-      type: 3 # Destination unreachable
-      code: 1 # Host unreachable
+      icmpRule:
+        icmpType: 3 # Destination unreachable
+        icmpCode: 1 # Host unreachable
       action: allow
-  - fromCIDRS:
+  - fromCIDRs:
        - 10:10::1/64
     rules:
     - order: 10
       protocol: icmpv6
-      type: 128 # Ping request
+      icmpRule:
+        icmpType: 128 # Ping request
       action: deny
-  - fromCIDRS:
+  - fromCIDRs:
        - 0.0.0.0/0
        - 0::0/0
     rules:
