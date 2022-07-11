@@ -122,6 +122,12 @@ spec:
                   - fromCIDRs
                   type: object
                 type: array
+              nodeSelector:
+                additionalProperties:
+                  type: string
+                description: Selects node(s) where ingress firewall rules will be
+                  applied to
+                type: object
             type: object
           status:
             description: IngressNodeFirewallStatus defines the observed state of IngressNodeFirewall

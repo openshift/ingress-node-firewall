@@ -106,6 +106,10 @@ type IngressNodeFirewallRules struct {
 
 // IngressNodeFirewallSpec defines the desired state of IngressNodeFirewall
 type IngressNodeFirewallSpec struct {
+	// Selects node(s) where ingress firewall rules will be applied to
+	// +optional
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
 	// A list of ingress firewall policy rules.
 	// empty list indicates no ingress firewall i.e allow all incoming traffic.
 	// +kubebuilder:validation:Optional
