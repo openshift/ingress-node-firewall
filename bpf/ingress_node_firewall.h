@@ -34,14 +34,6 @@ struct event_hdr_st {
 struct ruleType_st {
   __u32 ruleId;
   __u8 protocol;
-  union {
-    __u32 ip4_srcAddr;
-    __u32 ip6_srcAddr[4];
-  } srcAddrU;
-  union {
-    __u32 ip4_srcMask;
-    __u32 ip6_srcMask[4];
-  } srcMaskU;
   __u16 dstPorts[MAX_DST_PORTS];
   __u8 icmpType;
   __u8 icmpCode;
@@ -60,7 +52,7 @@ struct bpf_lpm_ip_key_st {
 
 struct rulesVal_st {
   __u32 numRules;
-  struct ruleType_st rules[0];
+  struct ruleType_st rules[MAX_RULES_PER_TARGET];
 } __attribute__((packed));
 
 struct ruleStatistics_st {

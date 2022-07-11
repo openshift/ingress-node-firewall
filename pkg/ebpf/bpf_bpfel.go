@@ -28,17 +28,9 @@ type bpfRuleStatisticsSt struct {
 
 type bpfRulesValSt struct {
 	NumRules uint32
-	Rules    [0]struct {
+	Rules    [100]struct {
 		RuleId   uint32
 		Protocol uint8
-		SrcAddrU struct {
-			Ip4SrcAddr uint32
-			_          [12]byte
-		}
-		SrcMaskU struct {
-			Ip4SrcMask uint32
-			_          [12]byte
-		}
 		DstPorts [100]uint16
 		IcmpType uint8
 		IcmpCode uint8

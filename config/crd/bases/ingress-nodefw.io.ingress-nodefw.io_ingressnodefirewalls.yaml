@@ -76,6 +76,12 @@ spec:
                             - icmpCode
                             - icmpType
                             type: object
+                          order:
+                            description: Order define order of execution of ingress
+                              firewall rules .
+                            format: int32
+                            minimum: 1
+                            type: integer
                           protoRule:
                             description: IngressNodeFirewallProtoRule define ingress
                               node firewall rule for TCP, UDP and SCTP protocols.
@@ -84,7 +90,6 @@ spec:
                                 description: start-end range of dstPorts or [port1,
                                   port2,..., portn].
                                 items:
-                                  format: int32
                                   type: integer
                                 type: array
                             type: object
@@ -101,6 +106,7 @@ spec:
                         required:
                         - action
                         - icmpRule
+                        - order
                         - protoRule
                         - protocol
                         type: object
@@ -109,16 +115,7 @@ spec:
                       description: FromCIDRS is A list of CIDR from which we apply
                         node firewall rule
                       items:
-                        description: IngressNodeFirewallFromCIDR define ingress node
-                          CIDR matching field
-                        properties:
-                          fromCIDR:
-                            description: FromCIDR is the IPv4/IPv6 CIDR from which
-                              we apply node firewall rule
-                            type: string
-                        required:
-                        - fromCIDR
-                        type: object
+                        type: string
                       type: array
                   required:
                   - firewallProtocolRules

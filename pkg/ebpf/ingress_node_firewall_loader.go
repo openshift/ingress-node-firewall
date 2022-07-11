@@ -1,19 +1,27 @@
 package nodefw
 
 import (
-	cebpf "github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/link"
-	"github.com/cilium/ebpf/rlimit"
-
-	ingressnodefwiov1alpha1 "ingress-node-firewall/api/v1alpha1"
-	"k8s.io/klog"
+	"fmt"
 	"log"
 	"net"
+	"syscall"
+
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
+	"github.com/cilium/ebpf/rlimit"
+	"k8s.io/klog"
+
+	ingressnodefwiov1alpha1 "ingress-node-firewall/api/v1alpha1"
+)
+
+const (
+	XDPDeny  = 1 // XDP_DROP value
+	XDPAllow = 2 // XDP_PASS value
 )
 
 // $BPF_CLANG and $BPF_CFLAGS are set by the Makefile.
-//go:generate bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS bpf ../../bpf/ingress_node_firewall_kernel.c -- -I ../../bpf/headers -I/usr/include/x86_64-linux-gnu/
-func IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwiov1alpha1.IngressNodeFirewallRules) error {
+//go:generate bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS -type ruleType_st bpf ../../bpf/ingress_node_firewall_kernel.c -- -I ../../bpf/headers -I/usr/include/x86_64-linux-gnu/
+func IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwiov1alpha1.IngressNodeFirewallRules, isDelete bool) error {
 	var err error
 
 	// Allow the current process to lock memory for eBPF resources.
@@ -36,24 +44,81 @@ func IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwiov1alpha1.IngressN
 	}
 	klog.Infof("Ingress node firewall map Info: %+v with FD %s", info, objs.bpfMaps.IngressNodeFirewallTableMap.String())
 
-	k, rules, err := makeIngressFwRulesMap(ingFireWallConfig)
-	if err != nil {
+	if err := makeIngressFwRulesMap(objs, ingFireWallConfig, isDelete); err != nil {
 		klog.Fatalf("Failed to create map info: %v", err)
-		return err
-	}
-
-	if _, err := objs.bpfMaps.IngressNodeFirewallTableMap.BatchUpdate(k, rules, &cebpf.BatchOptions{}); err != nil {
-		klog.Fatalf("Failed Loading service entries: %v", err)
 		return err
 	}
 	return nil
 }
 
-func makeIngressFwRulesMap(ingFireWallConfig ingressnodefwiov1alpha1.IngressNodeFirewallRules) (key bpfBpfLpmIpKeySt, rules bpfRulesValSt, err error) {
-	k := bpfBpfLpmIpKeySt{}
-	r := bpfRulesValSt{}
-	// TODO
-	return k, r, nil
+func makeIngressFwRulesMap(objs bpfObjects, ingFirewallConfig ingressnodefwiov1alpha1.IngressNodeFirewallRules, isDelete bool) error {
+	keys := []bpfBpfLpmIpKeySt{}
+	rules := bpfRulesValSt{}
+	var key bpfBpfLpmIpKeySt
+
+	// Parse CIDRs to construct map key
+	for _, cidr := range ingFirewallConfig.FromCIDRs {
+		ip, ipNet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			klog.Fatalf("Failed to parse FromCIDR: %v", err)
+			return err
+		}
+		copy(key.U.Ip4Data[:], ip)
+		pfLen, _ := ipNet.Mask.Size()
+		key.PrefixLen = uint32(pfLen)
+		keys = append(keys, key)
+	}
+
+	// Parse firewall rules
+	rules.NumRules = uint32(len(ingFirewallConfig.FirewallProtocolRules))
+	for idx, rule := range ingFirewallConfig.FirewallProtocolRules {
+		rules.Rules[idx].RuleId = rule.Order
+		switch rule.Protocol {
+		case ingressnodefwiov1alpha1.ProtocolTypeTCP:
+			copy(rules.Rules[idx].DstPorts[:], rule.ProtocolRule.Ports)
+			rules.Rules[idx].Protocol = syscall.IPPROTO_TCP
+		case ingressnodefwiov1alpha1.ProtocolTypeUDP:
+			copy(rules.Rules[idx].DstPorts[:], rule.ProtocolRule.Ports)
+			rules.Rules[idx].Protocol = syscall.IPPROTO_UDP
+		case ingressnodefwiov1alpha1.ProtocolTypeSCTP:
+			copy(rules.Rules[idx].DstPorts[:], rule.ProtocolRule.Ports)
+			rules.Rules[idx].Protocol = syscall.IPPROTO_SCTP
+		case ingressnodefwiov1alpha1.ProtocolTypeICMP:
+			rules.Rules[idx].IcmpType = rule.ICMPRule.ICMPType
+			rules.Rules[idx].IcmpCode = rule.ICMPRule.ICMPCode
+			rules.Rules[idx].Protocol = syscall.IPPROTO_ICMP
+		case ingressnodefwiov1alpha1.ProtocolTypeICMPv6:
+			rules.Rules[idx].IcmpType = rule.ICMPRule.ICMPType
+			rules.Rules[idx].IcmpCode = rule.ICMPRule.ICMPCode
+			rules.Rules[idx].Protocol = syscall.IPPROTO_ICMPV6
+
+		default:
+			return fmt.Errorf("Failed invalid protocol %v", rule.Protocol)
+		}
+		switch rule.Action {
+		case ingressnodefwiov1alpha1.IngressNodeFirewallAllow:
+			rules.Rules[idx].Action = XDPAllow
+		case ingressnodefwiov1alpha1.IngressNodeFirewallDeny:
+			rules.Rules[idx].Action = XDPDeny
+		default:
+			return fmt.Errorf("Failed invalid action %v", rule.Action)
+		}
+	}
+
+	// Handle Ingress firewall map operation
+	if isDelete {
+		if _, err := objs.bpfMaps.IngressNodeFirewallTableMap.BatchDelete(keys, &ebpf.BatchOptions{}); err != nil {
+			klog.Fatalf("Failed Adding/Updating ingress firewall rules: %v", err)
+			return err
+		}
+	} else {
+		if _, err := objs.bpfMaps.IngressNodeFirewallTableMap.BatchUpdate(keys, rules, &ebpf.BatchOptions{}); err != nil {
+			klog.Fatalf("Failed Deleting ingress firewall rules: %v", err)
+			return err
+		}
+	}
+
+	return nil
 }
 
 func IngessNodeFwAttach(ifacesName []string) error {

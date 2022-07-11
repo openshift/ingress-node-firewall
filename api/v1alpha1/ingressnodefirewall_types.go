@@ -20,25 +20,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// IngressNodeFirewallFromCIDR define ingress node CIDR matching field
-type IngressNodeFirewallFromCIDR struct {
-	// FromCIDR is the IPv4/IPv6 CIDR from which we apply node firewall rule
-	FromCIDR string `json:"fromCIDR" protobuf:"bytes,1,opt,name=fromCIDR"`
-}
-
 // IngressNodeFirewallICMPRule define ingress node firewall rule for ICMP and ICMPv6 protocols
 type IngressNodeFirewallICMPRule struct {
 	// ICMPType define ICMP Type Numbers (RFC 792).
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Maximum:=43
 	// +kubebuilder:validation:Minimum:=0
-	ICMPType int8 `json:"icmpType" protobuf:"varint,1,opt,name=icmpType"`
+	ICMPType uint8 `json:"icmpType"`
 
 	// ICMPCode define ICMP Code ID (RFC 792).
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Maximum:=16
 	// +kubebuilder:validation:Minimum:=0
-	ICMPCode int8 `json:"icmpCode" protobuf:"varint,2,opt,name=icmpCode"`
+	ICMPCode uint8 `json:"icmpCode"`
 }
 
 // IngressNodeFirewallProtoRule define ingress node firewall rule for TCP, UDP and SCTP protocols
@@ -46,26 +40,31 @@ type IngressNodeFirewallProtoRule struct {
 	// start-end range of dstPorts or [port1, port2,..., portn].
 	// +kubebuilder:validation:Optional
 	// +optional
-	Ports []int32 `json:"ports" protobuf:"varint,1,opt,name=ports"`
+	Ports []uint16 `json:"ports"`
 }
 
 // IngressNodeFirewallProtocolRule define ingress node firewall rule per protocol
 type IngressNodeFirewallProtocolRule struct {
+	// Order define order of execution of ingress firewall rules .
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum:=1
+	Order uint32 `json:"order"`
+
 	// IngressNodeFirewallProtoRule define ingress node firewall rule for TCP, UDP and SCTP protocols.
-	ProtocolRule IngressNodeFirewallProtoRule `json:"protoRule" protobuf:"varint,1,opt,name=protoRule"`
+	ProtocolRule IngressNodeFirewallProtoRule `json:"protoRule"`
 
 	// IngressNodeFirewallICMPRule define ingress node firewall rule for ICMP and ICMPv6 protocols.
-	ICMPRule IngressNodeFirewallICMPRule `json:"icmpRule" protobuf:"varint,2,opt,name:icmpRule"`
+	ICMPRule IngressNodeFirewallICMPRule `json:"icmpRule"`
 
 	// Protocol can be ICMP, ICMPv6, TCP, SCTP or UDP.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum="ICMP";"ICMPv6";"TCP";"UDP";"SCTP"
-	Protocol IngressNodeFirewallRuleProtocolType `json:"protocol" protobuf:"varint,3,opt,name:protocol"`
+	Protocol IngressNodeFirewallRuleProtocolType `json:"protocol"`
 
 	// Action can be Allow or Deny.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum="Allow";"Deny"
-	Action IngressNodeFirewallActionType `json:"action" protobuf:"bytes,4,opt,name=action,casttype=IngressNodeFirewallActionType"`
+	Action IngressNodeFirewallActionType `json:"action"`
 }
 
 // ProtocolType defines the protocol types that are supported
@@ -94,15 +93,15 @@ type IngressNodeFirewallActionType string
 
 const (
 	IngressNodeFirewallAllow IngressNodeFirewallActionType = "Allow"
-	DIngressNodeFirewallDeny IngressNodeFirewallActionType = "Deny"
+	IngressNodeFirewallDeny  IngressNodeFirewallActionType = "Deny"
 )
 
 // IngressNodeFirewallRules define ingress node firewall rule
 type IngressNodeFirewallRules struct {
 	// FromCIDRS is A list of CIDR from which we apply node firewall rule
-	FromCIDRs []IngressNodeFirewallFromCIDR `json:"fromCIDRs" protobuf:"bytes,1,opt,name=fromCIDRs"`
+	FromCIDRs []string `json:"fromCIDRs"`
 	// FirewallProtocolRules is A list of per protocol ingress node firewall rules
-	FirewallProtocolRules []IngressNodeFirewallProtocolRule `json:"firewallProtocolRules" protobuf:"bytes,2,opt,names=firewallProtocolRules"`
+	FirewallProtocolRules []IngressNodeFirewallProtocolRule `json:"firewallProtocolRules"`
 }
 
 // IngressNodeFirewallSpec defines the desired state of IngressNodeFirewall
@@ -111,7 +110,7 @@ type IngressNodeFirewallSpec struct {
 	// empty list indicates no ingress firewall i.e allow all incoming traffic.
 	// +kubebuilder:validation:Optional
 	// +optional
-	Ingress []IngressNodeFirewallRules `json:"ingress" protobuf:"bytes,2,opt,name=ingress"`
+	Ingress []IngressNodeFirewallRules `json:"ingress"`
 }
 
 // IngressNodeFirewallStatus defines the observed state of IngressNodeFirewall

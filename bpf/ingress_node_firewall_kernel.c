@@ -14,7 +14,6 @@
 #include <linux/tcp.h>
 #include <linux/udp.h>
 
-
 struct {
   __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
   __type(key, u32);
@@ -118,9 +117,7 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
       if (rule->protocol != 0) {
         if ((rule->protocol == IPPROTO_TCP) ||
             (rule->protocol == IPPROTO_UDP)) {
-          if ((rule->srcAddrU.ip4_srcAddr ==
-               (*srcAddr & rule->srcMaskU.ip4_srcMask)) &&
-              dstPort_match((__u16 *)rule->dstPorts, dstPort)) {
+          if (dstPort_match((__u16 *)rule->dstPorts, dstPort)) {
             return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
           }
         }
@@ -169,19 +166,7 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
       if (rule->protocol != 0) {
         if ((rule->protocol == IPPROTO_TCP) ||
             (rule->protocol == IPPROTO_UDP)) {
-          if (((rule->srcAddrU.ip6_srcAddr[0] == 0) ||
-               (rule->srcAddrU.ip6_srcAddr[0] ==
-                (srcAddr[0] & rule->srcMaskU.ip6_srcMask[0]))) &&
-              ((rule->srcAddrU.ip6_srcAddr[1] == 0) ||
-               (rule->srcAddrU.ip6_srcAddr[1] ==
-                (srcAddr[1] & rule->srcMaskU.ip6_srcMask[1]))) &&
-              ((rule->srcAddrU.ip6_srcAddr[2] == 0) ||
-               (rule->srcAddrU.ip6_srcAddr[2] ==
-                (srcAddr[2] & rule->srcMaskU.ip6_srcMask[2]))) &&
-              ((rule->srcAddrU.ip6_srcAddr[3] == 0) ||
-               (rule->srcAddrU.ip6_srcAddr[3] ==
-                (srcAddr[3] & rule->srcMaskU.ip6_srcMask[3]))) &&
-              dstPort_match((__u16 *)rule->dstPorts, dstPort)) {
+          if (dstPort_match((__u16 *)rule->dstPorts, dstPort)) {
             return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
           }
         }
