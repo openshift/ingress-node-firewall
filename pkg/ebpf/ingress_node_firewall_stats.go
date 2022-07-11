@@ -1,4 +1,4 @@
-package nodefw
+package nodefwloader
 
 import (
 	"fmt"
