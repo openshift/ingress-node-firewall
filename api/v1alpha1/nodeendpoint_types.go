@@ -29,7 +29,7 @@ type NodeEndpointSpec struct {
 	// empty list indicates the firewall policy applied on all interfaces
 	// +kubebuilder:validation:Optional
 	// +optional
-	Interface []string `json:"interface" protobuf:"bytes,1,opt,name=interface"`
+	Interface []string `json:"interface"`
 }
 
 // NodeEndpointStatus defines the observed state of NodeEndpoint
