@@ -262,7 +262,7 @@ prereqs: ## Check if prerequisites are met, and installing missing dependencies
 .PHONY: ebpf-generate
 generate: export BPF_CLANG := $(CLANG)
 generate: export BPF_CFLAGS := $(CFLAGS)
-ebpf-generate: prereqs
+ebpf-generate: prereqs ## Generating BPF Go bindings
 	@echo "### Generating BPF Go bindings"
 	go generate ./pkg/...
 

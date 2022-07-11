@@ -18,19 +18,22 @@ package controllers
 
 import (
 	"context"
+	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
+	nodefwloader "ingress-node-firewall/pkg/ebpf"
 
+	ingressnodefwiov1alpha1 "ingress-node-firewall/api/v1alpha1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	ingressnodefwiov1alpha1 "ingress-node-firewall/api/v1alpha1"
 )
 
 // IngressNodeFirewallReconciler reconciles a IngressNodeFirewall object
 type IngressNodeFirewallReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Log    logr.Logger
 }
 
 //+kubebuilder:rbac:groups=ingress-nodefw.io.ingress-nodefw.io,resources=ingressnodefirewalls,verbs=get;list;watch;create;update;patch;delete
@@ -39,19 +42,44 @@ type IngressNodeFirewallReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the IngressNodeFirewall object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
 func (r *IngressNodeFirewallReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	_ = context.Background()
+	instance := &ingressnodefwiov1alpha1.IngressNodeFirewall{}
+	err := r.Get(context.TODO(), req.NamespacedName, instance)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// Request object not found, could have been deleted after reconcile request.
+			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
+			// Return and don't requeue
+			return r.reconcileResource(ctx, req, instance, true)
+		}
+		// Error reading the object - requeue the request.
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+	return r.reconcileResource(ctx, req, instance, false)
+}
 
-	// TODO(user): your logic here
-
+func (r *IngressNodeFirewallReconciler) reconcileResource(ctx context.Context, req ctrl.Request, instance *ingressnodefwiov1alpha1.IngressNodeFirewall, isDelete bool) (ctrl.Result, error) {
+	if err := r.syncIngressNodeFirewallResources(instance, isDelete); err != nil {
+		return ctrl.Result{}, errors.Wrapf(err, "FailedToSyncIngressNodeFirewallResources")
+	}
 	return ctrl.Result{}, nil
+}
+
+func (r *IngressNodeFirewallReconciler) syncIngressNodeFirewallResources(instance *ingressnodefwiov1alpha1.IngressNodeFirewall, isDelete bool) error {
+	logger := r.Log.WithName("syncIngressNodeFirewallResources")
+	logger.Info("Start")
+	// HACK-POC: we can't load bpf rules from the operator
+	for _, rule := range instance.Spec.Ingress {
+		if err := nodefwloader.IngressNodeFwRulesLoader(rule, isDelete); err != nil {
+			logger.Error(err, "Fail to load ingress firewall rule %v", rule)
+			return err
+		}
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
