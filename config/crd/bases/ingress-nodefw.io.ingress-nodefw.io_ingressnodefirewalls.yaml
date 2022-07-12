@@ -89,12 +89,8 @@ spec:
                             description: IngressNodeFirewallProtoRule define ingress
                               node firewall rule for TCP, UDP and SCTP protocols.
                             properties:
-                              ports:
-                                description: start-end range of dstPorts or [port1,
-                                  port2,..., portn].
-                                items:
-                                  type: integer
-                                type: array
+                              port:
+                                type: integer
                             type: object
                           protocol:
                             description: Protocol can be ICMP, ICMPv6, TCP, SCTP or

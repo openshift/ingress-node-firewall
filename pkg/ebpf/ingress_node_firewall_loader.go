@@ -52,22 +52,8 @@ func IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwiov1alpha1.IngressN
 }
 
 func makeIngressFwRulesMap(objs bpfObjects, ingFirewallConfig ingressnodefwiov1alpha1.IngressNodeFirewallRules, isDelete bool) error {
-	keys := []bpfBpfLpmIpKeySt{}
 	rules := bpfRulesValSt{}
 	var key bpfBpfLpmIpKeySt
-
-	// Parse CIDRs to construct map key
-	for _, cidr := range ingFirewallConfig.FromCIDRs {
-		ip, ipNet, err := net.ParseCIDR(cidr)
-		if err != nil {
-			klog.Fatalf("Failed to parse FromCIDR: %v", err)
-			return err
-		}
-		copy(key.U.Ip4Data[:], ip)
-		pfLen, _ := ipNet.Mask.Size()
-		key.PrefixLen = uint32(pfLen)
-		keys = append(keys, key)
-	}
 
 	// Parse firewall rules
 	rules.NumRules = uint32(len(ingFirewallConfig.FirewallProtocolRules))
@@ -75,13 +61,13 @@ func makeIngressFwRulesMap(objs bpfObjects, ingFirewallConfig ingressnodefwiov1a
 		rules.Rules[idx].RuleId = rule.Order
 		switch rule.Protocol {
 		case ingressnodefwiov1alpha1.ProtocolTypeTCP:
-			copy(rules.Rules[idx].DstPorts[:], rule.ProtocolRule.Ports)
+			rules.Rules[idx].DstPort = rule.ProtocolRule.Port
 			rules.Rules[idx].Protocol = syscall.IPPROTO_TCP
 		case ingressnodefwiov1alpha1.ProtocolTypeUDP:
-			copy(rules.Rules[idx].DstPorts[:], rule.ProtocolRule.Ports)
+			rules.Rules[idx].DstPort = rule.ProtocolRule.Port
 			rules.Rules[idx].Protocol = syscall.IPPROTO_UDP
 		case ingressnodefwiov1alpha1.ProtocolTypeSCTP:
-			copy(rules.Rules[idx].DstPorts[:], rule.ProtocolRule.Ports)
+			rules.Rules[idx].DstPort = rule.ProtocolRule.Port
 			rules.Rules[idx].Protocol = syscall.IPPROTO_SCTP
 		case ingressnodefwiov1alpha1.ProtocolTypeICMP:
 			rules.Rules[idx].IcmpType = rule.ICMPRule.ICMPType
@@ -105,19 +91,29 @@ func makeIngressFwRulesMap(objs bpfObjects, ingFirewallConfig ingressnodefwiov1a
 		}
 	}
 
-	// Handle Ingress firewall map operation
-	if isDelete {
-		if _, err := objs.bpfMaps.IngressNodeFirewallTableMap.BatchDelete(keys, &ebpf.BatchOptions{}); err != nil {
-			klog.Fatalf("Failed Adding/Updating ingress firewall rules: %v", err)
+	// Parse CIDRs to construct map keys wih shared rules
+	for _, cidr := range ingFirewallConfig.FromCIDRs {
+		ip, ipNet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			klog.Fatalf("Failed to parse FromCIDR: %v", err)
 			return err
 		}
-	} else {
-		if _, err := objs.bpfMaps.IngressNodeFirewallTableMap.BatchUpdate(keys, rules, &ebpf.BatchOptions{}); err != nil {
-			klog.Fatalf("Failed Deleting ingress firewall rules: %v", err)
-			return err
+		copy(key.U.Ip4Data[:], ip)
+		pfLen, _ := ipNet.Mask.Size()
+		key.PrefixLen = uint32(pfLen)
+		// Handle Ingress firewall map operation
+		if isDelete {
+			if err := objs.bpfMaps.IngressNodeFirewallTableMap.Delete(key); err != nil {
+				klog.Fatalf("Failed Deleting ingress firewall rules: %v", err)
+				return err
+			}
+		} else {
+			if err := objs.bpfMaps.IngressNodeFirewallTableMap.Update(key, rules, ebpf.UpdateAny); err != nil {
+				klog.Fatalf("Failed Adding/Updating ingress firewall rules: %v", err)
+				return err
+			}
 		}
 	}
-
 	return nil
 }
 

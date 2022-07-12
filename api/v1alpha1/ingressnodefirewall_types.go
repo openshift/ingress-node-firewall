@@ -39,10 +39,9 @@ type IngressNodeFirewallICMPRule struct {
 
 // IngressNodeFirewallProtoRule define ingress node firewall rule for TCP, UDP and SCTP protocols
 type IngressNodeFirewallProtoRule struct {
-	// start-end range of dstPorts or [port1, port2,..., portn].
 	// +kubebuilder:validation:Optional
 	// +optional
-	Ports []uint16 `json:"ports"`
+	Port uint16 `json:"port"`
 }
 
 // IngressNodeFirewallProtocolRule define ingress node firewall rule per protocol
@@ -82,7 +81,7 @@ const (
 	ProtocolTypeICMP IngressNodeFirewallRuleProtocolType = "icmp"
 
 	// ProtocolTypeICMPv6 refers to the ICMPv6 protocol
-	ProtocolTypeICMPv6 IngressNodeFirewallRuleProtocolType = "icmp6"
+	ProtocolTypeICMPv6 IngressNodeFirewallRuleProtocolType = "icmpv6"
 
 	// ProtocolTypeTCP refers to the TCP protocol, for either IPv4 or IPv6
 	ProtocolTypeTCP IngressNodeFirewallRuleProtocolType = "tcp"

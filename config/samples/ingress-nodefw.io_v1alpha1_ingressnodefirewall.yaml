@@ -13,12 +13,12 @@ spec:
     - order: 10
       protocol: tcp
       protoRule:
-        ports: [100]
+        port: 100
       action: allow
     - order: 20
       protocol: udp
       protoRule:
-        ports: [8000, 8080, 9000]
+        port: 8000
       action: allow
   - fromCIDRs:
        - 3.3.3.3/24

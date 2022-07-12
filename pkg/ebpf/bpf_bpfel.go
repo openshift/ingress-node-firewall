@@ -36,7 +36,7 @@ type bpfRuleStatisticsSt struct {
 type bpfRuleTypeSt struct {
 	RuleId   uint32
 	Protocol uint8
-	DstPorts [100]uint16
+	DstPort  uint16
 	IcmpType uint8
 	IcmpCode uint8
 	Action   uint8
