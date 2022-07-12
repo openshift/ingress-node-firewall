@@ -32,7 +32,7 @@ struct event_hdr_st {
 } __attribute__((packed));
 
 // Force emitting struct event_hdr_st into the ELF.
-const struct event_hdr_st *unused __attribute__((unused));
+const struct event_hdr_st *unused1 __attribute__((unused));
 
 struct ruleType_st {
   __u32 ruleId;
