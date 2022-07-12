@@ -72,6 +72,9 @@ func (r *IngressNodeFirewallReconciler) reconcileResource(ctx context.Context, r
 func (r *IngressNodeFirewallReconciler) syncIngressNodeFirewallResources(instance *ingressnodefwiov1alpha1.IngressNodeFirewall, isDelete bool) error {
 	logger := r.Log.WithName("syncIngressNodeFirewallResources")
 	logger.Info("Start")
+	// Load stats map
+	nodefwloader.IngressNodeFwStatsLoader()
+
 	// HACK-POC: we can't load bpf rules from the operator
 	for _, rule := range instance.Spec.Ingress {
 		if err := nodefwloader.IngressNodeFwRulesLoader(rule, isDelete); err != nil {
@@ -79,6 +82,7 @@ func (r *IngressNodeFirewallReconciler) syncIngressNodeFirewallResources(instanc
 			return err
 		}
 	}
+
 	return nil
 }
 

@@ -31,6 +31,9 @@ struct event_hdr_st {
   __u8 fill;
 } __attribute__((packed));
 
+// Force emitting struct event_hdr_st into the ELF.
+const struct event_hdr_st *unused __attribute__((unused));
+
 struct ruleType_st {
   __u32 ruleId;
   __u8 protocol;
