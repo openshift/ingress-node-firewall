@@ -26,19 +26,20 @@ type bpfEventHdrSt struct {
 	RuleId uint16
 	Action uint8
 	Fill   uint8
-	Pad    [2]uint8
+}
+
+type bpfRuleTypeSt struct {
+	RuleId   uint32
+	Protocol uint8
+	DstPorts [100]uint16
+	IcmpType uint8
+	IcmpCode uint8
+	Action   uint8
 }
 
 type bpfRulesValSt struct {
 	NumRules uint32
-	Rules    [100]struct {
-		RuleId   uint32
-		Protocol uint8
-		DstPorts [100]uint16
-		IcmpType uint8
-		IcmpCode uint8
-		Action   uint8
-	}
+	Rules    [100]bpfRuleTypeSt
 }
 
 // loadBpf returns the embedded CollectionSpec for bpf.
