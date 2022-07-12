@@ -28,6 +28,11 @@ type bpfEventHdrSt struct {
 	Fill   uint8
 }
 
+type bpfRuleStatisticsSt struct {
+	Packets uint64
+	Bytes   uint64
+}
+
 type bpfRuleTypeSt struct {
 	RuleId   uint32
 	Protocol uint8
