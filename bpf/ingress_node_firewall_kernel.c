@@ -16,9 +16,9 @@
 
 struct {
   __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-  __type(key, u32);
-  __type(value, struct ruleStatistics_st);
-  __uint(max_entries, 1 << 24);
+  __type(key, __u32);
+  __type(value, __u32);
+  __uint(max_entries, 1);
 } ingress_node_firewall_stats_map SEC(".maps");
 
 struct {

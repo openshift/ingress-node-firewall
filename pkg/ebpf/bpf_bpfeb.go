@@ -21,9 +21,12 @@ type bpfBpfLpmIpKeySt struct {
 	}
 }
 
-type bpfRuleStatisticsSt struct {
-	Packets uint64
-	Bytes   uint64
+type bpfEventHdrSt struct {
+	IfId   uint16
+	RuleId uint16
+	Action uint8
+	Fill   uint8
+	Pad    [2]uint8
 }
 
 type bpfRulesValSt struct {
