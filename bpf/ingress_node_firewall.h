@@ -4,7 +4,6 @@
 #define UNDEF 0
 #define DENY XDP_DROP
 #define ALLOW XDP_PASS
-#define MAX_DST_PORTS 100
 #define MAX_TARGETS (1024)
 #define MAX_RULES_PER_TARGET (100)
 #define MAX_EVENT_DATA 512ul
@@ -49,7 +48,7 @@ const struct event_hdr_st *unused1 __attribute__((unused));
 struct ruleType_st {
     __u32 ruleId;
     __u8 protocol;
-    __u16 dstPorts[MAX_DST_PORTS];
+    __u16 dstPort;
     __u8 icmpType;
     __u8 icmpCode;
     __u8 action;

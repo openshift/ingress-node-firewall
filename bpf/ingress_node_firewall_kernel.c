@@ -75,17 +75,6 @@ ip_extract_l4Info(void *dataStart, void *dataEnd, __u16 *dstPort,
     return 0;
 }
 
-__attribute__((__always_inline__)) static inline int
-dstPort_match(__u16 *dstPorts, __u16 dstPort) {
-#pragma clang loop unroll(full)
-    for (int i = 0; i < MAX_DST_PORTS; ++i) {
-        if (dstPorts[i] == dstPort) {
-            return 0;
-        }
-    }
-    return -1;
-}
-
 __attribute__((__always_inline__)) static inline __u32
 ipv4_checkTuple(void *dataStart, void *dataEnd) {
     struct iphdr *iph = dataStart;
@@ -99,7 +88,7 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
       0) {
         return SET_ACTION(UNDEF);
     }
-	memset(&key, 0, sizeof(key));
+    memset(&key, 0, sizeof(key));
 #pragma clang loop unroll(full)
     for (i = 0; i < 4; i++) {
         key.u.ip4_data[i] = (*srcAddr >> (i * 4)) & 0xFF;
@@ -117,7 +106,7 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
             if (rule->protocol != 0) {
                 if ((rule->protocol == IPPROTO_TCP) ||
                     (rule->protocol == IPPROTO_UDP)) {
-                    if (dstPort_match((__u16 *)rule->dstPorts, dstPort)) {
+                    if (rule->dstPort == dstPort) {
                         return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
                     }
                 }
@@ -147,7 +136,7 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
       0) {
         return SET_ACTION(UNDEF);
     }
-
+    memset(&key, 0, sizeof(key));
 #pragma clang loop unroll(full)
     for (i = 0; i < 16; ++i) {
         key.u.ip6_data[i] = (srcAddr[i / 4] >> ((i % 4) * 4)) & 0xFF;
@@ -166,7 +155,7 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
             if (rule->protocol != 0) {
                 if ((rule->protocol == IPPROTO_TCP) ||
                     (rule->protocol == IPPROTO_UDP)) {
-                    if (dstPort_match((__u16 *)rule->dstPorts, dstPort)) {
+                    if (rule->dstPort == dstPort) {
                         return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
                     }
                 }
