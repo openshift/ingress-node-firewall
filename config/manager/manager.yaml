@@ -25,6 +25,7 @@ spec:
         control-plane: controller-manager
     spec:
       hostNetwork: true
+      hostPID: true
       securityContext:
         runAsNonRoot: false
         # TODO(user): For common cases that do not require escalating privileges
@@ -35,6 +36,7 @@ spec:
         # seccompProfile:
         #   type: RuntimeDefault
       containers:
+      #- command: ['/bin/sh', '-c', 'strace -fe trace=bpf /manager --leader-elect']
       - command:
         - /manager
         args:
@@ -46,9 +48,10 @@ spec:
           runAsUser: 0
         # allowPrivilegeEscalation: false
         # TODO(user): uncomment for common cases that do not require escalating privileges
-        # capabilities:
-        #   drop:
-        #     - "ALL"
+          capabilities:
+            drop:
+              - "ALL"
+            add: ["CAP_BPF", "CAP_NET_ADMIN"]
         livenessProbe:
           httpGet:
             path: /healthz
