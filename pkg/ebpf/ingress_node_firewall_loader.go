@@ -36,7 +36,6 @@ func IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwiov1alpha1.IngressN
 		log.Fatalf("loading objects: %s", err)
 		return err
 	}
-	defer objs.Close()
 
 	info, err := objs.bpfMaps.IngressNodeFirewallTableMap.Info()
 	if err != nil {
@@ -122,7 +121,6 @@ func IngessNodeFwAttach(ifacesName []string, isDelete bool) error {
 	if err := loadBpfObjects(&objs, nil); err != nil {
 		log.Fatalf("loading objects: %s", err)
 	}
-	defer objs.Close()
 
 	for _, ifaceName := range ifacesName {
 		// Look up the network interface by name.
@@ -139,10 +137,13 @@ func IngessNodeFwAttach(ifacesName []string, isDelete bool) error {
 			})
 			if err != nil {
 				log.Fatalf("could not attach XDP program: %s", err)
+				l.Close()
 				return err
 			}
-			defer l.Close()
 			log.Printf("Attached IngressNode Firewall program to iface %q (index %d)", iface.Name, iface.Index)
+		} else {
+			log.Printf("Unattaching IngressNode Firewall program from iface %q (index %d)", iface.Name, iface.Index)
+			objs.Close()
 		}
 	}
 	return nil

@@ -4,4 +4,4 @@ metadata:
   name: nodeendpoint-sample
 spec:
   interfaces:
-  - "eth0"
+  - eth0

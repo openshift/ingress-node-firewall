@@ -198,18 +198,23 @@ ingress_node_firewall_main(struct xdp_md *ctx) {
     void *dataStart = data + sizeof(struct ethhdr);
     __u32 result = UNDEF;
 
+	bpf_printk("Ingress node firewall start processing a packet");
     if (unlikely(dataStart > dataEnd)) {
+		bpf_printk("Ingress node firewall bad packet XDP_DROP");
         return XDP_DROP;
     }
 
     switch (eth->h_proto) {
     case bpf_htons(ETH_P_IP):
+		bpf_printk("Ingress node firewall process IPv4 packet");
         result = ipv4_checkTuple(dataStart, dataEnd);
         break;
     case bpf_htons(ETH_P_IPV6):
+		bpf_printk("Ingress node firewall process IPv6 packet");
         result = ipv6_checkTuple(dataStart, dataEnd);
         break;
     default:
+		bpf_printk("Ingress node firewall unknown L3 protocol XDP_PASS");
         return XDP_PASS;
     }
 
@@ -218,10 +223,12 @@ ingress_node_firewall_main(struct xdp_md *ctx) {
 
     if (DENY == action) {
         sendEvent(ctx, (__u16)(dataEnd - data), DENY, ruleId);
+		bpf_printk("Ingress node firewall action XDP_DROP");
         return XDP_DROP;
     }
 
     sendEvent(ctx, (__u16)(dataEnd - data), ALLOW, ruleId);
+	bpf_printk("Ingress node firewall action XDP_PASS");
     return XDP_PASS;
 }
 

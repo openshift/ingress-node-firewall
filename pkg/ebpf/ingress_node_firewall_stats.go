@@ -31,7 +31,6 @@ func IngressNodeFwStatsLoader() error {
 		log.Fatalf("loading objects: %s", err)
 		return err
 	}
-	defer objs.Close()
 
 	// Open a perf event reader from userspace on the PERF_EVENT_ARRAY map
 	// described in the eBPF C program.
@@ -40,8 +39,6 @@ func IngressNodeFwStatsLoader() error {
 		log.Fatalf("creating perf event reader: %s", err)
 		return err
 	}
-	defer rd.Close()
-
 	go func() {
 		// Wait for a signal and close the perf reader,
 		// which will interrupt rd.Read() and make the program exit.
