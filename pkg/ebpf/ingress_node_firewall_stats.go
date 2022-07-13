@@ -25,6 +25,7 @@ func IngressNodeFwStatsLoader() error {
 		log.Fatal(err)
 		return err
 	}
+
 	// Load pre-compiled programs into the kernel.
 	objs := bpfObjects{}
 	if err := loadBpfObjects(&objs, nil); err != nil {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"path"
 	"syscall"
 
 	"github.com/cilium/ebpf"
@@ -15,8 +16,9 @@ import (
 )
 
 const (
-	XDPDeny  = 1 // XDP_DROP value
-	XDPAllow = 2 // XDP_PASS value
+	xdpDeny   = 1 // XDP_DROP value
+	xdpAllow  = 2 // XDP_PASS value
+	bpfFSPath = "/sys/fs/bpf"
 )
 
 // $BPF_CLANG and $BPF_CFLAGS are set by the Makefile.
@@ -29,10 +31,19 @@ func IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwiov1alpha1.IngressN
 		klog.Fatal(err)
 		return err
 	}
+	pinDir := path.Join(bpfFSPath, "xdp_ingress_node_firewall_process")
 
 	// Load pre-compiled programs into the kernel.
 	objs := bpfObjects{}
-	if err := loadBpfObjects(&objs, nil); err != nil {
+	if err := loadBpfObjects(&objs, &ebpf.CollectionOptions{
+		Maps: ebpf.MapOptions{
+			// Pin the map to the BPF filesystem and configure the
+			// library to automatically re-write it in the BPF
+			// program so it can be re-used if it already exists or
+			// create it if not
+			PinPath: pinDir,
+		},
+	}); err != nil {
 		log.Fatalf("loading objects: %s", err)
 		return err
 	}
@@ -82,9 +93,9 @@ func makeIngressFwRulesMap(objs bpfObjects, ingFirewallConfig ingressnodefwiov1a
 		}
 		switch rule.Action {
 		case ingressnodefwiov1alpha1.IngressNodeFirewallAllow:
-			rules.Rules[idx].Action = XDPAllow
+			rules.Rules[idx].Action = xdpAllow
 		case ingressnodefwiov1alpha1.IngressNodeFirewallDeny:
-			rules.Rules[idx].Action = XDPDeny
+			rules.Rules[idx].Action = xdpDeny
 		default:
 			return fmt.Errorf("Failed invalid action %v", rule.Action)
 		}
@@ -117,12 +128,22 @@ func makeIngressFwRulesMap(objs bpfObjects, ingFirewallConfig ingressnodefwiov1a
 }
 
 func IngessNodeFwAttach(ifacesName []string, isDelete bool) error {
-	objs := bpfObjects{}
-	if err := loadBpfObjects(&objs, nil); err != nil {
-		log.Fatalf("loading objects: %s", err)
-	}
-
 	for _, ifaceName := range ifacesName {
+		pinDir := path.Join(bpfFSPath, ifaceName)
+		// Load pre-compiled programs into the kernel.
+		objs := bpfObjects{}
+		if err := loadBpfObjects(&objs, &ebpf.CollectionOptions{
+			Maps: ebpf.MapOptions{
+				// Pin the map to the BPF filesystem and configure the
+				// library to automatically re-write it in the BPF
+				// program so it can be re-used if it already exists or
+				// create it if not
+				PinPath: pinDir,
+			},
+		}); err != nil {
+			log.Fatalf("loading objects: %s", err)
+			return err
+		}
 		// Look up the network interface by name.
 		iface, err := net.InterfaceByName(ifaceName)
 		if err != nil {
@@ -137,7 +158,10 @@ func IngessNodeFwAttach(ifacesName []string, isDelete bool) error {
 			})
 			if err != nil {
 				log.Fatalf("could not attach XDP program: %s", err)
-				l.Close()
+				return err
+			}
+			if err := l.Pin(pinDir); err != nil {
+				log.Fatalf("failed to pin link to pinDir: %s", err)
 				return err
 			}
 			log.Printf("Attached IngressNode Firewall program to iface %q (index %d)", iface.Name, iface.Index)
