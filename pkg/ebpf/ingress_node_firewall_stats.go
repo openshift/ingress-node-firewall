@@ -10,28 +10,11 @@ import (
 	"syscall"
 
 	"github.com/cilium/ebpf/perf"
-	"github.com/cilium/ebpf/rlimit"
 )
 
-// $BPF_CLANG and $BPF_CFLAGS are set by the Makefile.
-//go:generate bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS -type ruleType_st -type event_hdr_st -type ruleStatistics_st bpf ../../bpf/ingress_node_firewall_kernel.c -- -I ../../bpf/headers -I/usr/include/x86_64-linux-gnu/
-
-func IngressNodeFwStatsLoader() error {
+func ingressNodeFwStatsLoader(objs bpfObjects) error {
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
-
-	// Allow the current process to lock memory for eBPF resources.
-	if err := rlimit.RemoveMemlock(); err != nil {
-		log.Fatal(err)
-		return err
-	}
-
-	// Load pre-compiled programs into the kernel.
-	objs := bpfObjects{}
-	if err := loadBpfObjects(&objs, nil); err != nil {
-		log.Fatalf("loading objects: %s", err)
-		return err
-	}
 
 	// Open a perf event reader from userspace on the PERF_EVENT_ARRAY map
 	// described in the eBPF C program.

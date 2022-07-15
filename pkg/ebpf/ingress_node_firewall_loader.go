@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"path"
 	"syscall"
 
@@ -33,16 +34,14 @@ func IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwiov1alpha1.IngressN
 	}
 
 	pinDir := path.Join(bpfFSPath, "xdp_ingress_node_firewall_process")
-	/*
-		if err := os.MkdirAll(pinDir, os.ModePerm); err != nil {
-			log.Fatalf("failed to create pinDir %s: %s", pinDir, err)
-			return err
-		}
-	*/
+	if err := os.MkdirAll(pinDir, os.ModePerm); err != nil {
+		log.Fatalf("failed to create pinDir %s: %s", pinDir, err)
+		return err
+	}
 	// Load pre-compiled programs into the kernel.
 	objs := bpfObjects{}
 	if err := loadBpfObjects(&objs, &ebpf.CollectionOptions{Maps: ebpf.MapOptions{PinPath: pinDir}}); err != nil {
-		log.Fatalf("loading objects: %s", err)
+		log.Fatalf("loading objects: pinDir:%s, err:%s", pinDir, err)
 		return err
 	}
 
@@ -57,8 +56,13 @@ func IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwiov1alpha1.IngressN
 		return err
 	}
 
-	if err := ingessNodeFwAttach(objs, ifacesName, isDelete); err != nil {
+	if err := ingessNodeFwAttach(objs, ifacesName, pinDir, isDelete); err != nil {
 		klog.Fatalf("Failed to attach map firewall prog: %v", err)
+		return err
+	}
+
+	if err := ingressNodeFwStatsLoader(objs); err != nil {
+		klog.Fatalf("Failed to load perf stats: %v", err)
 		return err
 	}
 	return nil
@@ -137,7 +141,7 @@ func makeIngressFwRulesMap(objs bpfObjects, ingFirewallConfig ingressnodefwiov1a
 	return nil
 }
 
-func ingessNodeFwAttach(objs bpfObjects, ifacesName []string, isDelete bool) error {
+func ingessNodeFwAttach(objs bpfObjects, ifacesName []string, pinDir string, isDelete bool) error {
 	for _, ifaceName := range ifacesName {
 		// Look up the network interface by name.
 		iface, err := net.InterfaceByName(ifaceName)
@@ -155,16 +159,10 @@ func ingessNodeFwAttach(objs bpfObjects, ifacesName []string, isDelete bool) err
 				log.Fatalf("could not attach XDP program: %s", err)
 				return err
 			}
-			pinDir := path.Join(bpfFSPath, "xdp_ingress_node_firewall_process")
-			/*
-				pinDir := path.Join(bpfFSPath, "xdp_ingress_node_firewall_process/"+ifaceName+"_link")
-				if err := os.MkdirAll(pinDir, os.ModePerm); err != nil {
-					log.Fatalf("failed to create pinDir %s: %s", pinDir, err)
-					return err
-				}
-			*/
-			if err := l.Pin(pinDir); err != nil {
-				log.Fatalf("failed to pin link to pinDir %s: %s", pinDir, err)
+
+			lpinDir := path.Join(pinDir, ifaceName+"-link")
+			if err := l.Pin(lpinDir); err != nil {
+				log.Fatalf("failed to pin link to pinDir %s: %s", lpinDir, err)
 				return err
 			}
 			log.Printf("Attached IngressNode Firewall program to iface %q (index %d)", iface.Name, iface.Index)
