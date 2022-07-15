@@ -109,6 +109,13 @@ spec:
                   - rules
                   type: object
                 type: array
+              interfaces:
+                description: A list of interfaces where the ingress firewall policy
+                  will be applied on. empty list indicates the firewall policy applied
+                  on all interfaces
+                items:
+                  type: string
+                type: array
               nodeSelector:
                 additionalProperties:
                   type: string

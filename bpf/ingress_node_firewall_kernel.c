@@ -27,6 +27,7 @@ struct {
     __type(value, struct rulesVal_st);
     __uint(max_entries, MAX_TARGETS);
     __uint(map_flags, BPF_F_NO_PREALLOC);
+    // __uint(pinning, LIBBPF_PIN_BY_NAME);
 } ingress_node_firewall_table_map SEC(".maps");
 
 __attribute__((__always_inline__)) static inline int
@@ -45,6 +46,7 @@ ip_extract_l4Info(void *dataStart, void *dataEnd, __u16 *dstPort,
             return -1;
         }
         *dstPort = tcph->dest;
+		bpf_printk("Process TCP protocol dstPort %2x", *dstPort);
     } else if (IPPROTO_UDP == iph->protocol) {
         struct udphdr *udph = (struct udphdr *)dataStart;
         dataStart += sizeof(struct udphdr);
@@ -79,39 +81,46 @@ __attribute__((__always_inline__)) static inline __u32
 ipv4_checkTuple(void *dataStart, void *dataEnd) {
     struct iphdr *iph = dataStart;
     struct bpf_lpm_ip_key_st key;
-    __u32 *srcAddr = &iph->saddr;
+    __u32 srcAddr = iph->saddr;
     __u16 dstPort = 0;
     __u8 icmpCode = 0, icmpType = 0;
     int i;
 
     if (ip_extract_l4Info(dataStart, dataEnd, &dstPort, &icmpType, &icmpCode) <
       0) {
+		bpf_printk("failed to extract l4 info");
         return SET_ACTION(UNDEF);
     }
     memset(&key, 0, sizeof(key));
-#pragma clang loop unroll(full)
-    for (i = 0; i < 4; i++) {
-        key.u.ip4_data[i] = (*srcAddr >> (i * 4)) & 0xFF;
-    }
+    key.prefixLen = 32;
+    key.ip_data[0] = srcAddr & 0xFF;
+    key.ip_data[1] = (srcAddr >> 8) & 0xFF;
+    key.ip_data[2] = (srcAddr >> 16) & 0xFF;
+    key.ip_data[3] = (srcAddr >> 24) & 0xFF;
 
     struct rulesVal_st *rulesVal = (struct rulesVal_st *)bpf_map_lookup_elem(
         &ingress_node_firewall_table_map, &key);
 
-    if (NULL != rulesVal) {
+
+    if (likely(NULL != rulesVal)) {
+		bpf_printk("Hit bpf lpm match lookup");
 #pragma clang loop unroll(full)
         for (i = 0; i < MAX_RULES_PER_TARGET; ++i) {
             if (unlikely(i >= rulesVal->numRules))
                 break;
             struct ruleType_st *rule = &rulesVal->rules[i];
+			bpf_printk("ruleInfo (protocol %d, Id %d, action %d)", rule->protocol, rule->ruleId, rule->action);
             if (rule->protocol != 0) {
                 if ((rule->protocol == IPPROTO_TCP) ||
                     (rule->protocol == IPPROTO_UDP)) {
-                    if (rule->dstPort == dstPort) {
+					bpf_printk("TCP/UDP packet rule_dstPort %2x pkt_dstPort %2x", rule->dstPort, dstPort);
+                    if (rule->dstPort == bpf_ntohs(dstPort)) {
                         return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
                     }
                 }
 
                 if (rule->protocol == IPPROTO_ICMP) {
+					bpf_printk("ICMP packet rule(type:%d, code:%d) pkt(type:%d, code %d)", rule->icmpType, rule->icmpCode, icmpType, icmpCode);
                     if ((rule->icmpType == icmpType) && (rule->icmpCode == icmpCode)) {
                         return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
                     }
@@ -137,9 +146,10 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
         return SET_ACTION(UNDEF);
     }
     memset(&key, 0, sizeof(key));
+    key.prefixLen = 128;
 #pragma clang loop unroll(full)
     for (i = 0; i < 16; ++i) {
-        key.u.ip6_data[i] = (srcAddr[i / 4] >> ((i % 4) * 4)) & 0xFF;
+        key.ip_data[i] = (srcAddr[i / 4] >> ((i % 4) * 8)) & 0xFF;
     }
 
     struct rulesVal_st *rulesVal = (struct rulesVal_st *)bpf_map_lookup_elem(
@@ -155,7 +165,7 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
             if (rule->protocol != 0) {
                 if ((rule->protocol == IPPROTO_TCP) ||
                     (rule->protocol == IPPROTO_UDP)) {
-                    if (rule->dstPort == dstPort) {
+                    if (rule->dstPort == bpf_ntohs(dstPort)) {
                         return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
                     }
                 }

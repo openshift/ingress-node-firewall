@@ -60,10 +60,7 @@ const struct ruleType_st *unused2 __attribute__((unused));
 // the more specific CIDR.
 struct bpf_lpm_ip_key_st {
     __u32 prefixLen;
-    union {
-        __u8 ip4_data[4];
-        __u8 ip6_data[16];
-    } u;
+    __u8 ip_data[16];
 } __attribute__((packed));
 
 struct rulesVal_st {

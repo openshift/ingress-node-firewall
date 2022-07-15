@@ -25,11 +25,6 @@ import (
 
 // NodeEndpointSpec defines the desired state of NodeEndpoint
 type NodeEndpointSpec struct {
-	// A list of interfaces where the ingress firewall policy will be applied on.
-	// empty list indicates the firewall policy applied on all interfaces
-	// +kubebuilder:validation:Optional
-	// +optional
-	Interfaces []string `json:"interfaces"`
 }
 
 // NodeEndpointStatus defines the observed state of NodeEndpoint

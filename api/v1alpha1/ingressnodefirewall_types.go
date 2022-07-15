@@ -121,6 +121,12 @@ type IngressNodeFirewallSpec struct {
 	// +kubebuilder:validation:Optional
 	// +optional
 	Ingress []IngressNodeFirewallRules `json:"ingress"`
+
+	// A list of interfaces where the ingress firewall policy will be applied on.
+	// empty list indicates the firewall policy applied on all interfaces
+	// +kubebuilder:validation:Optional
+	// +optional
+	Interfaces []string `json:"interfaces"`
 }
 
 // IngressNodeFirewallStatus defines the observed state of IngressNodeFirewall

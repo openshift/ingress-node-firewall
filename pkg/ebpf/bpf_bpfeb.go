@@ -15,10 +15,7 @@ import (
 
 type bpfBpfLpmIpKeySt struct {
 	PrefixLen uint32
-	U         struct {
-		Ip4Data [4]uint8
-		_       [12]byte
-	}
+	IpData    [16]uint8
 }
 
 type bpfEventHdrSt struct {
