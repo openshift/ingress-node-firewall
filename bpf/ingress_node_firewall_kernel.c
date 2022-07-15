@@ -27,7 +27,7 @@ struct {
     __type(value, struct rulesVal_st);
     __uint(max_entries, MAX_TARGETS);
     __uint(map_flags, BPF_F_NO_PREALLOC);
-    // __uint(pinning, LIBBPF_PIN_BY_NAME);
+    __uint(pinning, LIBBPF_PIN_BY_NAME);
 } ingress_node_firewall_table_map SEC(".maps");
 
 __attribute__((__always_inline__)) static inline int
