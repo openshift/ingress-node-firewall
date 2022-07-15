@@ -1,0 +1,18 @@
+apiVersion: ingress-nodefw.io.ingress-nodefw.io/v1alpha1
+kind: IngressNodeFirewall
+metadata:
+  name: ingressnodefirewall-sample
+spec:
+  interfaces:
+  - eth0
+  nodeSelector:
+    do-node-ingress-firewall: 'true'
+  ingress:
+  - fromCIDRs:
+       - 172.20.0.0/24
+    rules:
+    - order: 10
+      protocol: icmp
+      icmpRule:
+        icmpType: 8 #ICMP Echo request
+      action: deny

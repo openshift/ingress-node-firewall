@@ -20,7 +20,6 @@ import (
 	"context"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
-	nodefwloader "ingress-node-firewall/pkg/ebpf"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	ingressnodefwiov1alpha1 "ingress-node-firewall/api/v1alpha1"
@@ -72,11 +71,13 @@ func (r *NodeEndpointReconciler) reconcileResource(ctx context.Context, req ctrl
 func (r *NodeEndpointReconciler) syncIngressNodeEndPointResources(instance *ingressnodefwiov1alpha1.NodeEndpoint, isDelete bool) error {
 	logger := r.Log.WithName("syncIngressNodeEndPointResources")
 	logger.Info("Start")
-	// HACK-POC: we can't attach the operator
-	if err := nodefwloader.IngessNodeFwAttach(instance.Spec.Interfaces, isDelete); err != nil {
-		logger.Error(err, "Fail to attach ingress node fw to %v", instance.Spec.Interfaces)
-		return err
-	}
+	/*
+		// HACK-POC: we can't attach the operator
+		if err := nodefwloader.IngessNodeFwAttach(instance.Spec.Interfaces, isDelete); err != nil {
+			logger.Error(err, "Fail to attach ingress node fw to %v", instance.Spec.Interfaces)
+			return err
+		}
+	*/
 	return nil
 }
 

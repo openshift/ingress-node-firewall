@@ -3,6 +3,8 @@ kind: IngressNodeFirewall
 metadata:
   name: ingressnodefirewall-sample
 spec:
+  interfaces:
+  - eth0
   nodeSelector:
     do-node-ingress-firewall: 'true'
   ingress:

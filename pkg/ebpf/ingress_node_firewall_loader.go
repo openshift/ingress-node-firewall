@@ -23,7 +23,7 @@ const (
 
 // $BPF_CLANG and $BPF_CFLAGS are set by the Makefile.
 //go:generate bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS -type ruleType_st -type event_hdr_st -type ruleStatistics_st bpf ../../bpf/ingress_node_firewall_kernel.c -- -I ../../bpf/headers -I/usr/include/x86_64-linux-gnu/
-func IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwiov1alpha1.IngressNodeFirewallRules, isDelete bool) error {
+func IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwiov1alpha1.IngressNodeFirewallRules, ifacesName []string, isDelete bool) error {
 	var err error
 
 	// Allow the current process to lock memory for eBPF resources.
@@ -31,19 +31,17 @@ func IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwiov1alpha1.IngressN
 		klog.Fatal(err)
 		return err
 	}
-	pinDir := path.Join(bpfFSPath, "xdp_ingress_node_firewall_process")
 
+	pinDir := path.Join(bpfFSPath, "xdp_ingress_node_firewall_process")
+	/*
+		if err := os.MkdirAll(pinDir, os.ModePerm); err != nil {
+			log.Fatalf("failed to create pinDir %s: %s", pinDir, err)
+			return err
+		}
+	*/
 	// Load pre-compiled programs into the kernel.
 	objs := bpfObjects{}
-	if err := loadBpfObjects(&objs, &ebpf.CollectionOptions{
-		Maps: ebpf.MapOptions{
-			// Pin the map to the BPF filesystem and configure the
-			// library to automatically re-write it in the BPF
-			// program so it can be re-used if it already exists or
-			// create it if not
-			PinPath: pinDir,
-		},
-	}); err != nil {
+	if err := loadBpfObjects(&objs, &ebpf.CollectionOptions{Maps: ebpf.MapOptions{PinPath: pinDir}}); err != nil {
 		log.Fatalf("loading objects: %s", err)
 		return err
 	}
@@ -55,7 +53,12 @@ func IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwiov1alpha1.IngressN
 	klog.Infof("Ingress node firewall map Info: %+v with FD %s", info, objs.bpfMaps.IngressNodeFirewallTableMap.String())
 
 	if err := makeIngressFwRulesMap(objs, ingFireWallConfig, isDelete); err != nil {
-		klog.Fatalf("Failed to create map info: %v", err)
+		klog.Fatalf("Failed to create map firewall rules: %v", err)
+		return err
+	}
+
+	if err := ingessNodeFwAttach(objs, ifacesName, isDelete); err != nil {
+		klog.Fatalf("Failed to attach map firewall prog: %v", err)
 		return err
 	}
 	return nil
@@ -108,16 +111,23 @@ func makeIngressFwRulesMap(objs bpfObjects, ingFirewallConfig ingressnodefwiov1a
 			klog.Fatalf("Failed to parse FromCIDR: %v", err)
 			return err
 		}
-		copy(key.U.Ip4Data[:], ip)
+		if ip.To4() != nil {
+			copy(key.IpData[:], ip.To4())
+		} else {
+			copy(key.IpData[:], ip.To16())
+		}
 		pfLen, _ := ipNet.Mask.Size()
 		key.PrefixLen = uint32(pfLen)
+		klog.Infof("key %v rules %v", key, rules)
 		// Handle Ingress firewall map operation
 		if isDelete {
+			log.Printf("Deleting ingress firewall rules for key %v", key)
 			if err := objs.bpfMaps.IngressNodeFirewallTableMap.Delete(key); err != nil {
 				klog.Fatalf("Failed Deleting ingress firewall rules: %v", err)
 				return err
 			}
 		} else {
+			log.Printf("Creating ingress firewall rules for key %v", key)
 			if err := objs.bpfMaps.IngressNodeFirewallTableMap.Update(key, rules, ebpf.UpdateAny); err != nil {
 				klog.Fatalf("Failed Adding/Updating ingress firewall rules: %v", err)
 				return err
@@ -127,23 +137,8 @@ func makeIngressFwRulesMap(objs bpfObjects, ingFirewallConfig ingressnodefwiov1a
 	return nil
 }
 
-func IngessNodeFwAttach(ifacesName []string, isDelete bool) error {
+func ingessNodeFwAttach(objs bpfObjects, ifacesName []string, isDelete bool) error {
 	for _, ifaceName := range ifacesName {
-		pinDir := path.Join(bpfFSPath, ifaceName)
-		// Load pre-compiled programs into the kernel.
-		objs := bpfObjects{}
-		if err := loadBpfObjects(&objs, &ebpf.CollectionOptions{
-			Maps: ebpf.MapOptions{
-				// Pin the map to the BPF filesystem and configure the
-				// library to automatically re-write it in the BPF
-				// program so it can be re-used if it already exists or
-				// create it if not
-				PinPath: pinDir,
-			},
-		}); err != nil {
-			log.Fatalf("loading objects: %s", err)
-			return err
-		}
 		// Look up the network interface by name.
 		iface, err := net.InterfaceByName(ifaceName)
 		if err != nil {
@@ -160,13 +155,27 @@ func IngessNodeFwAttach(ifacesName []string, isDelete bool) error {
 				log.Fatalf("could not attach XDP program: %s", err)
 				return err
 			}
+			pinDir := path.Join(bpfFSPath, "xdp_ingress_node_firewall_process")
+			/*
+				pinDir := path.Join(bpfFSPath, "xdp_ingress_node_firewall_process/"+ifaceName+"_link")
+				if err := os.MkdirAll(pinDir, os.ModePerm); err != nil {
+					log.Fatalf("failed to create pinDir %s: %s", pinDir, err)
+					return err
+				}
+			*/
 			if err := l.Pin(pinDir); err != nil {
-				log.Fatalf("failed to pin link to pinDir: %s", err)
+				log.Fatalf("failed to pin link to pinDir %s: %s", pinDir, err)
 				return err
 			}
 			log.Printf("Attached IngressNode Firewall program to iface %q (index %d)", iface.Name, iface.Index)
 		} else {
 			log.Printf("Unattaching IngressNode Firewall program from iface %q (index %d)", iface.Name, iface.Index)
+			l, _ := link.AttachXDP(link.XDPOptions{
+				Program:   objs.IngresNodeFirewallProcess,
+				Interface: iface.Index,
+			})
+			l.Unpin()
+			l.Close()
 			objs.Close()
 		}
 	}
