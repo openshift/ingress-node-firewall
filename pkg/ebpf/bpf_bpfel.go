@@ -26,8 +26,14 @@ type bpfEventHdrSt struct {
 }
 
 type bpfRuleStatisticsSt struct {
-	Packets uint64
-	Bytes   uint64
+	AllowStats struct {
+		Packets uint64
+		Bytes   uint64
+	}
+	DenyStats struct {
+		Packets uint64
+		Bytes   uint64
+	}
 }
 
 type bpfRuleTypeSt struct {
@@ -92,8 +98,9 @@ type bpfProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfMapSpecs struct {
-	IngressNodeFirewallStatsMap *ebpf.MapSpec `ebpf:"ingress_node_firewall_stats_map"`
-	IngressNodeFirewallTableMap *ebpf.MapSpec `ebpf:"ingress_node_firewall_table_map"`
+	IngressNodeFirewallStatisticsMap *ebpf.MapSpec `ebpf:"ingress_node_firewall_statistics_map"`
+	IngressNodeFirewallStatsMap      *ebpf.MapSpec `ebpf:"ingress_node_firewall_stats_map"`
+	IngressNodeFirewallTableMap      *ebpf.MapSpec `ebpf:"ingress_node_firewall_table_map"`
 }
 
 // bpfObjects contains all objects after they have been loaded into the kernel.
@@ -115,12 +122,14 @@ func (o *bpfObjects) Close() error {
 //
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfMaps struct {
-	IngressNodeFirewallStatsMap *ebpf.Map `ebpf:"ingress_node_firewall_stats_map"`
-	IngressNodeFirewallTableMap *ebpf.Map `ebpf:"ingress_node_firewall_table_map"`
+	IngressNodeFirewallStatisticsMap *ebpf.Map `ebpf:"ingress_node_firewall_statistics_map"`
+	IngressNodeFirewallStatsMap      *ebpf.Map `ebpf:"ingress_node_firewall_stats_map"`
+	IngressNodeFirewallTableMap      *ebpf.Map `ebpf:"ingress_node_firewall_table_map"`
 }
 
 func (m *bpfMaps) Close() error {
 	return _BpfClose(
+		m.IngressNodeFirewallStatisticsMap,
 		m.IngressNodeFirewallStatsMap,
 		m.IngressNodeFirewallTableMap,
 	)

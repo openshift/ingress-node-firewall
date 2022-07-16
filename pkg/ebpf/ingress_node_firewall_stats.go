@@ -19,7 +19,6 @@ func ingressNodeFwStatsLoader(objs bpfObjects) error {
 	// Open a perf event reader from userspace on the PERF_EVENT_ARRAY map
 	// described in the eBPF C program.
 	rd, err := perf.NewReader(objs.IngressNodeFirewallStatsMap, os.Getpagesize())
-	defer rd.Close()
 	if err != nil {
 		log.Fatalf("creating perf event reader: %s", err)
 		return err
