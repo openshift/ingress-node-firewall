@@ -35,6 +35,19 @@
 # define memmove(dest, src, n)  __builtin_memmove((dest), (src), (n))
 #endif
 
+struct ruleStatistics_st {
+	struct allow_stats_st {
+        __u64 packets;
+        __u64 bytes;
+    } allow_stats;
+    struct deny_stats_st {
+        __u64 packets;
+        __u64 bytes;
+    } deny_stats;
+};
+// Force emitting struct ruleStatistics_st into the ELF.
+const struct ruleStatistics_st *unused3 __attribute__((unused));
+
 struct event_hdr_st {
     __u16 ifId;
     __u16 ruleId;
@@ -68,11 +81,5 @@ struct rulesVal_st {
     struct ruleType_st rules[MAX_RULES_PER_TARGET];
 } __attribute__((packed));
 
-struct ruleStatistics_st {
-    __u64 packets;
-    __u64 bytes;
-} __attribute__((packed));
-// Force emitting struct ruleStatistics_st into the ELF.
-const struct ruleStatistics_st *unused3 __attribute__((unused));
 
 #endif

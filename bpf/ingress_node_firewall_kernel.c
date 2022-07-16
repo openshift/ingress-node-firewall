@@ -22,6 +22,13 @@ struct {
 } ingress_node_firewall_stats_map SEC(".maps");
 
 struct {
+	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __type(key, __u32); // ruleId
+    __type(value, struct ruleStatistics_st);
+    __uint(max_entries, MAX_TARGETS);
+} ingress_node_firewall_statistics_map SEC(".maps");
+
+struct {
     __uint(type, BPF_MAP_TYPE_LPM_TRIE);
     __type(key, struct bpf_lpm_ip_key_st);
     __type(value, struct rulesVal_st);
@@ -184,17 +191,33 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
 
 __attribute__((__always_inline__)) static inline void
 sendEvent(struct xdp_md *ctx, __u16 packet_len, __u8 action, __u16 ruleId) {
-	__u64 flags = 0; // BPF_F_CURRENT_CPU;
-    __u16 headerSize;
+    struct ruleStatistics_st *statistics, initialStats;
     struct event_hdr_st hdr;
+	__u64 flags = BPF_F_CURRENT_CPU;
+    // __u16 headerSize;
+    __u32 key = ruleId;
 
 	memset(&hdr, 0, sizeof(hdr));
     hdr.ruleId = ruleId;
     hdr.action = action;
     hdr.fill = 0;
-    headerSize = packet_len < MAX_EVENT_DATA ? packet_len : MAX_EVENT_DATA;
 
-    flags |= (__u64)headerSize << 32;
+    memset(&initialStats, 0, sizeof(initialStats));
+    statistics = bpf_map_lookup_elem(&ingress_node_firewall_statistics_map, &key);
+    if (likely(statistics)) {
+        if (action == ALLOW) {
+            __sync_fetch_and_add(&statistics->allow_stats.packets, 1);
+            __sync_fetch_and_add(&statistics->allow_stats.bytes, packet_len);
+        } else {
+            __sync_fetch_and_add(&statistics->deny_stats.packets, 1);
+            __sync_fetch_and_add(&statistics->deny_stats.bytes, packet_len);
+        }
+    } else {
+        bpf_map_update_elem(&ingress_node_firewall_statistics_map, &key, &initialStats, BPF_ANY);
+    }
+    // headerSize = packet_len < MAX_EVENT_DATA ? packet_len : MAX_EVENT_DATA;
+	// enable the following flag to dump packet header
+    // flags |= (__u64)headerSize << 32;
 
     (void)bpf_perf_event_output(ctx, &ingress_node_firewall_stats_map, flags,
                                 &hdr, sizeof(hdr));
