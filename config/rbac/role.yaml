@@ -6,7 +6,7 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - ingress-nodefw.io.ingress-nodefw.io
+  - ingress-nodefw.ingress-nodefw
   resources:
   - ingressnodefirewalls
   verbs:
@@ -18,41 +18,15 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ingress-nodefw.io.ingress-nodefw.io
+  - ingress-nodefw.ingress-nodefw
   resources:
   - ingressnodefirewalls/finalizers
   verbs:
   - update
 - apiGroups:
-  - ingress-nodefw.io.ingress-nodefw.io
+  - ingress-nodefw.ingress-nodefw
   resources:
   - ingressnodefirewalls/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ingress-nodefw.io.ingress-nodefw.io
-  resources:
-  - nodeendpoints
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ingress-nodefw.io.ingress-nodefw.io
-  resources:
-  - nodeendpoints/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - ingress-nodefw.io.ingress-nodefw.io
-  resources:
-  - nodeendpoints/status
   verbs:
   - get
   - patch

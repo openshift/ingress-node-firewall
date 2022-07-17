@@ -22,7 +22,7 @@ import (
 	"github.com/pkg/errors"
 	nodefwloader "ingress-node-firewall/pkg/ebpf"
 
-	ingressnodefwiov1alpha1 "ingress-node-firewall/api/v1alpha1"
+	ingressnodefwv1alpha1 "ingress-node-firewall/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -36,9 +36,9 @@ type IngressNodeFirewallReconciler struct {
 	Log    logr.Logger
 }
 
-//+kubebuilder:rbac:groups=ingress-nodefw.io.ingress-nodefw.io,resources=ingressnodefirewalls,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ingress-nodefw.io.ingress-nodefw.io,resources=ingressnodefirewalls/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=ingress-nodefw.io.ingress-nodefw.io,resources=ingressnodefirewalls/finalizers,verbs=update
+//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewalls,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewalls/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewalls/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -47,7 +47,7 @@ type IngressNodeFirewallReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
 func (r *IngressNodeFirewallReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
-	instance := &ingressnodefwiov1alpha1.IngressNodeFirewall{}
+	instance := &ingressnodefwv1alpha1.IngressNodeFirewall{}
 	err := r.Get(context.TODO(), req.NamespacedName, instance)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -62,14 +62,14 @@ func (r *IngressNodeFirewallReconciler) Reconcile(ctx context.Context, req ctrl.
 	return r.reconcileResource(ctx, req, instance, false)
 }
 
-func (r *IngressNodeFirewallReconciler) reconcileResource(ctx context.Context, req ctrl.Request, instance *ingressnodefwiov1alpha1.IngressNodeFirewall, isDelete bool) (ctrl.Result, error) {
+func (r *IngressNodeFirewallReconciler) reconcileResource(ctx context.Context, req ctrl.Request, instance *ingressnodefwv1alpha1.IngressNodeFirewall, isDelete bool) (ctrl.Result, error) {
 	if err := r.syncIngressNodeFirewallResources(instance, isDelete); err != nil {
 		return ctrl.Result{}, errors.Wrapf(err, "FailedToSyncIngressNodeFirewallResources")
 	}
 	return ctrl.Result{}, nil
 }
 
-func (r *IngressNodeFirewallReconciler) syncIngressNodeFirewallResources(instance *ingressnodefwiov1alpha1.IngressNodeFirewall, isDelete bool) error {
+func (r *IngressNodeFirewallReconciler) syncIngressNodeFirewallResources(instance *ingressnodefwv1alpha1.IngressNodeFirewall, isDelete bool) error {
 	logger := r.Log.WithName("syncIngressNodeFirewallResources")
 	logger.Info("Start")
 
@@ -87,6 +87,6 @@ func (r *IngressNodeFirewallReconciler) syncIngressNodeFirewallResources(instanc
 // SetupWithManager sets up the controller with the Manager.
 func (r *IngressNodeFirewallReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ingressnodefwiov1alpha1.IngressNodeFirewall{}).
+		For(&ingressnodefwv1alpha1.IngressNodeFirewall{}).
 		Complete(r)
 }

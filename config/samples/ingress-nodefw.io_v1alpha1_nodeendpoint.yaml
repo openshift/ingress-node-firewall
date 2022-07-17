@@ -1,7 +1,0 @@
-apiVersion: ingress-nodefw.io.ingress-nodefw.io/v1alpha1
-kind: NodeEndpoint
-metadata:
-  name: nodeendpoint-sample
-spec:
-  interfaces:
-  - eth0
