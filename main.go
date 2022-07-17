@@ -71,7 +71,7 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "d902e78d.ingress-nodefw.io",
+		LeaderElectionID:       "d902e78d.ingress-nodefw",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
@@ -95,14 +95,6 @@ func main() {
 		Log:    ctrl.Log.WithName("controllers").WithName("IngressNodeFirewall"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "IngressNodeFirewall")
-		os.Exit(1)
-	}
-	if err = (&controllers.NodeEndpointReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Log:    ctrl.Log.WithName("controllers").WithName("IngressNodeEndpoint"),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "NodeEndpoint")
 		os.Exit(1)
 	}
 	/* FIXME: enable webhook

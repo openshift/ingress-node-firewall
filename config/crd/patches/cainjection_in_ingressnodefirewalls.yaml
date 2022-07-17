@@ -4,4 +4,4 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)
-  name: ingressnodefirewalls.ingress-nodefw.io.ingress-nodefw.io
+  name: ingressnodefirewalls.ingress-nodefw.ingress-nodefw

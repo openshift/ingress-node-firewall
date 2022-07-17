@@ -122,7 +122,6 @@ func makeIngressFwRulesMap(objs bpfObjects, ingFirewallConfig ingressnodefwiov1a
 		}
 		pfLen, _ := ipNet.Mask.Size()
 		key.PrefixLen = uint32(pfLen)
-		klog.Infof("key %v rules %v", key, rules)
 		// Handle Ingress firewall map operation
 		if isDelete {
 			log.Printf("Deleting ingress firewall rules for key %v", key)

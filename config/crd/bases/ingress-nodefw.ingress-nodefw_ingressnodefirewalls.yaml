@@ -5,9 +5,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.9.0
   creationTimestamp: null
-  name: ingressnodefirewalls.ingress-nodefw.io.ingress-nodefw.io
+  name: ingressnodefirewalls.ingress-nodefw.ingress-nodefw
 spec:
-  group: ingress-nodefw.io.ingress-nodefw.io
+  group: ingress-nodefw.ingress-nodefw
   names:
     kind: IngressNodeFirewall
     listKind: IngressNodeFirewallList

@@ -1,4 +1,4 @@
-domain: ingress-nodefw.io
+domain: ingress-nodefw
 layout:
 - go.kubebuilder.io/v3
 plugins:
@@ -10,20 +10,12 @@ resources:
 - api:
     crdVersion: v1
   controller: true
-  domain: ingress-nodefw.io
-  group: ingress-nodefw.io
+  domain: ingress-nodefw
+  group: ingress-nodefw
   kind: IngressNodeFirewall
   path: ingress-node-firewall/api/v1alpha1
   version: v1alpha1
   webhooks:
     validation: true
     webhookVersion: v1
-- api:
-    crdVersion: v1
-  controller: true
-  domain: ingress-nodefw.io
-  group: ingress-nodefw.io
-  kind: NodeEndpoint
-  path: ingress-node-firewall/api/v1alpha1
-  version: v1alpha1
 version: "3"
