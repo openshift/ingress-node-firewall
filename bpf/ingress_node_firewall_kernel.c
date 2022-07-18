@@ -19,7 +19,7 @@ struct {
     __type(key, __u32);
     __type(value, __u32);
     __uint(max_entries, 1);
-} ingress_node_firewall_stats_map SEC(".maps");
+} ingress_node_firewall_events_map SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
@@ -219,7 +219,7 @@ sendEvent(struct xdp_md *ctx, __u16 packet_len, __u8 action, __u16 ruleId) {
 	// enable the following flag to dump packet header
     // flags |= (__u64)headerSize << 32;
 
-    (void)bpf_perf_event_output(ctx, &ingress_node_firewall_stats_map, flags,
+    (void)bpf_perf_event_output(ctx, &ingress_node_firewall_events_map, flags,
                                 &hdr, sizeof(hdr));
 }
 
