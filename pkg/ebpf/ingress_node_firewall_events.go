@@ -12,13 +12,13 @@ import (
 	"github.com/cilium/ebpf/perf"
 )
 
-func ingressNodeFwStatsLoader(objs bpfObjects) error {
+func ingressNodeFwEvents(objs bpfObjects) error {
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 
 	// Open a perf event reader from userspace on the PERF_EVENT_ARRAY map
 	// described in the eBPF C program.
-	rd, err := perf.NewReader(objs.IngressNodeFirewallStatsMap, os.Getpagesize())
+	rd, err := perf.NewReader(objs.IngressNodeFirewallEventsMap, os.Getpagesize())
 	if err != nil {
 		log.Fatalf("creating perf event reader: %s", err)
 		return err

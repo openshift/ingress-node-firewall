@@ -61,7 +61,7 @@ func IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwiov1alpha1.IngressN
 		return err
 	}
 
-	if err := ingressNodeFwStatsLoader(objs); err != nil {
+	if err := ingressNodeFwEvents(objs); err != nil {
 		klog.Fatalf("Failed to load perf stats: %v", err)
 		return err
 	}
