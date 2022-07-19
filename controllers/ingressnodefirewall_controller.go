@@ -75,7 +75,7 @@ func (r *IngressNodeFirewallReconciler) syncIngressNodeFirewallResources(instanc
 
 	// HACK-POC: we can't load bpf rules from the operator
 	for _, rule := range instance.Spec.Ingress {
-		if err := nodefwloader.IngressNodeFwRulesLoader(rule, instance.Spec.Interfaces, isDelete); err != nil {
+		if err := nodefwloader.IngressNodeFwRulesLoader(rule, *instance.Spec.Interfaces, isDelete); err != nil {
 			logger.Error(err, "Fail to load ingress firewall rule %v", rule)
 			return err
 		}

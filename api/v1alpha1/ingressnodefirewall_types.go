@@ -105,6 +105,7 @@ const (
 // IngressNodeFirewallRules define ingress node firewall rule
 type IngressNodeFirewallRules struct {
 	// FromCIDRS is A list of CIDR from which we apply node firewall rule
+	// +kubebuilder:validation:one-of[]=Type=string;Format:cidr
 	FromCIDRs []string `json:"fromCIDRs"`
 	// FirewallProtocolRules is A list of per protocol ingress node firewall rules
 	FirewallProtocolRules []IngressNodeFirewallProtocolRule `json:"rules"`
@@ -126,7 +127,8 @@ type IngressNodeFirewallSpec struct {
 	// empty list indicates the firewall policy applied on all interfaces
 	// +kubebuilder:validation:Optional
 	// +optional
-	Interfaces []string `json:"interfaces"`
+	// +nullable
+	Interfaces *[]string `json:"interfaces"`
 }
 
 // IngressNodeFirewallStatus defines the observed state of IngressNodeFirewall
