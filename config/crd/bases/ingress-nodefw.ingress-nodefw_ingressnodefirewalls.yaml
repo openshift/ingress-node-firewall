@@ -115,6 +115,7 @@ spec:
                   on all interfaces
                 items:
                   type: string
+                nullable: true
                 type: array
               nodeSelector:
                 additionalProperties:
