@@ -2,6 +2,8 @@
 FROM registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.18-openshift-4.12 AS builder
 
 WORKDIR /workspace
+RUN go mod vendor
+
 # Copy the Go Modules manifests
 COPY go.mod go.mod
 COPY go.sum go.sum
