@@ -109,12 +109,11 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "IngressNodeFirewall")
 		os.Exit(1)
 	}
-	/* FIXME: enable webhook
+
 	if err = (&ingressnodefwiov1alpha1.IngressNodeFirewall{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "IngressNodeFirewall")
 		os.Exit(1)
 	}
-	*/
 	if err = (&controllers.IngrNodeFwConfigReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
