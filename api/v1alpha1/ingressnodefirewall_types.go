@@ -54,11 +54,11 @@ type IngressNodeFirewallProtocolRule struct {
 
 	// IngressNodeFirewallProtoRule define ingress node firewall rule for TCP, UDP and SCTP protocols.
 	// +optional
-	ProtocolRule IngressNodeFirewallProtoRule `json:"protoRule,omitempty"`
+	ProtocolRule *IngressNodeFirewallProtoRule `json:"protoRule,omitempty"`
 
 	// IngressNodeFirewallICMPRule define ingress node firewall rule for ICMP and ICMPv6 protocols.
 	// +optional
-	ICMPRule IngressNodeFirewallICMPRule `json:"icmpRule,omitempty"`
+	ICMPRule *IngressNodeFirewallICMPRule `json:"icmpRule,omitempty"`
 
 	// Protocol can be ICMP, ICMPv6, TCP, SCTP or UDP.
 	// +kubebuilder:validation:Required
