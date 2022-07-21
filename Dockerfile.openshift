@@ -2,7 +2,6 @@
 FROM registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.18-openshift-4.12 AS builder
 
 WORKDIR /workspace
-RUN go mod vendor
 
 # Copy the Go Modules manifests
 COPY go.mod go.mod
@@ -13,6 +12,7 @@ COPY main.go main.go
 COPY api/ api/
 COPY controllers/ controllers/
 COPY pkg/ pkg/
+COPY vendor/ vendor/
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -mod=vendor -o manager main.go
