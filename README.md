@@ -1,7 +1,7 @@
 # ingress-node-firewall
 This is Ingress node Firewall Operator, implementing [Operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/) for deploying Ingress node firewall daemon on kubernetes cluster.
-It uses [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/) 
-which provides a reconcile function responsible for synchronizing resources untile the desired state is reached on the cluster 
+It uses [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/)
+which provides a reconcile function responsible for synchronizing resources untile the desired state is reached on the cluster
 
 ## Prerequisites
 Need to install the following packages:
@@ -33,4 +33,32 @@ spec:
 to run ingress-node-firewall-operator unit tests (no cluster required), execute the following :
 ```shell
 make test
+```
+
+## Running on a KinD cluster
+
+1. For fedora, you will need the following packages
+```sh
+sudo dnf install glibc-devel glibc-devel.i686
+```
+2. Download latest [KinD](https://kind.sigs.k8s.io/docs/user/quick-start) stable version
+3. Install KinD
+```sh
+./hack/kind-cluster.sh
+```
+4. Install custom resource definitions
+```sh
+make install
+```
+6. Build container images
+```sh
+make docker-build IMG=<some-registry>/ingress-node-firewall:tag
+```
+7. Load container image to KinD container(s)
+```sh
+kind load docker-image <some-registry>/ingress-node-firewall:tag
+```
+8. Deploy resources to KinD cluster
+```sh
+make deploy IMG=<some-registry>/ingress-node-firewall:tag
 ```
