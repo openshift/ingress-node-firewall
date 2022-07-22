@@ -35,9 +35,11 @@ struct xdp_md;
 struct path;
 struct btf_ptr;
 struct inode;
+struct sctphdr;
 struct socket;
 struct file;
 struct bpf_timer;
+
 
 /*
  * bpf_map_lookup_elem

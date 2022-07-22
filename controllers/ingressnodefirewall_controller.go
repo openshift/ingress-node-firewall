@@ -73,14 +73,24 @@ func (r *IngressNodeFirewallReconciler) syncIngressNodeFirewallResources(instanc
 	logger := r.Log.WithName("syncIngressNodeFirewallResources")
 	logger.Info("Start")
 
+	c, err := nodefwloader.NewIngNodeFwController()
+	if err != nil {
+		logger.Error(err, "Fail to create nodefw controller instance %s", err)
+		return err
+	}
+
 	// HACK-POC: we can't load bpf rules from the operator
 	for _, rule := range instance.Spec.Ingress {
-		if err := nodefwloader.IngressNodeFwRulesLoader(rule, *instance.Spec.Interfaces, isDelete); err != nil {
+		if err := c.IngressNodeFwRulesLoader(rule, isDelete); err != nil {
 			logger.Error(err, "Fail to load ingress firewall rule %v", rule)
 			return err
 		}
 	}
 
+	if err := c.IngressNodeFwAttach(*instance.Spec.Interfaces, isDelete); err != nil {
+		logger.Error(err, "Fail to attach ingress firewall prog %s", err)
+		return err
+	}
 	return nil
 }
 

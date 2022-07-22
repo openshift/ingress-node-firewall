@@ -27,21 +27,22 @@ type IngressNodeFirewallICMPRule struct {
 	// +kubebuilder:validation:Maximum:=255
 	// +kubebuilder:validation:Minimum:=0
 	// +optional
-	ICMPType uint8 `json:"icmpType"`
+	ICMPType uint8 `json:"icmpType,omitempty"`
 
 	// ICMPCode define ICMP Code ID (RFC 792).
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Maximum:=16
 	// +kubebuilder:validation:Minimum:=0
 	// +optional
-	ICMPCode uint8 `json:"icmpCode"`
+	ICMPCode uint8 `json:"icmpCode,omitempty"`
 }
 
 // IngressNodeFirewallProtoRule define ingress node firewall rule for TCP, UDP and SCTP protocols
 type IngressNodeFirewallProtoRule struct {
-	// +kubebuilder:validation:Optional
+	//Ports can be a single port or range of ports using start-end range format
+	//+kubebuilder:validation:Optional
 	// +optional
-	Port uint16 `json:"port"`
+	Ports string `json:"ports,omitempty"`
 }
 
 // IngressNodeFirewallProtocolRule define ingress node firewall rule per protocol
@@ -49,28 +50,26 @@ type IngressNodeFirewallProtocolRule struct {
 	// Order define order of execution of ingress firewall rules .
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Minimum:=1
-	// +optional
 	Order uint32 `json:"order"`
 
 	// IngressNodeFirewallProtoRule define ingress node firewall rule for TCP, UDP and SCTP protocols.
 	// +optional
-	ProtocolRule IngressNodeFirewallProtoRule `json:"protoRule"`
+	ProtocolRule IngressNodeFirewallProtoRule `json:"protoRule,omitempty"`
 
 	// IngressNodeFirewallICMPRule define ingress node firewall rule for ICMP and ICMPv6 protocols.
 	// +optional
-	ICMPRule IngressNodeFirewallICMPRule `json:"icmpRule"`
+	ICMPRule IngressNodeFirewallICMPRule `json:"icmpRule,omitempty"`
 
 	// Protocol can be ICMP, ICMPv6, TCP, SCTP or UDP.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum="icmp";"icmpv6";"tcp";"udp";"sctp"
-	// +optional
 	Protocol IngressNodeFirewallRuleProtocolType `json:"protocol"`
 
-	// Action can be allow or deny.
+	// Action can be allow or deny, default action is deny
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum="allow";"deny"
 	// +optional
-	Action IngressNodeFirewallActionType `json:"action"`
+	Action IngressNodeFirewallActionType `json:"action,omitempty"`
 }
 
 // ProtocolType defines the protocol types that are supported
@@ -104,11 +103,11 @@ const (
 
 // IngressNodeFirewallRules define ingress node firewall rule
 type IngressNodeFirewallRules struct {
-	// FromCIDRS is A list of CIDR from which we apply node firewall rule
+	// SourceCIDRS is A list of CIDRs from which we apply node firewall rule
 	// +kubebuilder:validation:one-of[]=Type=string;Format:cidr
-	FromCIDRs []string `json:"fromCIDRs"`
+	SourceCIDRs []string `json:"sourceCIDRs"`
 	// FirewallProtocolRules is A list of per protocol ingress node firewall rules
-	FirewallProtocolRules []IngressNodeFirewallProtocolRule `json:"rules"`
+	FirewallProtocolRules []IngressNodeFirewallProtocolRule `json:"rules,omitempty"`
 }
 
 // IngressNodeFirewallSpec defines the desired state of IngressNodeFirewall
@@ -121,14 +120,14 @@ type IngressNodeFirewallSpec struct {
 	// empty list indicates no ingress firewall i.e allow all incoming traffic.
 	// +kubebuilder:validation:Optional
 	// +optional
-	Ingress []IngressNodeFirewallRules `json:"ingress"`
+	Ingress []IngressNodeFirewallRules `json:"ingress,omitempty"`
 
 	// A list of interfaces where the ingress firewall policy will be applied on.
 	// empty list indicates the firewall policy applied on all interfaces
 	// +kubebuilder:validation:Optional
 	// +optional
 	// +nullable
-	Interfaces *[]string `json:"interfaces"`
+	Interfaces *[]string `json:"interfaces,omitempty"`
 }
 
 // IngressNodeFirewallStatus defines the observed state of IngressNodeFirewall

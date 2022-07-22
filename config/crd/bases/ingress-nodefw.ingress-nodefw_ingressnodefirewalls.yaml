@@ -43,12 +43,6 @@ spec:
                   description: IngressNodeFirewallRules define ingress node firewall
                     rule
                   properties:
-                    fromCIDRs:
-                      description: FromCIDRS is A list of CIDR from which we apply
-                        node firewall rule
-                      items:
-                        type: string
-                      type: array
                     rules:
                       description: FirewallProtocolRules is A list of per protocol
                         ingress node firewall rules
@@ -57,7 +51,8 @@ spec:
                           node firewall rule per protocol
                         properties:
                           action:
-                            description: Action can be allow or deny.
+                            description: Action can be allow or deny, default action
+                              is deny
                             enum:
                             - allow
                             - deny
@@ -89,8 +84,10 @@ spec:
                             description: IngressNodeFirewallProtoRule define ingress
                               node firewall rule for TCP, UDP and SCTP protocols.
                             properties:
-                              port:
-                                type: integer
+                              ports:
+                                description: Ports can be a single port or range of
+                                  ports using start-end range format
+                                type: string
                             type: object
                           protocol:
                             description: Protocol can be ICMP, ICMPv6, TCP, SCTP or
@@ -102,11 +99,19 @@ spec:
                             - udp
                             - sctp
                             type: string
+                        required:
+                        - order
+                        - protocol
                         type: object
                       type: array
+                    sourceCIDRs:
+                      description: SourceCIDRS is A list of CIDRs from which we apply
+                        node firewall rule
+                      items:
+                        type: string
+                      type: array
                   required:
-                  - fromCIDRs
-                  - rules
+                  - sourceCIDRs
                   type: object
                 type: array
               interfaces:

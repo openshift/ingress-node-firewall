@@ -34,15 +34,20 @@ type bpfRuleStatisticsSt struct {
 		Packets uint64
 		Bytes   uint64
 	}
+	NomatchStats struct {
+		Packets uint64
+		Bytes   uint64
+	}
 }
 
 type bpfRuleTypeSt struct {
-	RuleId   uint32
-	Protocol uint8
-	DstPort  uint16
-	IcmpType uint8
-	IcmpCode uint8
-	Action   uint8
+	RuleId       uint32
+	Protocol     uint8
+	DstPortStart uint16
+	DstPortEnd   uint16
+	IcmpType     uint8
+	IcmpCode     uint8
+	Action       uint8
 }
 
 type bpfRulesValSt struct {
