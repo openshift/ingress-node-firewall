@@ -17,21 +17,33 @@ limitations under the License.
 package controllers
 
 import (
-	"path/filepath"
+	"context"
+	"os"
 	"testing"
+
+	//+kubebuilder:scaffold:imports
+	ingressnodefwv1alpha1 "ingress-node-firewall/api/v1alpha1"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"path/filepath"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+)
 
-	ingressnodefwiov1alpha1 "ingress-node-firewall/api/v1alpha1"
-	//+kubebuilder:scaffold:imports
+const (
+	IngressNodeFwConfigTestNameSpace    = "ingress-node-fw-config-test-namespace"
+	IngressNodeFirewallManifestPathTest = "../bindata/manifests/daemon"
+	DeamonSetName                       = "ingress-node-firewall-daemon"
+	IngressNodeFirewallResourceName     = "ingressnodefirewallconfig"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -51,6 +63,8 @@ func TestAPIs(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	By("Setting Ingress nodefirewall config environment variables")
+	Expect(os.Setenv("DAEMONSET_IMAGE", "test-daemon:latest")).To(Succeed())
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
@@ -64,7 +78,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	err = ingressnodefwiov1alpha1.AddToScheme(scheme.Scheme)
+	err = ingressnodefwv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme
@@ -72,11 +86,45 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
+	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme: scheme.Scheme,
+	})
+	Expect(err).ToNot(HaveOccurred())
 
+	testNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: IngressNodeFwConfigTestNameSpace,
+		},
+	}
+
+	err = k8sClient.Create(context.Background(), testNamespace)
+	Expect(err).ToNot(HaveOccurred())
+
+	ManifestPath = IngressNodeFirewallManifestPathTest
+
+	err = (&IngrNodeFwConfigReconciler{
+		Client:    k8sClient,
+		Scheme:    scheme.Scheme,
+		Log:       ctrl.Log.WithName("controllers").WithName("IngressNodeFirewallConfig"),
+		Namespace: IngressNodeFwConfigTestNameSpace,
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	err = (&IngressNodeFirewallReconciler{
+		Client: k8sClient,
+		Scheme: scheme.Scheme,
+		Log:    ctrl.Log.WithName("controllers").WithName("IngressNodeFirewall"),
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	go func() {
+		err = k8sManager.Start(ctrl.SetupSignalHandler())
+		Expect(err).ToNot(HaveOccurred())
+	}()
 }, 60)
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).NotTo(HaveOccurred())
+	ManifestPath = IngressNodeFirewallManifestPath
+	testEnv.Stop()
 })

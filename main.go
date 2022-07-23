@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	ingressnodefwiov1alpha1 "ingress-node-firewall/api/v1alpha1"
+	ingressnodefwv1alpha1 "ingress-node-firewall/api/v1alpha1"
 	"ingress-node-firewall/controllers"
 	//+kubebuilder:scaffold:imports
 )
@@ -45,6 +46,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(ingressnodefwiov1alpha1.AddToScheme(scheme))
+	utilruntime.Must(ingressnodefwv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -64,6 +66,16 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	if _, ok := os.LookupEnv("DAEMONSET_IMAGE"); !ok {
+		setupLog.Error(nil, "DAEMONSET_IMAGE env variable must be set")
+		os.Exit(1)
+	}
+	nameSpace, ok := os.LookupEnv("DAEMONSET_NAMESPACE")
+	if !ok {
+		setupLog.Error(nil, "DAEMONSET_NAMESPACE env variable must be set")
+		os.Exit(1)
+	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -103,6 +115,15 @@ func main() {
 		os.Exit(1)
 	}
 	*/
+	if err = (&controllers.IngrNodeFwConfigReconciler{
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Log:       ctrl.Log.WithName("controllers").WithName("IngressNodeFirewallConfig"),
+		Namespace: nameSpace,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "IngrNodeFwConfig")
+		os.Exit(1)
+	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

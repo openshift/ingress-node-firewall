@@ -14,6 +14,7 @@ COPY main.go main.go
 COPY api/ api/
 COPY controllers/ controllers/
 COPY pkg/ pkg/
+COPY bindata/manifests/ bindata/manifests/
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
@@ -25,6 +26,8 @@ FROM alpine:3.16
 RUN apk add --no-cache strace
 WORKDIR /
 COPY --from=builder /workspace/manager .
+COPY --from=builder /workspace/bindata/manifests /bindata/manifests
+
 USER root:root
 
 ENTRYPOINT ["/manager"]

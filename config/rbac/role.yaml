@@ -6,6 +6,18 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - ingress-nodefw.ingress-nodefw
   resources:
   - ingressnodefirewalls
@@ -31,3 +43,49 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - ingress-nodefw.ingress-nodefw
+  resources:
+  - ingrnodefwconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress-nodefw.ingress-nodefw
+  resources:
+  - ingrnodefwconfigs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ingress-nodefw.ingress-nodefw
+  resources:
+  - ingrnodefwconfigs/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  creationTimestamp: null
+  name: manager-role
+  namespace: ingress-node-firewall-system
+rules:
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
