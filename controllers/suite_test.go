@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	ingressnodefwiov1alpha1 "ingress-node-firewall/api/v1alpha1"
+	ingressnodefwv1alpha1 "ingress-node-firewall/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -65,6 +66,9 @@ var _ = BeforeSuite(func() {
 	Expect(cfg).NotTo(BeNil())
 
 	err = ingressnodefwiov1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = ingressnodefwv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme
