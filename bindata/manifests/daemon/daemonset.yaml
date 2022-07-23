@@ -16,7 +16,8 @@ spec:
         type: infra
     spec:
       containers:
-        - command: ['/bin/sh', '-c', 'mount bpffs /sys/fs/bpf -t bpf && daemon']
+        #   - command: ['/bin/sh', '-c', 'mount bpffs /sys/fs/bpf -t bpf && daemon']
+        - command: ['sleep', 'infinity']
           image: '{{.Image}}'
           name: daemon
           securityContext:
@@ -30,18 +31,16 @@ spec:
             - name: bpf-maps
               mountPath: /sys/fs/bpf
               mountPropagation: Bidirectional
+          env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
       nodeSelector:
         kubernetes.io/os: linux
-      serviceAccountName: daemon
+        #      serviceAccountName: daemon
       shareProcessNamespace: true
       terminationGracePeriodSeconds: 2
-      tolerations:
-        - effect: NoSchedule
-          key: node-role.kubernetes.io/master
-          operator: Exists
-        - effect: NoSchedule
-          key: node-role.kubernetes.io/control-plane
-          operator: Exists
       volumes:
         - name: bpf-maps
           hostPath:

@@ -18,16 +18,17 @@ package controllers
 
 import (
 	"context"
-	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 	ingressnodefwv1alpha1 "ingress-node-firewall/api/v1alpha1"
 	"ingress-node-firewall/pkg/apply"
 	"ingress-node-firewall/pkg/render"
+	"os"
+
+	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
-	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -82,7 +83,7 @@ func (r *IngressNodeFirewallConfigReconciler) Reconcile(ctx context.Context, req
 	}
 
 	if err := r.syncIngressNodeFwConfigResources(instance); err != nil {
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }
@@ -91,6 +92,7 @@ func (r *IngressNodeFirewallConfigReconciler) Reconcile(ctx context.Context, req
 func (r *IngressNodeFirewallConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ingressnodefwv1alpha1.IngressNodeFirewallConfig{}).
+		Owns(&appsv1.DaemonSet{}).
 		Complete(r)
 }
 
@@ -107,8 +109,8 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 	}
 
 	for _, obj := range objs {
-		if obj.GetKind() == "DaemonSet" &&
-			(len(config.Spec.NodeSelector) > 0 || len(config.Spec.Tolerations) > 0) {
+		if obj.GetKind() == "DaemonSet" {
+			//			(len(config.Spec.NodeSelector) > 0 || len(config.Spec.Tolerations) > 0) {
 			scheme := kscheme.Scheme
 			ds := &appsv1.DaemonSet{}
 			err = scheme.Convert(obj, ds, nil)
@@ -122,16 +124,23 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 			if len(config.Spec.Tolerations) > 0 {
 				ds.Spec.Template.Spec.Tolerations = config.Spec.Tolerations
 			}
+			err = ctrl.SetControllerReference(config, ds, r.Scheme)
+			if err != nil {
+				logger.Error(err, "SetControllerReference")
+			}
+			logger.Info("ds is", "ds", ds)
 			err = scheme.Convert(ds, obj, nil)
 			if err != nil {
 				logger.Error(err, "Fail to convert DaemonSet to IngressNodeFirewallConfig object")
 				return err
 			}
+
+			obj.SetNamespace("default")
+			if err := apply.ApplyObject(context.TODO(), r.Client, obj); err != nil {
+				return errors.Wrapf(err, "could not apply (%s) %s", obj.GroupVersionKind(), obj.GetName())
+			}
 		}
 
-		if err := apply.ApplyObject(context.TODO(), r.Client, obj); err != nil {
-			return errors.Wrapf(err, "could not apply (%s) %s", obj.GroupVersionKind(), obj.GetName())
-		}
 	}
 	return nil
 }

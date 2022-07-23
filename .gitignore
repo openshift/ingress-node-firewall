@@ -5,9 +5,8 @@
 *.so
 *.dylib
 *.o
-!*_bpf*.o
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-./bin/*
+bin/*

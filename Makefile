@@ -261,8 +261,8 @@ prereqs: ## Check if prerequisites are met, and installing missing dependencies
 # protobuf definitions in the proto folder.
 # You might want to use the docker-generate target instead of this.
 .PHONY: ebpf-generate
-generate: export BPF_CLANG := $(CLANG)
-generate: export BPF_CFLAGS := $(CFLAGS)
+ebpf-generate: export BPF_CLANG := $(CLANG)
+ebpf-generate: export BPF_CFLAGS := $(CFLAGS)
 ebpf-generate: prereqs ## Generating BPF Go bindings
 	@echo "### Generating BPF Go bindings"
 	go generate ./pkg/...

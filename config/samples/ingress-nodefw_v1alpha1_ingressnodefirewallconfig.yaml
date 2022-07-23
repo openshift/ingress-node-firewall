@@ -2,3 +2,6 @@ apiVersion: ingress-nodefw.ingress-nodefw/v1alpha1
 kind: IngressNodeFirewallConfig
 metadata:
   name: ingressnodefirewallconfig
+  #spec:
+  #nodeSelector:
+  #  node-role.kubernetes.io/worker: ""
