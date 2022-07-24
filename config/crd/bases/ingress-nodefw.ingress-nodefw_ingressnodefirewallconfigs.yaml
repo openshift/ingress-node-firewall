@@ -40,6 +40,9 @@ spec:
               image:
                 description: Ingress node firewall DaemonSet image
                 type: string
+              namespace:
+                description: Ingress node firewall DaemonSet and NodeState namespace.
+                type: string
               nodeSelector:
                 additionalProperties:
                   type: string

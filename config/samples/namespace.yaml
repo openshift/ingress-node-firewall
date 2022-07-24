@@ -1,0 +1,5 @@
+# todo: how to best scaffold this
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingress-node-firewall

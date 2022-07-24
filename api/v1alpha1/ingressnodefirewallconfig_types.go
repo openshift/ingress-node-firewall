@@ -26,6 +26,8 @@ import (
 
 // IngressNodeFirewallConfigSpec defines the desired state of IngressNodeFirewallConfig
 type IngressNodeFirewallConfigSpec struct {
+	// Ingress node firewall DaemonSet and NodeState namespace.
+	Namespace string `json:"namespace,omitempty"`
 	// Ingress node firewall DaemonSet image
 	Image string `json:"image,omitempty"`
 	// Nodes where the daemonset will be running on.

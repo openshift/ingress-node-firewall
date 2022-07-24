@@ -18,10 +18,10 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	ingressnodefwv1alpha1 "ingress-node-firewall/api/v1alpha1"
 	"ingress-node-firewall/pkg/apply"
 	"ingress-node-firewall/pkg/render"
-	"os"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -98,10 +98,14 @@ func (r *IngressNodeFirewallConfigReconciler) SetupWithManager(mgr ctrl.Manager)
 
 func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(config *ingressnodefwv1alpha1.IngressNodeFirewallConfig) error {
 	logger := r.Log.WithName("syncIngressNodeFirewallConfigResources")
+	if config.Spec.Image == "" || config.Spec.Namespace == "" {
+		return fmt.Errorf("invalid IngressNodeFirewallConfig %s. Both config.Spec.Image and config.Spec.Namespace must be set", config.Name)
+	}
+
 	logger.Info("Start")
 	data := render.MakeRenderData()
+	data.Data["Image"] = config.Spec.Image
 
-	data.Data["Image"] = os.Getenv("DAEMONSET_IMAGE")
 	objs, err := render.RenderDir(ManifestPath, &data)
 	if err != nil {
 		logger.Error(err, "Fail to render config daemon manifests")
@@ -110,7 +114,6 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 
 	for _, obj := range objs {
 		if obj.GetKind() == "DaemonSet" {
-			//			(len(config.Spec.NodeSelector) > 0 || len(config.Spec.Tolerations) > 0) {
 			scheme := kscheme.Scheme
 			ds := &appsv1.DaemonSet{}
 			err = scheme.Convert(obj, ds, nil)
@@ -128,14 +131,13 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 			if err != nil {
 				logger.Error(err, "SetControllerReference")
 			}
-			logger.Info("ds is", "ds", ds)
 			err = scheme.Convert(ds, obj, nil)
 			if err != nil {
 				logger.Error(err, "Fail to convert DaemonSet to IngressNodeFirewallConfig object")
 				return err
 			}
 
-			obj.SetNamespace("default")
+			obj.SetNamespace(config.Spec.Namespace)
 			if err := apply.ApplyObject(context.TODO(), r.Client, obj); err != nil {
 				return errors.Wrapf(err, "could not apply (%s) %s", obj.GroupVersionKind(), obj.GetName())
 			}

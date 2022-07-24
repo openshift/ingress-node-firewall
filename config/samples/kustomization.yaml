@@ -3,4 +3,5 @@ resources:
 - ingress-nodefw_v1alpha1_ingressnodefirewall.yaml
 - ingress-nodefw_v1alpha1_nodeendpoint.yaml
 - ingress-nodefw_v1alpha1_ingressnodefirewallconfig.yaml
+- ingress-nodefw_v1alpha1_ingressnodefirewallnodestate.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

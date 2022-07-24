@@ -57,3 +57,37 @@ rules:
   - get
   - patch
   - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  creationTimestamp: null
+  name: manager-role
+  namespace: ingress-node-firewall
+rules:
+- apiGroups:
+  - ingress-nodefw.ingress-nodefw
+  resources:
+  - ingressnodefirewallnodestates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress-nodefw.ingress-nodefw
+  resources:
+  - ingressnodefirewallnodestates/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ingress-nodefw.ingress-nodefw
+  resources:
+  - ingressnodefirewallnodestates/status
+  verbs:
+  - get
+  - patch
+  - update

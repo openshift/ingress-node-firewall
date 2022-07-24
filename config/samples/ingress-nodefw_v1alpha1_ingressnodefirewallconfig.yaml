@@ -2,6 +2,8 @@ apiVersion: ingress-nodefw.ingress-nodefw/v1alpha1
 kind: IngressNodeFirewallConfig
 metadata:
   name: ingressnodefirewallconfig
-  #spec:
-  #nodeSelector:
-  #  node-role.kubernetes.io/worker: ""
+spec:
+  nodeSelector:
+    node-role.kubernetes.io/worker: ""
+  image: quay.io/akaris/ingress-node-firewall-daemon
+  namespace: ingress-node-firewall

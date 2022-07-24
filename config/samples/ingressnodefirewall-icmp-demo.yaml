@@ -6,7 +6,7 @@ spec:
   interfaces:
   - eth0
   nodeSelector:
-    do-node-ingress-firewall: 'true'
+    node-role.kubernetes.io/worker: ""
   ingress:
   - fromCIDRs:
        - 172.20.0.0/24

@@ -92,7 +92,7 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: generate
-generate: controller-gen ebpf-generate ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 .PHONY: fmt
@@ -271,3 +271,24 @@ ebpf-generate: prereqs ## Generating BPF Go bindings
 docker-generate: ## Creating the container that generates the eBPF binaries
 	docker build . -f hack/generators.Dockerfile -t $(LOCAL_GENERATOR_IMAGE)
 	docker run --rm -v $(shell pwd):/src $(LOCAL_GENERATOR_IMAGE)
+
+# Daemon below
+.PHONY: daemon
+daemon:
+	hack/build-daemon.sh
+
+.PHONY: docker-build-daemon
+docker-build-daemon:
+	docker build -t ${DAEMON_IMG} -f Dockerfile.daemon .
+
+.PHONY: docker-push-daemon
+docker-push-daemon:
+	docker push ${DAEMON_IMG}
+
+.PHONY: podman-build-daemon
+podman-build-daemon:
+	podman build -t ${DAEMON_IMG} -f Dockerfile.daemon .
+
+.PHONY: podman-push-daemon
+podman-push-daemon:
+	podman push ${DAEMON_IMG}
