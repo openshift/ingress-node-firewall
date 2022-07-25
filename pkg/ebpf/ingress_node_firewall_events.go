@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -12,7 +13,9 @@ import (
 	"github.com/cilium/ebpf/perf"
 )
 
-func ingressNodeFwEvents(objs bpfObjects) error {
+// ingressNodeFwEvents watch for eBPF events generated during XDP packet processing
+func (infc *IngNodeFwController) ingressNodeFwEvents() error {
+	objs := infc.objs
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 
@@ -20,8 +23,7 @@ func ingressNodeFwEvents(objs bpfObjects) error {
 	// described in the eBPF C program.
 	rd, err := perf.NewReader(objs.IngressNodeFirewallEventsMap, os.Getpagesize())
 	if err != nil {
-		log.Fatalf("creating perf event reader: %s", err)
-		return err
+		return fmt.Errorf("creating perf event reader: %s", err)
 	}
 	go func() {
 		// Wait for a signal and close the perf reader,
@@ -30,7 +32,8 @@ func ingressNodeFwEvents(objs bpfObjects) error {
 		log.Println("Received signal, exiting program..")
 
 		if err := rd.Close(); err != nil {
-			log.Fatalf("closing perf event reader: %s", err)
+			log.Printf("closing perf event reader: %s", err)
+			return
 		}
 	}()
 

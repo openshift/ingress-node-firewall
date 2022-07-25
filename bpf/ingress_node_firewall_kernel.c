@@ -3,6 +3,7 @@
 #include "bpf_tracing.h"
 #include "common.h"
 #include "ingress_node_firewall.h"
+#include <inttypes.h>
 #include <linux/icmp.h>
 #include <linux/icmpv6.h>
 #include <linux/if_ether.h>
@@ -13,6 +14,15 @@
 #include <linux/ipv6.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
+#include <linux/sctp.h>
+
+// FIXME: Hack this structure defined in linux/sctp.h however I am getting incomplete type when I reference it
+struct sctphdr {
+	__be16 source;
+	__be16 dest;
+	__be32 vtag;
+	__le32 checksum;
+};
 
 struct {
 	__uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
@@ -46,41 +56,62 @@ ip_extract_l4Info(void *dataStart, void *dataEnd, __u16 *dstPort,
         return -1;
     }
 
-    if (likely(IPPROTO_TCP == iph->protocol)) {
-        struct tcphdr *tcph = (struct tcphdr *)dataStart;
-        dataStart += sizeof(struct tcphdr);
-        if (unlikely(dataStart > dataEnd)) {
-            return -1;
+	switch (iph->protocol) {
+	case IPPROTO_TCP:
+		{
+            struct tcphdr *tcph = (struct tcphdr *)dataStart;
+            dataStart += sizeof(struct tcphdr);
+            if (unlikely(dataStart > dataEnd)) {
+                return -1;
+            }
+            *dstPort = tcph->dest;
+            break;
         }
-        *dstPort = tcph->dest;
-		bpf_printk("Process TCP protocol dstPort %2x", *dstPort);
-    } else if (IPPROTO_UDP == iph->protocol) {
-        struct udphdr *udph = (struct udphdr *)dataStart;
-        dataStart += sizeof(struct udphdr);
-        if (unlikely(dataStart > dataEnd)) {
-            return -1;
+    case IPPROTO_UDP:
+        {
+            struct udphdr *udph = (struct udphdr *)dataStart;
+            dataStart += sizeof(struct udphdr);
+            if (unlikely(dataStart > dataEnd)) {
+                return -1;
+            }
+            *dstPort = udph->dest;
+            break;
         }
-        *dstPort = udph->dest;
-    } else if (IPPROTO_ICMP == iph->protocol) {
-        struct icmphdr *icmph = (struct icmphdr *)dataStart;
-        dataStart += sizeof(struct icmphdr);
-        if (unlikely(dataStart > dataEnd)) {
-            return -1;
+    case IPPROTO_SCTP:
+        {
+            struct sctphdr *sctph = (struct sctphdr *)dataStart;
+            dataStart += sizeof(struct sctphdr);
+            if (unlikely(dataStart > dataEnd)) {
+                return -1;
+            }
+            *dstPort = sctph->dest;
+            break;
         }
-        *icmpType = icmph->type;
-        *icmpCode = icmph->code;
-    } else if (IPPROTO_ICMPV6 == iph->protocol) {
-        struct icmp6hdr *icmp6h = (struct icmp6hdr *)dataStart;
-        dataStart += sizeof(struct icmp6hdr);
-        if (unlikely(dataStart > dataEnd)) {
-            return -1;
+    case IPPROTO_ICMP:
+        {
+            struct icmphdr *icmph = (struct icmphdr *)dataStart;
+            dataStart += sizeof(struct icmphdr);
+            if (unlikely(dataStart > dataEnd)) {
+                return -1;
+            }
+            *icmpType = icmph->type;
+            *icmpCode = icmph->code;
+            break;
         }
-        *icmpType = icmp6h->icmp6_type;
-        *icmpCode = icmp6h->icmp6_code;
-    } else {
+    case IPPROTO_ICMPV6:
+        {
+            struct icmp6hdr *icmp6h = (struct icmp6hdr *)dataStart;
+            dataStart += sizeof(struct icmp6hdr);
+            if (unlikely(dataStart > dataEnd)) {
+                return -1;
+            }
+            *icmpType = icmp6h->icmp6_type;
+            *icmpCode = icmp6h->icmp6_code;
+            break;
+        }
+    default:
         return -1;
     }
-
     return 0;
 }
 
@@ -110,7 +141,6 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
 
 
     if (likely(NULL != rulesVal)) {
-		bpf_printk("Hit bpf lpm match lookup");
 #pragma clang loop unroll(full)
         for (i = 0; i < MAX_RULES_PER_TARGET; ++i) {
             if (unlikely(i >= rulesVal->numRules))
@@ -119,10 +149,18 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
 			bpf_printk("ruleInfo (protocol %d, Id %d, action %d)", rule->protocol, rule->ruleId, rule->action);
             if (rule->protocol != 0) {
                 if ((rule->protocol == IPPROTO_TCP) ||
-                    (rule->protocol == IPPROTO_UDP)) {
-					bpf_printk("TCP/UDP packet rule_dstPort %2x pkt_dstPort %2x", rule->dstPort, dstPort);
-                    if (rule->dstPort == bpf_ntohs(dstPort)) {
-                        return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
+                    (rule->protocol == IPPROTO_UDP) ||
+                    (rule->protocol == IPPROTO_SCTP)) {
+                    bpf_printk("TCP/UDP/SCTP packet rule_dstPortStart %d rule_dstPortEnd %d pkt_dstPort %d",
+					rule->dstPortStart, rule->dstPortEnd, bpf_ntohs(dstPort));
+					if (rule->dstPortEnd == 0 ) {
+                        if (rule->dstPortStart == bpf_ntohs(dstPort)) {
+                            return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
+                        }
+                    } else {
+                        if ((bpf_ntohs(dstPort) >= rule->dstPortStart) && (bpf_ntohs(dstPort) < rule->dstPortEnd)) {
+                            return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
+                        }
                     }
                 }
 
@@ -163,6 +201,7 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
         &ingress_node_firewall_table_map, &key);
 
     if (NULL != rulesVal) {
+		bpf_printk("Hit bpf lpm match lookup");
 #pragma clang loop unroll(full)
         for (i = 0; i < MAX_RULES_PER_TARGET; ++i) {
             if (unlikely(i >= rulesVal->numRules))
@@ -171,9 +210,18 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
             struct ruleType_st *rule = &rulesVal->rules[i];
             if (rule->protocol != 0) {
                 if ((rule->protocol == IPPROTO_TCP) ||
-                    (rule->protocol == IPPROTO_UDP)) {
-                    if (rule->dstPort == bpf_ntohs(dstPort)) {
-                        return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
+                    (rule->protocol == IPPROTO_UDP) ||
+                    (rule->protocol == IPPROTO_SCTP)) {
+                    bpf_printk("TCP/UDP/SCTP packet rule_dstPortStart %d rule_dstPortEnd %d pkt_dstPort %d",
+						rule->dstPortStart, rule->dstPortEnd, bpf_ntohs(dstPort));
+					if (rule->dstPortEnd == 0 ) {
+                        if (rule->dstPortStart == bpf_ntohs(dstPort)) {
+                            return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
+                        }
+                    } else {
+                        if ((bpf_ntohs(dstPort) >= rule->dstPortStart) && (bpf_ntohs(dstPort) < rule->dstPortEnd)) {
+                            return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
+                        }
                     }
                 }
 
@@ -190,11 +238,11 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
 }
 
 __attribute__((__always_inline__)) static inline void
-sendEvent(struct xdp_md *ctx, __u16 packet_len, __u8 action, __u16 ruleId) {
+sendEvent(struct xdp_md *ctx, __u16 packet_len, __u8 action, __u16 ruleId, __u8 generateEvent) {
     struct ruleStatistics_st *statistics, initialStats;
     struct event_hdr_st hdr;
 	__u64 flags = BPF_F_CURRENT_CPU;
-    // __u16 headerSize;
+    __u16 headerSize;
     __u32 key = ruleId;
 
 	memset(&hdr, 0, sizeof(hdr));
@@ -205,22 +253,32 @@ sendEvent(struct xdp_md *ctx, __u16 packet_len, __u8 action, __u16 ruleId) {
     memset(&initialStats, 0, sizeof(initialStats));
     statistics = bpf_map_lookup_elem(&ingress_node_firewall_statistics_map, &key);
     if (likely(statistics)) {
-        if (action == ALLOW) {
+        switch (action) {
+        case ALLOW:
             __sync_fetch_and_add(&statistics->allow_stats.packets, 1);
             __sync_fetch_and_add(&statistics->allow_stats.bytes, packet_len);
-        } else {
+            break;
+       case DENY:
             __sync_fetch_and_add(&statistics->deny_stats.packets, 1);
             __sync_fetch_and_add(&statistics->deny_stats.bytes, packet_len);
+            break;
+        case UNDEF:
+            __sync_fetch_and_add(&statistics->nomatch_stats.packets, 1);
+            __sync_fetch_and_add(&statistics->nomatch_stats.bytes, packet_len);
+            break;
         }
     } else {
         bpf_map_update_elem(&ingress_node_firewall_statistics_map, &key, &initialStats, BPF_ANY);
     }
-    // headerSize = packet_len < MAX_EVENT_DATA ? packet_len : MAX_EVENT_DATA;
-	// enable the following flag to dump packet header
-    // flags |= (__u64)headerSize << 32;
 
-    (void)bpf_perf_event_output(ctx, &ingress_node_firewall_events_map, flags,
-                                &hdr, sizeof(hdr));
+	if (generateEvent) {
+        headerSize = packet_len < MAX_EVENT_DATA ? packet_len : MAX_EVENT_DATA;
+		// enable the following flag to dump packet header
+        flags |= (__u64)headerSize << 32;
+
+        (void)bpf_perf_event_output(ctx, &ingress_node_firewall_events_map, flags,
+                                    &hdr, sizeof(hdr));
+    }
 }
 
 __attribute__((__always_inline__)) static inline int
@@ -254,15 +312,20 @@ ingress_node_firewall_main(struct xdp_md *ctx) {
     __u16 ruleId = GET_RULE_ID(result);
     __u8 action = GET_ACTION(result);
 
-    if (DENY == action) {
-        sendEvent(ctx, (__u16)(dataEnd - data), DENY, ruleId);
-		bpf_printk("Ingress node firewall action XDP_DROP");
+	switch (action) {
+    case DENY:
+        sendEvent(ctx, (__u16)(dataEnd - data), DENY, ruleId, 1);
+		bpf_printk("Ingress node firewall action DENY -> XDP_DROP");
         return XDP_DROP;
+    case ALLOW:
+        sendEvent(ctx, (__u16)(dataEnd - data), ALLOW, ruleId, 0);
+		bpf_printk("Ingress node firewall action ALLOW -> XDP_PASS");
+        return XDP_PASS;
+    default:
+        sendEvent(ctx, (__u16)(dataEnd - data), UNDEF, ruleId, 0);
+		bpf_printk("Ingress node firewall action UNDEF -> XDP_PASS");
+        return XDP_PASS;
     }
-
-    sendEvent(ctx, (__u16)(dataEnd - data), ALLOW, ruleId);
-	bpf_printk("Ingress node firewall action XDP_PASS");
-    return XDP_PASS;
 }
 
 SEC("xdp_ingress_node_firewall_process")

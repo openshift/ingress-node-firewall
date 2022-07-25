@@ -1,7 +1,7 @@
 #ifndef __INGRESS_NODE_FIREWALL__
 #define __INGRESS_NODE_FIREWALL__
 
-#define UNDEF 0
+#define UNDEF XDP_ABORTED
 #define DENY XDP_DROP
 #define ALLOW XDP_PASS
 #define MAX_TARGETS (1024)
@@ -44,6 +44,10 @@ struct ruleStatistics_st {
         __u64 packets;
         __u64 bytes;
     } deny_stats;
+    struct nomatch_stats_st {
+        __u64 packets;
+        __u64 bytes;
+    } nomatch_stats;
 };
 // Force emitting struct ruleStatistics_st into the ELF.
 const struct ruleStatistics_st *unused3 __attribute__((unused));
@@ -61,7 +65,8 @@ const struct event_hdr_st *unused1 __attribute__((unused));
 struct ruleType_st {
     __u32 ruleId;
     __u8 protocol;
-    __u16 dstPort;
+    __u16 dstPortStart;
+    __u16 dstPortEnd;
     __u8 icmpType;
     __u8 icmpCode;
     __u8 action;

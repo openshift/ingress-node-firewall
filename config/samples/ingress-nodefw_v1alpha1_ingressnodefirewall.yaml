@@ -8,21 +8,21 @@ spec:
   nodeSelector:
     do-node-ingress-firewall: 'true'
   ingress:
-  - fromCIDRs:
+  - sourceCIDRs:
        - 1.1.1.1/24
        - 100:1::1/64
     rules:
     - order: 10
       protocol: tcp
       protoRule:
-        port: 100
+        ports: "100-200"
       action: allow
     - order: 20
       protocol: udp
       protoRule:
-        port: 8000
+        ports: "8000"
       action: allow
-  - fromCIDRs:
+  - sourceCIDRs:
        - 3.3.3.3/24
     rules:
     - order: 10
@@ -31,7 +31,7 @@ spec:
         icmpType: 3 # Destination unreachable
         icmpCode: 1 # Host unreachable
       action: allow
-  - fromCIDRs:
+  - sourceCIDRs:
        - 10:10::1/64
     rules:
     - order: 10
@@ -39,7 +39,7 @@ spec:
       icmpRule:
         icmpType: 128 # Ping request
       action: deny
-  - fromCIDRs:
+  - sourceCIDRs:
        - 0.0.0.0/0
        - 0::0/0
     rules:
