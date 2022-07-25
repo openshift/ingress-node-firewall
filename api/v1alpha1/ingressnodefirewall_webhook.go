@@ -36,8 +36,53 @@ const MAX_INGRESS_RULES = 100
 type empty struct{}
 type uint32Set map[uint32]empty
 
+type pinHole interface {
+	isRuleConflict(rule IngressNodeFirewallProtocolRule) (bool, string)
+}
+
+type transportProtoPinHole struct {
+	serviceName string
+	port        uint16
+}
+
+func (t transportProtoPinHole) isRuleConflict(rule IngressNodeFirewallProtocolRule) (bool, string) {
+	if rule.ProtocolRule != nil && t.port == rule.ProtocolRule.Port {
+		return true, fmt.Sprintf("must not create a rule with protocol %s port %d because it would alter access to %s",
+			rule.Protocol, rule.ProtocolRule.Port, t.serviceName)
+	}
+	return false, ""
+}
+
 // log is for logging in this package.
-var ingressnodefirewalllog = logf.Log.WithName("ingressnodefirewall-resource")
+var (
+	ingressnodefirewalllog = logf.Log.WithName("ingressnodefirewall-resource")
+	pinholes               = map[IngressNodeFirewallRuleProtocolType][]pinHole{
+		ProtocolTypeTCP: {
+			transportProtoPinHole{
+				"Kubernetes API",
+				6443,
+			},
+			transportProtoPinHole{
+				"ETCD",
+				2380,
+			},
+			transportProtoPinHole{
+				"ETCD",
+				2379,
+			},
+			transportProtoPinHole{
+				"SSH",
+				22,
+			},
+		},
+		ProtocolTypeUDP: {
+			transportProtoPinHole{
+				"DHCP",
+				68,
+			},
+		},
+	}
+)
 
 func (r *IngressNodeFirewall) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
@@ -143,40 +188,19 @@ func validateRule(rule IngressNodeFirewallProtocolRule, infRulesIndex, ruleIndex
 
 		if isConflict, reason := isConflictWithPinHoles(rule); isConflict {
 			return field.Forbidden(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("rules").Index(ruleIndex),
-				fmt.Sprintf("%s", reason))
+				reason)
 		}
 	}
 	return nil
 }
 
 func isConflictWithPinHoles(rule IngressNodeFirewallProtocolRule) (bool, string) {
-	if conflictSSH(rule) {
-		return true, "must not block TCP port 22 because it is used to login to nodes"
-	} else if conflictDHCP(rule) {
-		return true, "must not block UDP port 68 because it is used to access DHCP"
-	} else if conflictETCD(rule) {
-		return true, "must not block TCP port 2380 or 2379 because it is used to access ETCD"
-	} else if conflictAPIServer(rule) {
-		return true, "must not block TCP port 6443 because it is used to access kubernetes API server"
+	for _, pinhole := range pinholes[rule.Protocol] {
+		if isConflict, reason := pinhole.isRuleConflict(rule); isConflict {
+			return true, reason
+		}
 	}
 	return false, ""
-}
-
-func conflictSSH(rule IngressNodeFirewallProtocolRule) bool {
-	return rule.Protocol == ProtocolTypeTCP && rule.ProtocolRule != nil && rule.ProtocolRule.Port == 22 && rule.Action == IngressNodeFirewallDeny
-}
-
-func conflictDHCP(rule IngressNodeFirewallProtocolRule) bool {
-	return rule.Protocol == ProtocolTypeUDP && rule.ProtocolRule != nil && rule.ProtocolRule.Port == 68 && rule.Action == IngressNodeFirewallDeny
-}
-
-func conflictETCD(rule IngressNodeFirewallProtocolRule) bool {
-	return rule.Protocol == ProtocolTypeTCP && rule.ProtocolRule != nil &&
-		(rule.ProtocolRule.Port == 2380 || rule.ProtocolRule.Port == 2379) && rule.Action == IngressNodeFirewallDeny
-}
-
-func conflictAPIServer(rule IngressNodeFirewallProtocolRule) bool {
-	return rule.Protocol == ProtocolTypeTCP && rule.ProtocolRule != nil && rule.ProtocolRule.Port == 6443 && rule.Action == IngressNodeFirewallDeny
 }
 
 func validateRuleLength(infRules []IngressNodeFirewallProtocolRule, infRulesIndex int, infName string) *field.Error {
