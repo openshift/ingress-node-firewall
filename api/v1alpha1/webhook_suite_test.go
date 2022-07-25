@@ -231,11 +231,11 @@ var _ = Describe("Rules", func() {
 	})
 })
 
-var _ = Describe("fromCIDRS", func() {
+var _ = Describe("sourceCIDRs", func() {
 	var inf *IngressNodeFirewall
 
 	BeforeEach(func() {
-		inf = getIngressNodeFirewall("fromcidrs")
+		inf = getIngressNodeFirewall("sourcecidrs")
 	})
 
 	Context("and its IPV4", func() {

@@ -82,7 +82,7 @@ func validateIngressNodeFirewall(inf *IngressNodeFirewall) error {
 func validateINFRules(infRules []IngressNodeFirewallRules, infName string) field.ErrorList {
 	var allErrs field.ErrorList
 	for infRulesIndex, infRule := range infRules {
-		if newErrs := validateFromCIDRS(allErrs, infRule.FromCIDRs, infRulesIndex, infName); len(newErrs) > 0 {
+		if newErrs := validatesourceCIDRs(allErrs, infRule.FromCIDRs, infRulesIndex, infName); len(newErrs) > 0 {
 			allErrs = append(allErrs, newErrs...)
 		}
 
@@ -93,16 +93,16 @@ func validateINFRules(infRules []IngressNodeFirewallRules, infName string) field
 	return allErrs
 }
 
-func validateFromCIDRS(allErrs field.ErrorList, fromCIDRS []string, infRulesIndex int, infName string) field.ErrorList {
-	if len(fromCIDRS) == 0 {
+func validatesourceCIDRs(allErrs field.ErrorList, sourceCIDRs []string, infRulesIndex int, infName string) field.ErrorList {
+	if len(sourceCIDRs) == 0 {
 		allErrs = append(allErrs,
-			field.Invalid(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("fromCIDRS"),
-				infName, fmt.Sprintf("must be at least one fromCIDRS")))
+			field.Invalid(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("sourceCIDRs"),
+				infName, fmt.Sprintf("must be at least one sourceCIDRs")))
 	} else {
-		for fromCIDRSIndex, fromCIDR := range fromCIDRS {
-			if isValid, reason := validateFromCIDR(fromCIDR); !isValid {
+		for sourceCIDRSIndex, sourceCIDR := range sourceCIDRs {
+			if isValid, reason := validateSourceCIDR(sourceCIDR); !isValid {
 				allErrs = append(allErrs, field.Invalid(
-					field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("fromCIDRS").Index(fromCIDRSIndex),
+					field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("sourceCIDRs").Index(sourceCIDRSIndex),
 					infName, fmt.Sprintf("must be a valid IPV4 or IPV6 CIDR: %s", reason)))
 			}
 		}
@@ -187,8 +187,8 @@ func validateRuleLength(infRules []IngressNodeFirewallProtocolRule, infRulesInde
 	return nil
 }
 
-func validateFromCIDR(fromCIDR string) (bool, string) {
-	if _, _, err := net.ParseCIDR(fromCIDR); err != nil {
+func validateSourceCIDR(sourceCIDR string) (bool, string) {
+	if _, _, err := net.ParseCIDR(sourceCIDR); err != nil {
 		return false, fmt.Sprintf("must define valid IPV4 or IPV6 CIDR: %s", err.Error())
 	}
 	return true, ""
