@@ -129,7 +129,7 @@ func validateRules(allErrs field.ErrorList, rules []IngressNodeFirewallProtocolR
 
 func validateRule(rule IngressNodeFirewallProtocolRule, infRulesIndex, ruleIndex int, infName string) *field.Error {
 	if rule.Protocol == ProtocolTypeICMP {
-		if isValid, reason := isValidICMPRule(rule); !isValid {
+		if isValid, reason := isValidICMPICMPV6Rule(rule); !isValid {
 			return field.Invalid(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("rules").Index(ruleIndex),
 				infName, fmt.Sprintf("must be a valid ICMP(V6) rule: %s", reason))
 		}
@@ -194,7 +194,7 @@ func validateSourceCIDR(sourceCIDR string) (bool, string) {
 	return true, ""
 }
 
-func isValidICMPRule(rule IngressNodeFirewallProtocolRule) (bool, string) {
+func isValidICMPICMPV6Rule(rule IngressNodeFirewallProtocolRule) (bool, string) {
 	if rule.ICMPRule == nil {
 		return false, "no ICMP rules defined. Define icmpType/icmpCode"
 	}
