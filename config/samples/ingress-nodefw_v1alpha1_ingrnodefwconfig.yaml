@@ -1,0 +1,12 @@
+apiVersion: ingress-nodefw.ingress-nodefw/v1alpha1
+kind: IngrNodeFwConfig
+metadata:
+  name: ingressnodefirewallconfig
+  namespace: ingress-node-firewall-system
+spec:
+  nodeSelector:
+    node-role.kubernetes.io/worker: ""
+  tolerations:
+  - key: "Example"
+    operator: "Exists"
+    effect: "NoExecute"

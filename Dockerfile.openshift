@@ -13,6 +13,7 @@ COPY api/ api/
 COPY controllers/ controllers/
 COPY pkg/ pkg/
 COPY vendor/ vendor/
+COPY bindata/manifests/ bindata/manifests/
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -mod=vendor -o manager main.go
@@ -20,5 +21,6 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -mod=vendor -o manager mai
 FROM registry.ci.openshift.org/ocp/builder:rhel-8-base-openshift-4.12
 WORKDIR /
 COPY --from=builder /workspace/manager .
+COPY --from=builder /workspace/bindata/manifests /bindata/manifests
 
 ENTRYPOINT ["/manager"]
