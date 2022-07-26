@@ -32,7 +32,6 @@ import (
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 const (
@@ -129,7 +128,7 @@ func (r *IngrNodeFwConfigReconciler) syncIngressNodeFwConfigResources(ctx contex
 			if len(config.Spec.Tolerations) > 0 {
 				ds.Spec.Template.Spec.Tolerations = config.Spec.Tolerations
 			}
-			if err := controllerutil.SetControllerReference(config, obj, r.Scheme); err != nil {
+			if err := ctrl.SetControllerReference(config, ds, r.Scheme); err != nil {
 				return errors.Wrapf(err, "Failed to set controller reference to %s %s", obj.GetNamespace(), obj.GetName())
 			}
 			err = scheme.Convert(ds, obj, nil)
