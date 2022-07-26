@@ -30,10 +30,13 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
+	"ingress-node-firewall/controllers"
+	"ingress-node-firewall/pkg/version"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	//+kubebuilder:scaffold:imports
 )
 
 var (
@@ -67,6 +70,8 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	setupLog.Info("Version", "version.Version", version.Version)
 
 	if _, ok := os.LookupEnv("DAEMONSET_IMAGE"); !ok {
 		setupLog.Error(nil, "DAEMONSET_IMAGE env variable must be set")

@@ -49,6 +49,7 @@ endif
 IMAGE_ORG ?= $(USER)
 # Image URL to use all building/pushing image targets
 IMG ?= quay.io/$(IMAGE_ORG)/controller
+DAEMON_IMG ?= quay.io/$(IMAGE_ORG)/ingress-node-firewall-daemon
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.24.1
 
@@ -92,7 +93,7 @@ manifests: controller-gen generate-daemon-manifest ## Generate WebhookConfigurat
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: generate
-generate: controller-gen ebpf-generate ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 .PHONY: fmt
@@ -301,3 +302,24 @@ ebpf-generate: prereqs ## Generating BPF Go bindings
 docker-generate: ## Creating the container that generates the eBPF binaries
 	docker build . -f hack/generators.Dockerfile -t $(LOCAL_GENERATOR_IMAGE)
 	docker run --rm -v $(shell pwd):/src $(LOCAL_GENERATOR_IMAGE)
+
+##@ Daemon development
+.PHONY: daemon
+daemon: ## Build the daemon.
+	hack/build-daemon.sh
+
+.PHONY: docker-build-daemon
+docker-build-daemon: ## Build the daemon image with docker. To change location, specify DAEMON_IMG=<image>.
+	docker build -t ${DAEMON_IMG} -f Dockerfile.daemon .
+
+.PHONY: docker-push-daemon
+docker-push-daemon: docker-build-daemon ## Push the daemon image with docker. To change location, specify DAEMON_IMG=<image>.
+	docker push ${DAEMON_IMG}
+
+.PHONY: podman-build-daemon
+podman-build-daemon: ## Build the daemon image with podman. To change location, specify DAEMON_IMG=<image>.
+	podman build -t ${DAEMON_IMG} -f Dockerfile.daemon .
+
+.PHONY: podman-push-daemon
+podman-push-daemon: podman-build-daemon ## Push the daemon image with docker. To change location, specify DAEMON_IMG=<image>.
+	podman push ${DAEMON_IMG}
