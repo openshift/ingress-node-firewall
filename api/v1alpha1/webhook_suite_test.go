@@ -231,6 +231,16 @@ var _ = Describe("Rules", func() {
 			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolRule = nil
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
+
+		It("rejects rule with port as 0", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ProtocolTypeTCP, "0", IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rejects rule with port greater than 65535", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ProtocolTypeTCP, "65536", IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
 	})
 
 	Context("Meta", func() {
@@ -307,8 +317,18 @@ var _ = Describe("Pin holes", func() {
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 
+		It("rules which contain a port range which conflicts with API server access", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeTCP, "6440-6444", IngressNodeFirewallDeny)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
 		It("rule which conflict with DHCP", func() {
 			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeUDP, "68", IngressNodeFirewallDeny)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rule which contain a port range which conflicts with DHCP", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeUDP, "60-68", IngressNodeFirewallDeny)
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 
@@ -317,8 +337,18 @@ var _ = Describe("Pin holes", func() {
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 
+		It("rule which contain a port range which conflicts with ETCD 2380", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeTCP, "2380-2381", IngressNodeFirewallDeny)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
 		It("rule which conflict with ETCD 2379", func() {
 			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeTCP, "2379", IngressNodeFirewallDeny)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rule which contain a port range which conflicts with ETCD 2379", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeTCP, "1-59999", IngressNodeFirewallDeny)
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 
@@ -326,6 +356,15 @@ var _ = Describe("Pin holes", func() {
 			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeTCP, "22", IngressNodeFirewallDeny)
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
+	})
+
+	Context("will allow", func() {
+		It("rules which are close API server address", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeTCP, "6441-6442", IngressNodeFirewallDeny)
+			Expect(createIngressNodeFirewall(inf)).To(Succeed())
+			Expect(deleteIngressNodeFirewall(inf)).To(Succeed())
+		})
+
 	})
 })
 
