@@ -6,6 +6,7 @@ require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/cilium/ebpf v0.9.1
 	github.com/go-logr/logr v1.2.3
+	github.com/google/gopacket v1.1.19
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.20.0
 	github.com/pkg/errors v0.9.1
