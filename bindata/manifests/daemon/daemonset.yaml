@@ -26,6 +26,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           image: '{{.Image}}'
           name: daemon
           securityContext:
@@ -45,3 +49,4 @@ spec:
           hostPath:
             path: /sys/fs/bpf
             type: DirectoryOrCreate
+      serviceAccountName: daemon

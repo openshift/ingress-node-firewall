@@ -1,0 +1,135 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.0
+  creationTimestamp: null
+  name: ingressnodefirewallnodestates.ingress-nodefw.ingress-nodefw
+spec:
+  group: ingress-nodefw.ingress-nodefw
+  names:
+    kind: IngressNodeFirewallNodeState
+    listKind: IngressNodeFirewallNodeStateList
+    plural: ingressnodefirewallnodestates
+    singular: ingressnodefirewallnodestate
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: IngressNodeFirewallNodeState is the Schema for the ingressnodefirewallnodestates
+          API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: IngressNodeFirewallNodeStateSpec defines the desired state
+              of IngressNodeFirewallNodeState
+            properties:
+              ingress:
+                description: A list of ingress firewall policy rules. empty list indicates
+                  no ingress firewall i.e allow all incoming traffic.
+                items:
+                  description: IngressNodeFirewallRules define ingress node firewall
+                    rule
+                  properties:
+                    rules:
+                      description: FirewallProtocolRules is A list of per protocol
+                        ingress node firewall rules
+                      items:
+                        description: IngressNodeFirewallProtocolRule define ingress
+                          node firewall rule per protocol
+                        properties:
+                          action:
+                            description: Action can be allow or deny, default action
+                              is deny
+                            enum:
+                            - allow
+                            - deny
+                            pattern: ^allow|deny$
+                            type: string
+                          icmpRule:
+                            description: IngressNodeFirewallICMPRule define ingress
+                              node firewall rule for ICMP and ICMPv6 protocols.
+                            properties:
+                              icmpCode:
+                                description: ICMPCode define ICMP Code ID (RFC 792).
+                                maximum: 16
+                                minimum: 0
+                                type: integer
+                              icmpType:
+                                description: ICMPType define ICMP Type Numbers (RFC
+                                  792).
+                                maximum: 255
+                                minimum: 0
+                                type: integer
+                            type: object
+                          order:
+                            description: Order define order of execution of ingress
+                              firewall rules .
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          protoRule:
+                            description: IngressNodeFirewallProtoRule define ingress
+                              node firewall rule for TCP, UDP and SCTP protocols.
+                            properties:
+                              ports:
+                                description: Ports can be a single port or range of
+                                  ports using start-end range format
+                                type: string
+                            type: object
+                          protocol:
+                            description: Protocol can be ICMP, ICMPv6, TCP, SCTP or
+                              UDP.
+                            enum:
+                            - icmp
+                            - icmpv6
+                            - tcp
+                            - udp
+                            - sctp
+                            type: string
+                        required:
+                        - order
+                        - protocol
+                        type: object
+                      type: array
+                    sourceCIDRs:
+                      description: SourceCIDRS is A list of CIDRs from which we apply
+                        node firewall rule
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - sourceCIDRs
+                  type: object
+                type: array
+              interfaces:
+                description: A list of interfaces where the ingress firewall policy
+                  will be applied on. empty list indicates the firewall policy applied
+                  on all interfaces
+                items:
+                  type: string
+                nullable: true
+                type: array
+            type: object
+          status:
+            description: IngressNodeFirewallNodeStateStatus defines the observed state
+              of IngressNodeFirewallNodeState
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -14,4 +14,4 @@ patchesStrategicMerge:
 - env.yaml
 images:
 - name: controller
-  newName: quay.io/mmahmoud/controller
+  newName: quay.io/akaris/controller

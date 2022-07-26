@@ -25,13 +25,14 @@ import (
 	//+kubebuilder:scaffold:imports
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 
+	"path/filepath"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"path/filepath"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -112,9 +113,10 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&IngressNodeFirewallReconciler{
-		Client: k8sClient,
-		Scheme: scheme.Scheme,
-		Log:    ctrl.Log.WithName("controllers").WithName("IngressNodeFirewall"),
+		Client:    k8sClient,
+		Scheme:    scheme.Scheme,
+		Log:       ctrl.Log.WithName("controllers").WithName("IngressNodeFirewall"),
+		Namespace: IngressNodeFwConfigTestNameSpace,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 

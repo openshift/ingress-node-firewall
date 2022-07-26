@@ -1,0 +1,6 @@
+apiVersion: ingress-nodefw.ingress-nodefw/v1alpha1
+kind: IngressNodeFirewallNodeState
+metadata:
+  name: ingressnodefirewallnodestate-sample
+spec:
+  # TODO(user): Add fields here

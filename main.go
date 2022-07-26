@@ -103,9 +103,10 @@ func main() {
 	}
 
 	if err = (&controllers.IngressNodeFirewallReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Log:    ctrl.Log.WithName("controllers").WithName("IngressNodeFirewall"),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Log:       ctrl.Log.WithName("controllers").WithName("IngressNodeFirewall"),
+		Namespace: nameSpace,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "IngressNodeFirewall")
 		os.Exit(1)

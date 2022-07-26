@@ -1,0 +1,37 @@
+apiVersion: ingress-nodefw.ingress-nodefw/v1alpha1
+kind: IngressNodeFirewall
+metadata:
+  name: ingressnodefirewall-merged1
+spec:
+  interfaces:
+  - eth0
+  nodeSelector:
+    node-role.kubernetes.io/worker: ""
+  ingress:
+  - sourceCIDRs:
+       - 172.20.0.0/24
+    rules:
+    - order: 10
+      protocol: icmp
+      icmpRule:
+        icmpType: 8 #ICMP Echo request
+      action: deny
+---
+apiVersion: ingress-nodefw.ingress-nodefw/v1alpha1
+kind: IngressNodeFirewall
+metadata:
+  name: ingressnodefirewall-merged2
+spec:
+  interfaces:
+  - eth1
+  nodeSelector:
+    node-role.kubernetes.io/worker: ""
+  ingress:
+  - sourceCIDRs:
+       - 172.20.0.0/24
+    rules:
+    - order: 20
+      protocol: tcp
+      protoRule:
+        ports: "8000-9000"
+      action: deny
