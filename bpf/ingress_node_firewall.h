@@ -6,7 +6,7 @@
 #define ALLOW XDP_PASS
 #define MAX_TARGETS (1024)
 #define MAX_RULES_PER_TARGET (100)
-#define MAX_EVENT_DATA 512ul
+#define MAX_EVENT_DATA 256
 
 #define GET_ACTION(a) (__u8)((a)&0xFF)
 #define SET_ACTION(a) (__u32)(((__u32)a) & 0xFF)
@@ -56,7 +56,8 @@ struct event_hdr_st {
     __u16 ifId;
     __u16 ruleId;
     __u8 action;
-    __u8 fill;
+    __u8 pad;
+    __u16 pktLength;
 } __attribute__((packed));
 
 // Force emitting struct event_hdr_st into the ELF.
