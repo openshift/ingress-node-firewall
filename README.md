@@ -10,6 +10,11 @@ operator-sdk 1.22.0
 
 controller-gen v0.9.0+
 
+For fedora, you will need the following packages
+```sh
+sudo dnf install glibc-devel glibc-devel.i686
+```
+
 ## Usage
 Once the Ingress node firewall Operator is installed, you have to create a `IngrNodeFwConfig` custom resource to deploy an instance. The operator will consume this resource and create ingress node firewall daemonset `daemon` based on it. The `IngrNodeFwConfig` custom resource needs to be created inside the `ingress-node-firewall-system` namespace and be named `ingressnodefirewallconfig`. Only one `IngrNodeFwConfig` resource can exist in a cluster.
 
@@ -36,29 +41,24 @@ make test
 ```
 
 ## Running on a KinD cluster
-
-1. For fedora, you will need the following packages
-```sh
-sudo dnf install glibc-devel glibc-devel.i686
-```
-2. Download latest [KinD](https://kind.sigs.k8s.io/docs/user/quick-start) stable version
-3. Install KinD
+1. Download latest [KinD](https://kind.sigs.k8s.io/docs/user/quick-start) stable version
+2. Install KinD
 ```sh
 ./hack/kind-cluster.sh
 ```
-4. Install custom resource definitions
+3. Install custom resource definitions
 ```sh
 make install
 ```
-6. Build container images
+4. Build container images
 ```sh
 make docker-build IMG=<some-registry>/ingress-node-firewall:tag
 ```
-7. Load container image to KinD container(s)
+5. Load container image to KinD container(s)
 ```sh
 kind load docker-image <some-registry>/ingress-node-firewall:tag
 ```
-8. Deploy resources to KinD cluster
+6. Deploy resources to KinD cluster
 ```sh
 make deploy IMG=<some-registry>/ingress-node-firewall:tag
 ```
