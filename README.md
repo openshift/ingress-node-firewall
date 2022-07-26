@@ -62,3 +62,17 @@ kind load docker-image <some-registry>/ingress-node-firewall:tag
 ```sh
 make deploy IMG=<some-registry>/ingress-node-firewall:tag
 ```
+
+## Uninstall CRDs
+To delete the CRDs from the cluster:
+```sh
+make uninstall
+```
+## Undeploy controller
+UnDeploy the controller to the cluster:
+```sh
+make undeploy
+```
+
+## Disable webhook
+Remove manager binary flag `--enable-webhook` from the containers command in file config/manager/manager.yaml
