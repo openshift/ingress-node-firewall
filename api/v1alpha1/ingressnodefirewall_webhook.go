@@ -54,6 +54,9 @@ func (t transportProtoPinHole) isRuleConflict(rule IngressNodeFirewallProtocolRu
 		if err != nil {
 			return false, err
 		}
+		if start > end {
+			return false, fmt.Errorf("start port is greater than end port")
+		}
 		return withinRange(t.port, start, end), fmt.Errorf("port range is in conflict with access to %s", t.serviceName)
 	} else {
 		port, err := rule.ProtocolRule.GetPort()
@@ -65,9 +68,6 @@ func (t transportProtoPinHole) isRuleConflict(rule IngressNodeFirewallProtocolRu
 }
 
 func withinRange(i, lowerBound, upperBound uint16) bool {
-	if lowerBound > upperBound {
-		panic("Expected lower number to be less than or equal upper number")
-	}
 	return i >= lowerBound && i <= upperBound
 }
 
