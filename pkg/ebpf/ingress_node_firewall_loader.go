@@ -6,8 +6,6 @@ import (
 	"net"
 	"os"
 	"path"
-	"strconv"
-	"strings"
 	"syscall"
 
 	"github.com/cilium/ebpf"
@@ -95,28 +93,55 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 		rules.Rules[idx].RuleId = rule.Order
 		switch rule.Protocol {
 		case ingressnodefwiov1alpha1.ProtocolTypeTCP:
-			start, end, err := parseDstPorts(rule.ProtocolRule.Ports)
-			if err != nil {
-				return fmt.Errorf("Invalid Ports %s for protocol %v", rule.ProtocolRule.Ports, rule.Protocol)
+			if rule.ProtocolRule.IsRange() {
+				start, end, err := rule.ProtocolRule.GetRange()
+				if err != nil {
+					return fmt.Errorf("invalid Port range %s for protocol %v", rule.ProtocolRule.Ports, rule.Protocol)
+				}
+				rules.Rules[idx].DstPortStart = start
+				rules.Rules[idx].DstPortEnd = end
+			} else {
+				port, err := rule.ProtocolRule.GetPort()
+				if err != nil {
+					return fmt.Errorf("invalid Port %s for protocol %v", rule.ProtocolRule.Ports, rule.Protocol)
+				}
+				rules.Rules[idx].DstPortStart = port
+				rules.Rules[idx].DstPortEnd = 0
 			}
-			rules.Rules[idx].DstPortStart = start
-			rules.Rules[idx].DstPortEnd = end
 			rules.Rules[idx].Protocol = syscall.IPPROTO_TCP
 		case ingressnodefwiov1alpha1.ProtocolTypeUDP:
-			start, end, err := parseDstPorts(rule.ProtocolRule.Ports)
-			if err != nil {
-				return fmt.Errorf("Invalid Ports %s for protocol %v", rule.ProtocolRule.Ports, rule.Protocol)
+			if rule.ProtocolRule.IsRange() {
+				start, end, err := rule.ProtocolRule.GetRange()
+				if err != nil {
+					return fmt.Errorf("invalid Port range %s for protocol %v", rule.ProtocolRule.Ports, rule.Protocol)
+				}
+				rules.Rules[idx].DstPortStart = start
+				rules.Rules[idx].DstPortEnd = end
+			} else {
+				port, err := rule.ProtocolRule.GetPort()
+				if err != nil {
+					return fmt.Errorf("invalid Port %s for protocol %v", rule.ProtocolRule.Ports, rule.Protocol)
+				}
+				rules.Rules[idx].DstPortStart = port
+				rules.Rules[idx].DstPortEnd = 0
 			}
-			rules.Rules[idx].DstPortStart = start
-			rules.Rules[idx].DstPortEnd = end
 			rules.Rules[idx].Protocol = syscall.IPPROTO_UDP
 		case ingressnodefwiov1alpha1.ProtocolTypeSCTP:
-			start, end, err := parseDstPorts(rule.ProtocolRule.Ports)
-			if err != nil {
-				return fmt.Errorf("Invalid Ports %s for protocol %v", rule.ProtocolRule.Ports, rule.Protocol)
+			if rule.ProtocolRule.IsRange() {
+				start, end, err := rule.ProtocolRule.GetRange()
+				if err != nil {
+					return fmt.Errorf("invalid Port range %s for protocol %v", rule.ProtocolRule.Ports, rule.Protocol)
+				}
+				rules.Rules[idx].DstPortStart = start
+				rules.Rules[idx].DstPortEnd = end
+			} else {
+				port, err := rule.ProtocolRule.GetPort()
+				if err != nil {
+					return fmt.Errorf("invalid Port %s for protocol %v", rule.ProtocolRule.Ports, rule.Protocol)
+				}
+				rules.Rules[idx].DstPortStart = port
+				rules.Rules[idx].DstPortEnd = 0
 			}
-			rules.Rules[idx].DstPortStart = start
-			rules.Rules[idx].DstPortEnd = end
 			rules.Rules[idx].Protocol = syscall.IPPROTO_SCTP
 		case ingressnodefwiov1alpha1.ProtocolTypeICMP:
 			rules.Rules[idx].IcmpType = rule.ICMPRule.ICMPType
@@ -209,27 +234,4 @@ func (infc *IngNodeFwController) cleanup() {
 		l.Close()
 	}
 	infc.objs.Close()
-}
-
-func parseDstPorts(ports string) (uint16, uint16, error) {
-	if !strings.Contains(ports, "-") {
-		port, err := strconv.ParseUint(ports, 10, 16)
-		if err != nil {
-			return 0, 0, fmt.Errorf("invalid Port number %v", err)
-		}
-		return uint16(port), 0, nil
-	}
-	ps := strings.SplitN(ports, "-", 2)
-	if len(ps) != 2 {
-		return 0, 0, fmt.Errorf("invalid Ports range, Expected two integers seperated by hyphen but found  %q", ports)
-	}
-	startPort, err := strconv.ParseUint(ps[0], 10, 16)
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid Start DstPort number %s", err)
-	}
-	endPort, err := strconv.ParseUint(ps[1], 10, 16)
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid End DstPort number %s", err)
-	}
-	return uint16(startPort), uint16(endPort), nil
 }
