@@ -37,7 +37,7 @@ type empty struct{}
 type uint32Set map[uint32]empty
 
 type pinHole interface {
-	isRuleConflict(rule IngressNodeFirewallProtocolRule) (bool, string)
+	isRuleConflict(rule IngressNodeFirewallProtocolRule) (bool, error)
 }
 
 type transportProtoPinHole struct {
@@ -45,12 +45,30 @@ type transportProtoPinHole struct {
 	port        uint16
 }
 
-func (t transportProtoPinHole) isRuleConflict(rule IngressNodeFirewallProtocolRule) (bool, string) {
-	if rule.ProtocolRule != nil && t.port == rule.ProtocolRule.Port {
-		return true, fmt.Sprintf("must not create a rule with protocol %s port %d because it would alter access to %s",
-			rule.Protocol, rule.ProtocolRule.Port, t.serviceName)
+func (t transportProtoPinHole) isRuleConflict(rule IngressNodeFirewallProtocolRule) (bool, error) {
+	if rule.ProtocolRule == nil {
+		return false, fmt.Errorf("rule is not defined")
 	}
-	return false, ""
+	if rule.ProtocolRule.IsRange() {
+		start, end, err := rule.ProtocolRule.GetRange()
+		if err != nil {
+			return false, err
+		}
+		return withinRange(t.port, start, end), fmt.Errorf("port range is in conflict with access to %s", t.serviceName)
+	} else {
+		port, err := rule.ProtocolRule.GetPort()
+		if err != nil {
+			return false, err
+		}
+		return t.port == port, fmt.Errorf("port is in conflict with access to %s", t.serviceName)
+	}
+}
+
+func withinRange(i, lowerBound, upperBound uint16) bool {
+	if lowerBound > upperBound {
+		panic("Expected lower number to be less than or equal upper number")
+	}
+	return i >= lowerBound && i <= upperBound
 }
 
 // log is for logging in this package.
@@ -127,7 +145,7 @@ func validateIngressNodeFirewall(inf *IngressNodeFirewall) error {
 func validateINFRules(infRules []IngressNodeFirewallRules, infName string) field.ErrorList {
 	var allErrs field.ErrorList
 	for infRulesIndex, infRule := range infRules {
-		if newErrs := validatesourceCIDRs(allErrs, infRule.FromCIDRs, infRulesIndex, infName); len(newErrs) > 0 {
+		if newErrs := validatesourceCIDRs(allErrs, infRule.SourceCIDRs, infRulesIndex, infName); len(newErrs) > 0 {
 			allErrs = append(allErrs, newErrs...)
 		}
 
@@ -196,8 +214,8 @@ func validateRule(rule IngressNodeFirewallProtocolRule, infRulesIndex, ruleIndex
 
 func isConflictWithPinHoles(rule IngressNodeFirewallProtocolRule) (bool, string) {
 	for _, pinhole := range pinholes[rule.Protocol] {
-		if isConflict, reason := pinhole.isRuleConflict(rule); isConflict {
-			return true, reason
+		if isConflict, err := pinhole.isRuleConflict(rule); isConflict {
+			return true, err.Error()
 		}
 	}
 	return false, ""
@@ -233,6 +251,20 @@ func isValidTCPUDPSCTPRule(rule IngressNodeFirewallProtocolRule) (bool, string) 
 	if rule.ProtocolRule == nil {
 		return false, "no port defined"
 	}
+
+	if rule.ProtocolRule.IsRange() {
+		// GetRange() validates that range is valid and emits an error if this is not the case
+		_, _, err := rule.ProtocolRule.GetRange()
+		if err != nil {
+			return false, fmt.Sprintf("must be a valid port range: %s", err.Error())
+		}
+	} else {
+		_, err := rule.ProtocolRule.GetPort()
+		if err != nil {
+			return false, fmt.Sprintf("must be a valid port: %s", err.Error())
+		}
+	}
+
 	if rule.ICMPRule != nil {
 		return false, "ICMP type/code defined for a non-ICMP(V6) rule"
 	}

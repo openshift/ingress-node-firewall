@@ -57,7 +57,11 @@ const (
 	badIPV6CIDR       = "2002::1234:abcd:ffff:c0a8:101/a"
 	icmpTypeEchoReply = 0
 	validOrder        = 1
-	validPort         = 80
+	validPort         = "80"
+	validPortRange    = "80-90"
+	invalidPortRangeA = "90-80"
+	invalidPortRangeB = "90-90"
+	invalidPortRangeC = "-90"
 )
 
 func TestAPIs(t *testing.T) {
@@ -196,9 +200,34 @@ var _ = Describe("Rules", func() {
 	})
 
 	Context("protocol is TCP", func() {
+		var inf *IngressNodeFirewall
+		BeforeEach(func() {
+			inf = getIngressNodeFirewall("rulestcp")
+		})
+
+		It("accepts rule with port range defined", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ProtocolTypeTCP, validPortRange, IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).To(Succeed())
+			Expect(deleteIngressNodeFirewall(inf))
+		})
+
+		It("rejects rule with port range defined where start is greater than end", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ProtocolTypeTCP, invalidPortRangeA, IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rejects rule with port range defined where start and end range are equal", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ProtocolTypeTCP, invalidPortRangeB, IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rejects rule with port range defined where only end is defined", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ProtocolTypeTCP, invalidPortRangeC, IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
 		It("rejects rule with no port defined", func() {
-			inf := getIngressNodeFirewall("rulestcp")
-			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ProtocolTypeTCP, 1, IngressNodeFirewallAllow)
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ProtocolTypeTCP, validPort, IngressNodeFirewallAllow)
 			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolRule = nil
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
@@ -240,26 +269,26 @@ var _ = Describe("sourceCIDRs", func() {
 
 	Context("and its IPV4", func() {
 		It("allows valid CIDR", func() {
-			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ProtocolTypeTCP, 1, IngressNodeFirewallAllow)
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ProtocolTypeTCP, validPort, IngressNodeFirewallAllow)
 			Expect(createIngressNodeFirewall(inf)).To(Succeed())
 			Expect(deleteIngressNodeFirewall(inf)).To(Succeed())
 		})
 
 		It("rejects invalid CIDR", func() {
-			initCIDRTransportRule(inf, badIPV4CIDR, validOrder, ProtocolTypeTCP, 1, IngressNodeFirewallAllow)
+			initCIDRTransportRule(inf, badIPV4CIDR, validOrder, ProtocolTypeTCP, validPort, IngressNodeFirewallAllow)
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 	})
 
 	Context("and its IPV6", func() {
 		It("allows valid CIDR", func() {
-			initCIDRTransportRule(inf, ipv6CIDR, validOrder, ProtocolTypeTCP, 1, IngressNodeFirewallAllow)
+			initCIDRTransportRule(inf, ipv6CIDR, validOrder, ProtocolTypeTCP, validPort, IngressNodeFirewallAllow)
 			Expect(createIngressNodeFirewall(inf)).To(Succeed())
 			Expect(deleteIngressNodeFirewall(inf)).To(Succeed())
 		})
 
 		It("rejects invalid CIDR", func() {
-			initCIDRTransportRule(inf, badIPV6CIDR, validOrder, ProtocolTypeTCP, 1, IngressNodeFirewallAllow)
+			initCIDRTransportRule(inf, badIPV6CIDR, validOrder, ProtocolTypeTCP, validPort, IngressNodeFirewallAllow)
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 	})
@@ -274,27 +303,27 @@ var _ = Describe("Pin holes", func() {
 
 	Context("will block", func() {
 		It("rules which conflict with API server access", func() {
-			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeTCP, 6443, IngressNodeFirewallDeny)
+			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeTCP, "6443", IngressNodeFirewallDeny)
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 
 		It("rule which conflict with DHCP", func() {
-			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeUDP, 68, IngressNodeFirewallDeny)
+			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeUDP, "68", IngressNodeFirewallDeny)
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 
 		It("rule which conflict with ETCD 2380", func() {
-			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeTCP, 2380, IngressNodeFirewallDeny)
+			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeTCP, "2380", IngressNodeFirewallDeny)
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 
 		It("rule which conflict with ETCD 2379", func() {
-			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeTCP, 2379, IngressNodeFirewallDeny)
+			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeTCP, "2379", IngressNodeFirewallDeny)
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 
 		It("rule which conflict with SSH", func() {
-			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeTCP, 22, IngressNodeFirewallDeny)
+			initCIDRTransportRule(inf, ipv4CIDR, 1, ProtocolTypeTCP, "22", IngressNodeFirewallDeny)
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 	})
@@ -325,10 +354,10 @@ func getIngressNodeFirewall(name string) *IngressNodeFirewall {
 }
 
 func initCIDRTransportRule(inf *IngressNodeFirewall, cidr string, order uint32, protocol IngressNodeFirewallRuleProtocolType,
-	ports uint16, action IngressNodeFirewallActionType) {
+	ports string, action IngressNodeFirewallActionType) {
 
 	rule := IngressNodeFirewallRules{
-		FromCIDRs: []string{cidr},
+		SourceCIDRs: []string{cidr},
 		FirewallProtocolRules: []IngressNodeFirewallProtocolRule{
 			getTCPUDPRule(order, protocol, ports, action),
 		},
@@ -348,7 +377,7 @@ func initCIDRICMPRule(inf *IngressNodeFirewall, cidr string, order uint32, isICM
 	}
 
 	rule := IngressNodeFirewallRules{
-		FromCIDRs: []string{cidr},
+		SourceCIDRs: []string{cidr},
 		FirewallProtocolRules: []IngressNodeFirewallProtocolRule{
 			getICMPRule(order, icmpVer, icmpType, icmpCode, action),
 		},
@@ -359,7 +388,7 @@ func initCIDRICMPRule(inf *IngressNodeFirewall, cidr string, order uint32, isICM
 	inf.Spec.Ingress = append(inf.Spec.Ingress, rule)
 }
 
-func getTCPUDPRule(order uint32, protocol IngressNodeFirewallRuleProtocolType, ports uint16,
+func getTCPUDPRule(order uint32, protocol IngressNodeFirewallRuleProtocolType, ports string,
 	action IngressNodeFirewallActionType) IngressNodeFirewallProtocolRule {
 
 	return IngressNodeFirewallProtocolRule{
