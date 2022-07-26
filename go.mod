@@ -11,7 +11,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	k8s.io/api v0.24.3
 	k8s.io/apimachinery v0.24.3
-	k8s.io/client-go v0.24.0
+	k8s.io/client-go v0.24.3
 	k8s.io/klog v1.0.0
 	sigs.k8s.io/controller-runtime v0.12.1
 )
