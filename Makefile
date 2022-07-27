@@ -143,10 +143,13 @@ endif
 .PHONY: install
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl apply -f -
+	kubectl apply -f config/daemon/namespace.yaml # Hack to get install to behave.
+	$(KUSTOMIZE) build config/daemon | kubectl apply -f -
 
 .PHONY: uninstall
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	kubectl delete -f config/daemon/namespace.yaml --ignore-not-found=$(ignore-not-found)
 
 .PHONY: deploy
 deploy: manifests kustomize install-cert-manager ## Deploy controller to the K8s cluster specified in ~/.kube/config.
@@ -169,6 +172,15 @@ install-cert-manager: ## Install cert manager onto the target kubernetes cluster
 .PHONY: uninstall-cert-manager
 uninstall-cert-manager: ## Uninstall cert manager from the target kubernetes cluster
 	kubectl delete -f $(CERT_MANAGER_URL)
+
+##@ Samples
+.PHONY: deploy-samples
+deploy-samples:  ## Deploy samples
+	$(KUSTOMIZE) build config/samples | kubectl apply -f -
+
+.PHONY: undeploy-samples
+undeploy-samples: ## Undeploy samples
+	$(KUSTOMIZE) build config/samples | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ##@ Build Dependencies
 

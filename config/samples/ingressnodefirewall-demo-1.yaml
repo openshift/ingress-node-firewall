@@ -1,7 +1,7 @@
 apiVersion: ingress-nodefw.ingress-nodefw/v1alpha1
 kind: IngressNodeFirewall
 metadata:
-  name: ingressnodefirewall-sample
+  name: ingressnodefirewall-demo-1
 spec:
   interfaces:
   - eth0

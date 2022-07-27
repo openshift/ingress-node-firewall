@@ -49,4 +49,4 @@ spec:
           hostPath:
             path: /sys/fs/bpf
             type: DirectoryOrCreate
-      serviceAccountName: daemon
+      serviceAccountName: ingress-node-firewall-daemon
