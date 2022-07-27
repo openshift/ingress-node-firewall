@@ -1,5 +1,5 @@
 #!/bin/bash
-MANIFSET_FILE="daemonset.yaml"
+MANIFEST_FILE="daemonset.yaml"
 MANIFEST_PATH="bindata/manifests/daemon"
 
 if ! command -v yq &> /dev/null
@@ -8,4 +8,4 @@ then
     go install -mod='' github.com/mikefarah/yq/v4@v4.13.3
 fi
 
-yq e --inplace '. | (select(.kind == "DaemonSet" and .metadata.name == "ingress-node-firewall-daemon") | .spec.template.spec.containers[] | select(.name == "ingress-node-firewall-daemon").image)|="{{.Image}}"' ${MANIFEST_PATH}/${MANIFSET_FILE}
+yq e --inplace '. | (select(.kind == "DaemonSet" and .metadata.name == "ingress-node-firewall-daemon") | .spec.template.spec.containers[] | select(.name == "ingress-node-firewall-daemon").image)|="{{.Image}}"' ${MANIFEST_PATH}/${MANIFEST_FILE}
