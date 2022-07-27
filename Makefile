@@ -132,11 +132,11 @@ ifndef ignore-not-found
 endif
 
 .PHONY: install
-install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
+install: manifests kustomize install-cert-manager ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl apply -f -
 
 .PHONY: uninstall
-uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+uninstall: manifests kustomize uninstall-cert-manager ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
@@ -147,6 +147,16 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+
+CERT_MANAGER_URL ?= "https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml"
+
+.PHONY: install-cert-manager
+install-cert-manager: ## Install cert manager onto the target kubernetes cluster
+	kubectl apply -f $(CERT_MANAGER_URL)
+
+.PHONY: uninstall-cert-manager
+uninstall-cert-manager: ## Uninstall cert manager from the target kubernetes cluster
+	kubectl delete -f $(CERT_MANAGER_URL)
 
 ##@ Build Dependencies
 
