@@ -20,7 +20,7 @@ spec:
         kubernetes.io/os: linux
       priorityClassName: "system-node-critical"
       containers:
-        - command: ['/bin/sh', '-c', 'mount bpffs /sys/fs/bpf -t bpf && daemon']
+        - command: ['/bin/sh', '-c', 'mount bpffs /sys/fs/bpf -t bpf && /usr/bin/daemon']
           env:
             - name: NODE_NAME
               valueFrom:
