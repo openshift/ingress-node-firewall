@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/openshift/ingress-node-firewall/pkg/failsaferules"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -36,70 +38,9 @@ const MAX_INGRESS_RULES = 100
 type empty struct{}
 type uint32Set map[uint32]empty
 
-type pinHole interface {
-	isRuleConflict(rule IngressNodeFirewallProtocolRule) (bool, error)
-}
-
-type transportProtoPinHole struct {
-	serviceName string
-	port        uint16
-}
-
-func (t transportProtoPinHole) isRuleConflict(rule IngressNodeFirewallProtocolRule) (bool, error) {
-	if rule.ProtocolRule == nil {
-		return false, fmt.Errorf("rule is not defined")
-	}
-	if rule.ProtocolRule.IsRange() {
-		start, end, err := rule.ProtocolRule.GetRange()
-		if err != nil {
-			return false, err
-		}
-		if start > end {
-			return false, fmt.Errorf("start port is greater than end port")
-		}
-		return withinRange(t.port, start, end), fmt.Errorf("port range is in conflict with access to %s", t.serviceName)
-	} else {
-		port, err := rule.ProtocolRule.GetPort()
-		if err != nil {
-			return false, err
-		}
-		return t.port == port, fmt.Errorf("port is in conflict with access to %s", t.serviceName)
-	}
-}
-
-func withinRange(i, lowerBound, upperBound uint16) bool {
-	return i >= lowerBound && i <= upperBound
-}
-
 // log is for logging in this package.
 var (
 	ingressnodefirewalllog = logf.Log.WithName("ingressnodefirewall-resource")
-	pinholes               = map[IngressNodeFirewallRuleProtocolType][]pinHole{
-		ProtocolTypeTCP: {
-			transportProtoPinHole{
-				"Kubernetes API",
-				6443,
-			},
-			transportProtoPinHole{
-				"ETCD",
-				2380,
-			},
-			transportProtoPinHole{
-				"ETCD",
-				2379,
-			},
-			transportProtoPinHole{
-				"SSH",
-				22,
-			},
-		},
-		ProtocolTypeUDP: {
-			transportProtoPinHole{
-				"DHCP",
-				68,
-			},
-		},
-	}
 )
 
 func (r *IngressNodeFirewall) SetupWebhookWithManager(mgr ctrl.Manager) error {
@@ -204,21 +145,53 @@ func validateRule(rule IngressNodeFirewallProtocolRule, infRulesIndex, ruleIndex
 				infName, fmt.Sprintf("must be a valid %s rule: %s", rule.Protocol, reason))
 		}
 
-		if isConflict, reason := isConflictWithPinHoles(rule); isConflict {
+		if isConflict, err := isConflictWithSafeRulesTransport(rule); !isConflict && err != nil {
+			return field.Invalid(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("rules").Index(ruleIndex),
+				infName, fmt.Sprintf("must be a valid %s rule: %v", rule.Protocol, err))
+		} else if isConflict && err != nil {
 			return field.Forbidden(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("rules").Index(ruleIndex),
-				reason)
+				err.Error())
 		}
 	}
 	return nil
 }
 
-func isConflictWithPinHoles(rule IngressNodeFirewallProtocolRule) (bool, string) {
-	for _, pinhole := range pinholes[rule.Protocol] {
-		if isConflict, err := pinhole.isRuleConflict(rule); isConflict {
-			return true, err.Error()
+func isConflictWithSafeRulesTransport(rule IngressNodeFirewallProtocolRule) (bool, error) {
+	var failSafeRules []failsaferules.TransportProtoFailSafeRule
+	var err error
+	var start, end uint16
+
+	if rule.Protocol == ProtocolTypeTCP {
+		failSafeRules = failsaferules.GetTCP()
+	} else if rule.Protocol == ProtocolTypeUDP {
+		failSafeRules = failsaferules.GetUDP()
+	} else {
+		return false, fmt.Errorf("unable to determine conflict rules for unknown protocol: %q", rule.Protocol)
+	}
+
+	for _, failSafeRule := range failSafeRules {
+		if rule.ProtocolRule == nil {
+			return false, fmt.Errorf("expected ports to be defined for transport protocol")
+		}
+		if rule.ProtocolRule.IsRange() {
+			start, end, err = rule.ProtocolRule.GetRange()
+			if err != nil {
+				return false, fmt.Errorf("failed to get rule ports range: %v", err)
+			}
+			if withinRange(failSafeRule.GetPort(), start, end) {
+				return true, fmt.Errorf("port range is in conflict with access to %s", failSafeRule.GetServiceName())
+			}
+		} else {
+			start, err = rule.ProtocolRule.GetPort()
+			if err != nil {
+				return false, err
+			}
+			if failSafeRule.GetPort() == start {
+				return true, fmt.Errorf("port is in conflict with access to %s", failSafeRule.GetServiceName())
+			}
 		}
 	}
-	return false, ""
+	return false, nil
 }
 
 func validateRuleLength(infRules []IngressNodeFirewallProtocolRule, infRulesIndex int, infName string) *field.Error {
@@ -280,4 +253,8 @@ func orderIsUnique(infRules []IngressNodeFirewallProtocolRule) bool {
 		return false
 	}
 	return true
+}
+
+func withinRange(i, lowerBound, upperBound uint16) bool {
+	return i >= lowerBound && i <= upperBound
 }

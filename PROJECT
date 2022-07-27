@@ -13,7 +13,7 @@ resources:
   domain: ingress-nodefw
   group: ingress-nodefw
   kind: IngressNodeFirewall
-  path: ingress-node-firewall/api/v1alpha1
+  path: github.com/openshift/ingress-node-firewall/api/v1alpha1
   version: v1alpha1
   webhooks:
     validation: true
@@ -25,6 +25,6 @@ resources:
   domain: ingress-nodefw
   group: ingress-nodefw
   kind: IngrNodeFwConfig
-  path: ingress-node-firewall/api/v1alpha1
+  path: github.com/openshift/ingress-node-firewall/api/v1alpha1
   version: v1alpha1
 version: "3"
