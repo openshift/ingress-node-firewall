@@ -4,7 +4,7 @@
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 VERSION ?= 0.0.1
-
+CERT_MANAGER_VERSION=v1.9.1
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:
@@ -140,27 +140,30 @@ ifndef ignore-not-found
 endif
 
 .PHONY: install
-install: manifests kustomize install-cert-manager ## Install CRDs into the K8s cluster specified in ~/.kube/config.
+install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl apply -f -
 
 .PHONY: uninstall
-uninstall: manifests kustomize uninstall-cert-manager ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+deploy: manifests kustomize install-cert-manager ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	kubectl delete -f $(CERT_MANAGER_URL)
 
-CERT_MANAGER_URL ?= "https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml"
+CERT_MANAGER_URL ?= "https://github.com/cert-manager/cert-manager/releases/download/$(CERT_MANAGER_VERSION)/cert-manager.yaml"
 
 .PHONY: install-cert-manager
 install-cert-manager: ## Install cert manager onto the target kubernetes cluster
-	kubectl apply -f $(CERT_MANAGER_URL)
+	set -e ;\
+	kubectl apply -f $(CERT_MANAGER_URL) ;\
+	hack/wait_for_cert_manager.sh ;\
 
 .PHONY: uninstall-cert-manager
 uninstall-cert-manager: ## Uninstall cert manager from the target kubernetes cluster
@@ -234,6 +237,10 @@ endif
 generate-daemon-manifest: ## Generate DaemonSet manifest
 	@echo "==== Generating DaemonSet manifest"
 	hack/generate-daemon-manifest.sh
+
+lint: ## Run golangci-lint against code
+	@echo "Running golangci-lint"
+	hack/lint.sh
 
 .PHONY: vendors
 vendors: ## Updating vendors
