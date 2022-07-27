@@ -96,7 +96,7 @@ type bpfSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfProgramSpecs struct {
-	IngresNodeFirewallProcess *ebpf.ProgramSpec `ebpf:"ingres_node_firewall_process"`
+	IngressNodeFirewallProcess *ebpf.ProgramSpec `ebpf:"ingress_node_firewall_process"`
 }
 
 // bpfMapSpecs contains maps before they are loaded into the kernel.
@@ -144,12 +144,12 @@ func (m *bpfMaps) Close() error {
 //
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfPrograms struct {
-	IngresNodeFirewallProcess *ebpf.Program `ebpf:"ingres_node_firewall_process"`
+	IngressNodeFirewallProcess *ebpf.Program `ebpf:"ingress_node_firewall_process"`
 }
 
 func (p *bpfPrograms) Close() error {
 	return _BpfClose(
-		p.IngresNodeFirewallProcess,
+		p.IngressNodeFirewallProcess,
 	)
 }
 

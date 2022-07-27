@@ -176,10 +176,13 @@ uninstall-cert-manager: ## Uninstall cert manager from the target kubernetes clu
 ##@ Samples
 .PHONY: deploy-samples
 deploy-samples:  ## Deploy samples
+	@echo "==== Label kind node to match nodeSelector"
+	kubectl label node kind-control-plane do-node-ingress-firewall="true" --overwrite=true
 	$(KUSTOMIZE) build config/samples | kubectl apply -f -
 
 .PHONY: undeploy-samples
 undeploy-samples: ## Undeploy samples
+	kubectl label node kind-control-plane do-node-ingress-firewall="false" --overwrite=true
 	$(KUSTOMIZE) build config/samples | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ##@ Build Dependencies
@@ -317,7 +320,7 @@ docker-generate: ## Creating the container that generates the eBPF binaries
 
 ##@ Daemon development
 .PHONY: daemon
-daemon: ## Build the daemon.
+daemon: ebpf-generate ## Build the daemon.
 	hack/build-daemon.sh
 
 .PHONY: docker-build-daemon
@@ -325,7 +328,7 @@ docker-build-daemon: ## Build the daemon image with docker. To change location, 
 	docker build -t ${DAEMON_IMG} -f Dockerfile.daemon .
 
 .PHONY: docker-push-daemon
-docker-push-daemon: docker-build-daemon ## Push the daemon image with docker. To change location, specify DAEMON_IMG=<image>.
+docker-push-daemon: ## Push the daemon image with docker. To change location, specify DAEMON_IMG=<image>.
 	docker push ${DAEMON_IMG}
 
 .PHONY: podman-build-daemon
