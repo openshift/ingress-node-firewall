@@ -18,11 +18,12 @@ package controllers
 
 import (
 	"context"
+
+	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
+	nodefwloader "github.com/openshift/ingress-node-firewall/pkg/ebpf"
+
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
-	nodefwloader "ingress-node-firewall/pkg/ebpf"
-
-	ingressnodefwv1alpha1 "ingress-node-firewall/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"

@@ -1,4 +1,4 @@
-module ingress-node-firewall
+module github.com/openshift/ingress-node-firewall
 
 go 1.18
 

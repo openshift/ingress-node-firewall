@@ -8,12 +8,12 @@ import (
 	"path"
 	"syscall"
 
+	ingressnodefwiov1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
+
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
 	"k8s.io/klog"
-
-	ingressnodefwiov1alpha1 "ingress-node-firewall/api/v1alpha1"
 )
 
 const (
