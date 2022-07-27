@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"log"
 	"os"
 	"testing"
 
@@ -126,5 +127,7 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	ManifestPath = IngressNodeFirewallManifestPath
-	testEnv.Stop()
+	if err := testEnv.Stop(); err != nil {
+		log.Printf("failed to shut down testEnv err %v", err)
+	}
 })

@@ -230,7 +230,9 @@ func (infc *IngNodeFwController) IngressNodeFwAttach(ifacesName []string, isDele
 func (infc *IngNodeFwController) cleanup() {
 	for _, l := range infc.links {
 		l := l
-		l.Unpin()
+		if err := l.Unpin(); err != nil {
+			log.Printf("Failed unpin link %v err %v", l, err)
+		}
 		l.Close()
 	}
 	infc.objs.Close()
