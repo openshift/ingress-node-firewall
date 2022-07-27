@@ -336,5 +336,5 @@ podman-build-daemon: ## Build the daemon image with podman. To change location, 
 	podman build -t ${DAEMON_IMG} -f Dockerfile.daemon .
 
 .PHONY: podman-push-daemon
-podman-push-daemon: podman-build-daemon ## Push the daemon image with docker. To change location, specify DAEMON_IMG=<image>.
+podman-push-daemon: ## Push the daemon image with docker. To change location, specify DAEMON_IMG=<image>.
 	podman push ${DAEMON_IMG}

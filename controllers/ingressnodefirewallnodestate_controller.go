@@ -16,7 +16,7 @@ package controllers
 import (
 	"context"
 
-	nodefwloader "ingress-node-firewall/pkg/ebpf"
+	nodefwloader "github.com/openshift/ingress-node-firewall/pkg/ebpf"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -25,7 +25,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	infv1alpha1 "ingress-node-firewall/api/v1alpha1"
+	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 )
 
 // IngressNodeFirewallNodeStateReconciler reconciles a IngressNodeFirewallNodeState object

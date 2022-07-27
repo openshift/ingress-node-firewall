@@ -34,6 +34,6 @@ resources:
   domain: ingress-nodefw
   group: ingress-nodefw
   kind: IngressNodeFirewallNodeState
-  path: ingress-node-firewall/api/v1alpha1
+  path: github.com/openshift/ingress-node-firewall/api/v1alpha1
   version: v1alpha1
 version: "3"
