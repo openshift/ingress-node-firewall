@@ -28,6 +28,18 @@ rules:
 - apiGroups:
   - ingress-nodefw.ingress-nodefw
   resources:
+  - ingressnodefirewallnodestates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress-nodefw.ingress-nodefw
+  resources:
   - ingressnodefirewalls
   verbs:
   - create

@@ -37,6 +37,7 @@ type IngressNodeFirewallNodeStateReconciler struct {
 	Log       logr.Logger
 }
 
+//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewallnodestates,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,namespace=ingress-node-firewall-system,resources=ingressnodefirewallnodestates,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,namespace=ingress-node-firewall-system,resources=ingressnodefirewallnodestates/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,namespace=ingress-node-firewall-system,resources=ingressnodefirewallnodestates/finalizers,verbs=update

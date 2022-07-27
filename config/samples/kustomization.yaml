@@ -1,7 +1,7 @@
 ## Append samples you want in your CSV to this file as resources ##
 resources:
 - ingress-node-firewall-config.yaml
-- ingressnodefirewall-demo-1.yaml
+#- ingressnodefirewall-demo-1.yaml
 - ingressnodefirewall-demo-2.yaml
-- ingressnodefirewall-demo-3.yaml
+#- ingressnodefirewall-demo-3.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples
