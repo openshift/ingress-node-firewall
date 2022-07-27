@@ -1,0 +1,14 @@
+FROM golang:1.18 AS builder
+WORKDIR /go/src/github.com/openshift/ingress-node-firewall
+COPY . .
+# RUN make daemon
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o bin/daemon cmd/daemon.go
+
+# FROM quay.io/centos/centos:stream8
+FROM alpine:3.16
+RUN apk add --no-cache strace
+RUN mkdir -p /usr/bin
+COPY --from=builder /go/src/github.com/openshift/ingress-node-firewall/bin/daemon /usr/bin/daemon
+
+USER root:root
+CMD ["/usr/bin/daemon"]

@@ -16,13 +16,16 @@ package controllers
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	nodefwloader "ingress-node-firewall/pkg/ebpf"
+
+	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	ingressnodefwv1alpha1 "ingress-node-firewall/api/v1alpha1"
+	infv1alpha1 "ingress-node-firewall/api/v1alpha1"
 )
 
 // IngressNodeFirewallNodeStateReconciler reconciles a IngressNodeFirewallNodeState object
@@ -31,6 +34,7 @@ type IngressNodeFirewallNodeStateReconciler struct {
 	Scheme    *runtime.Scheme
 	NodeName  string
 	Namespace string
+	Log       logr.Logger
 }
 
 //+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,namespace=ingress-node-firewall-system,resources=ingressnodefirewallnodestates,verbs=get;list;watch;create;update;patch;delete
@@ -47,36 +51,66 @@ type IngressNodeFirewallNodeStateReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
 func (r *IngressNodeFirewallNodeStateReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
-
 	// This node's name and the NodeState's name must match. Also, the NodeState object must
 	// have been created inside the correct namespace.
 	// Otherwise, this request is not for us.
 	if req.Name != r.NodeName || req.Namespace != r.Namespace {
 		return ctrl.Result{}, nil
 	}
-	nodeState := &ingressnodefwv1alpha1.IngressNodeFirewallNodeState{}
+	nodeState := &infv1alpha1.IngressNodeFirewallNodeState{}
 	err := r.Get(ctx, req.NamespacedName, nodeState)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
-			log.Info("IngressNodeFirewallNodeState resource not found. Ignoring since object must be deleted")
-			return ctrl.Result{}, nil
+			return r.reconcileResource(ctx, req, nodeState, false)
 		}
 		// Error reading the object - requeue the request.
-		log.Error(err, "Failed to get IngressNodeFirewallNodeState")
+		r.Log.Error(err, "Failed to get IngressNodeFirewallNodeState")
 		return ctrl.Result{}, err
 	}
 
-	log.Info("Reconciling resource and programming bpf", "name", nodeState.Name, "namespace", nodeState.Namespace)
-	return ctrl.Result{}, nil
+	r.Log.Info("Reconciling resource and programming bpf", "name", nodeState.Name, "namespace", nodeState.Namespace)
+	return r.reconcileResource(ctx, req, nodeState, false)
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *IngressNodeFirewallNodeStateReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ingressnodefwv1alpha1.IngressNodeFirewallNodeState{}).
+		For(&infv1alpha1.IngressNodeFirewallNodeState{}).
 		Complete(r)
+}
+
+func (r *IngressNodeFirewallNodeStateReconciler) reconcileResource(
+	ctx context.Context, req ctrl.Request, instance *infv1alpha1.IngressNodeFirewallNodeState, isDelete bool) (ctrl.Result, error) {
+	if err := r.syncIngressNodeFirewallResources(instance, isDelete); err != nil {
+		return ctrl.Result{}, errors.Wrapf(err, "FailedToSyncIngressNodeFirewallResources")
+	}
+	return ctrl.Result{}, nil
+}
+
+func (r *IngressNodeFirewallNodeStateReconciler) syncIngressNodeFirewallResources(instance *infv1alpha1.IngressNodeFirewallNodeState, isDelete bool) error {
+	logger := r.Log.WithName("syncIngressNodeFirewallResources")
+	logger.Info("Start")
+
+	c, err := nodefwloader.NewIngNodeFwController()
+	if err != nil {
+		logger.Error(err, "Fail to create nodefw controller instance")
+		return err
+	}
+
+	// HACK-POC: we can't load bpf rules from the operator
+	for _, rule := range instance.Spec.Ingress {
+		if err := c.IngressNodeFwRulesLoader(rule, isDelete); err != nil {
+			logger.Error(err, "Fail to load ingress firewall rule", "rule", rule)
+			return err
+		}
+	}
+
+	if err := c.IngressNodeFwAttach(*instance.Spec.Interfaces, isDelete); err != nil {
+		logger.Error(err, "Fail to attach ingress firewall prog")
+		return err
+	}
+	return nil
 }

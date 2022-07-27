@@ -92,6 +92,7 @@ func main() {
 		Scheme:    mgr.GetScheme(),
 		NodeName:  nodeName,
 		Namespace: namespace,
+		Log:       ctrl.Log.WithName("controllers").WithName("IngressNodeFirewall"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "IngressNodeFirewallNodeState")
 		os.Exit(1)
