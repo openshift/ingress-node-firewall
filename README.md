@@ -42,9 +42,10 @@ make test
 
 ## Running on a KinD cluster
 1. Download latest [KinD](https://kind.sigs.k8s.io/docs/user/quick-start) stable version
-2. Install KinD
+2. Install KinD and export KUBECONFIG
 ```sh
-./hack/kind-cluster.sh
+make create-kind-cluster
+export KUBECONFIG=hack/kubeconfig
 ```
 3. Install custom resource definitions
 ```sh

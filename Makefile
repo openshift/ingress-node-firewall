@@ -107,6 +107,14 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -coverprofile cover.out
 
+.PHONY: create-kind-cluster 
+create-kind-cluster: ## Create a kind cluster.
+	hack/kind-cluster.sh
+
+.PHONY: destroy-kind-cluster 
+destroy-kind-cluster: ## Destroy the kind cluster.
+	kind delete cluster
+
 ##@ Build
 
 .PHONY: build
