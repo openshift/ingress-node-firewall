@@ -20,9 +20,9 @@ import (
 	"context"
 	"os"
 
-	ingressnodefwv1alpha1 "ingress-node-firewall/api/v1alpha1"
-	"ingress-node-firewall/pkg/apply"
-	"ingress-node-firewall/pkg/render"
+	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
+	"github.com/openshift/ingress-node-firewall/pkg/apply"
+	"github.com/openshift/ingress-node-firewall/pkg/render"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"

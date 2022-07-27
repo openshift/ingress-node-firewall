@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	ingressnodefwv1alpha1 "ingress-node-firewall/api/v1alpha1"
+	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
