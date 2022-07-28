@@ -1,12 +1,9 @@
 /*
 Copyright 2022.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -20,21 +17,22 @@ import (
 	"flag"
 	"os"
 
-	ingressnodefwiov1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
-	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
-	"github.com/openshift/ingress-node-firewall/controllers"
-	"github.com/openshift/ingress-node-firewall/pkg/version"
-
-	//+kubebuilder:scaffold:imports
+	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
+	// to ensure that exec-entrypoint and run can make use of them.
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	ingressnodefwiov1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
+	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
+	"github.com/openshift/ingress-node-firewall/controllers"
+	"github.com/openshift/ingress-node-firewall/pkg/version"
+	//+kubebuilder:scaffold:imports
 )
 
 var (
@@ -52,15 +50,9 @@ func init() {
 
 func main() {
 	var metricsAddr string
-	var enableLeaderElection bool
-	var enableWebhook bool
 	var probeAddr string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableWebhook, "enable-webhook", false, "Enable deployment of webhook to validate CR IngressNodeFirewall")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -71,13 +63,14 @@ func main() {
 
 	setupLog.Info("Version", "version.Version", version.Version)
 
-	if _, ok := os.LookupEnv("DAEMONSET_IMAGE"); !ok {
-		setupLog.Error(nil, "DAEMONSET_IMAGE env variable must be set")
+	nodeName, ok := os.LookupEnv("NODE_NAME")
+	if !ok {
+		setupLog.Error(nil, "NODE_NAME env variable must be set")
 		os.Exit(1)
 	}
-	nameSpace, ok := os.LookupEnv("DAEMONSET_NAMESPACE")
+	namespace, ok := os.LookupEnv("NAMESPACE")
 	if !ok {
-		setupLog.Error(nil, "DAEMONSET_NAMESPACE env variable must be set")
+		setupLog.Error(nil, "NODE_NAME env variable must be set")
 		os.Exit(1)
 	}
 
@@ -86,51 +79,24 @@ func main() {
 		MetricsBindAddress:     metricsAddr,
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "d902e78d.ingress-nodefw",
-		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
-		// when the Manager ends. This requires the binary to immediately end when the
-		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
-		// speeds up voluntary leader transitions as the new leader don't have to wait
-		// LeaseDuration time first.
-		//
-		// In the default scaffold provided, the program ends immediately after
-		// the manager stops, so would be fine to enable this option. However,
-		// if you are doing or is intended to do any operation such as perform cleanups
-		// after the manager stops then its usage might be unsafe.
-		// LeaderElectionReleaseOnCancel: true,
+		LeaderElection:         false,
+		Namespace:              namespace,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
-	if err = (&controllers.IngressNodeFirewallReconciler{
+	if err = (&controllers.IngressNodeFirewallNodeStateReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
+		NodeName:  nodeName,
+		Namespace: namespace,
 		Log:       ctrl.Log.WithName("controllers").WithName("IngressNodeFirewall"),
-		Namespace: nameSpace,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "IngressNodeFirewall")
+		setupLog.Error(err, "unable to create controller", "controller", "IngressNodeFirewallNodeState")
 		os.Exit(1)
 	}
-
-	if enableWebhook {
-		if err = (&ingressnodefwiov1alpha1.IngressNodeFirewall{}).SetupWebhookWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create webhook", "webhook", "IngressNodeFirewall")
-			os.Exit(1)
-		}
-	}
-	if err = (&controllers.IngrNodeFwConfigReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		Log:       ctrl.Log.WithName("controllers").WithName("IngressNodeFirewallConfig"),
-		Namespace: nameSpace,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "IngrNodeFwConfig")
-		os.Exit(1)
-	}
-	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

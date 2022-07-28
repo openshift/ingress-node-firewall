@@ -206,7 +206,7 @@ func (infc *IngNodeFwController) IngressNodeFwAttach(ifacesName []string, isDele
 		if !isDelete {
 			// Attach the program.
 			l, err := link.AttachXDP(link.XDPOptions{
-				Program:   objs.IngresNodeFirewallProcess,
+				Program:   objs.IngressNodeFirewallProcess,
 				Interface: iface.Index,
 			})
 			if err != nil {

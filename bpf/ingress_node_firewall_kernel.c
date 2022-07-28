@@ -329,7 +329,7 @@ ingress_node_firewall_main(struct xdp_md *ctx) {
 }
 
 SEC("xdp_ingress_node_firewall_process")
-int ingres_node_firewall_process(struct xdp_md *ctx) {
+int ingress_node_firewall_process(struct xdp_md *ctx) {
     return ingress_node_firewall_main(ctx);
 }
 

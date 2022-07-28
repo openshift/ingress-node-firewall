@@ -16,16 +16,23 @@ spec:
         component: network
         type: infra
     spec:
+      hostNetwork: true
+      hostPID: true
       nodeSelector:
         kubernetes.io/os: linux
       priorityClassName: "system-node-critical"
       containers:
-        - command: ['/bin/sh', '-c', 'mount bpffs /sys/fs/bpf -t bpf && daemon']
+        - command: ['/bin/sh', '-c', 'mount bpffs /sys/fs/bpf -t bpf && /usr/bin/daemon']
+          #- command: ['/bin/sh', '-c', 'mount bpffs /sys/fs/bpf -t bpf && strace -fe trace=bpf /usr/bin/daemon']
           env:
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           image: '{{.Image}}'
           name: daemon
           securityContext:
@@ -45,3 +52,4 @@ spec:
           hostPath:
             path: /sys/fs/bpf
             type: DirectoryOrCreate
+      serviceAccountName: ingress-node-firewall-daemon

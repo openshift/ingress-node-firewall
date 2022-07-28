@@ -6,9 +6,29 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - apps
   resources:
   - daemonsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress-nodefw.ingress-nodefw
+  resources:
+  - ingressnodefirewallnodestates
   verbs:
   - create
   - delete
@@ -89,3 +109,29 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - ingress-nodefw.ingress-nodefw
+  resources:
+  - ingressnodefirewallnodestates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress-nodefw.ingress-nodefw
+  resources:
+  - ingressnodefirewallnodestates/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ingress-nodefw.ingress-nodefw
+  resources:
+  - ingressnodefirewallnodestates/status
+  verbs:
+  - get
+  - patch
+  - update

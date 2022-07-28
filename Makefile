@@ -49,6 +49,7 @@ endif
 IMAGE_ORG ?= $(USER)
 # Image URL to use all building/pushing image targets
 IMG ?= quay.io/$(IMAGE_ORG)/controller
+DAEMON_IMG ?= quay.io/$(IMAGE_ORG)/ingress-node-firewall-daemon
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.24.1
 
@@ -92,7 +93,7 @@ manifests: controller-gen generate-daemon-manifest ## Generate WebhookConfigurat
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: generate
-generate: controller-gen ebpf-generate ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 .PHONY: fmt
@@ -142,10 +143,13 @@ endif
 .PHONY: install
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl apply -f -
+	kubectl apply -f config/daemon/namespace.yaml # Hack to get install to behave.
+	$(KUSTOMIZE) build config/daemon | kubectl apply -f -
 
 .PHONY: uninstall
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	kubectl delete -f config/daemon/namespace.yaml --ignore-not-found=$(ignore-not-found)
 
 .PHONY: deploy
 deploy: manifests kustomize install-cert-manager ## Deploy controller to the K8s cluster specified in ~/.kube/config.
@@ -168,6 +172,18 @@ install-cert-manager: ## Install cert manager onto the target kubernetes cluster
 .PHONY: uninstall-cert-manager
 uninstall-cert-manager: ## Uninstall cert manager from the target kubernetes cluster
 	kubectl delete -f $(CERT_MANAGER_URL)
+
+##@ Samples
+.PHONY: deploy-samples
+deploy-samples:  ## Deploy samples
+	@echo "==== Label kind node to match nodeSelector"
+	kubectl label node kind-control-plane do-node-ingress-firewall="true" --overwrite=true
+	$(KUSTOMIZE) build config/samples | kubectl apply -f -
+
+.PHONY: undeploy-samples
+undeploy-samples: ## Undeploy samples
+	kubectl label node kind-control-plane do-node-ingress-firewall="false" --overwrite=true
+	$(KUSTOMIZE) build config/samples | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ##@ Build Dependencies
 
@@ -301,3 +317,24 @@ ebpf-generate: prereqs ## Generating BPF Go bindings
 docker-generate: ## Creating the container that generates the eBPF binaries
 	docker build . -f hack/generators.Dockerfile -t $(LOCAL_GENERATOR_IMAGE)
 	docker run --rm -v $(shell pwd):/src $(LOCAL_GENERATOR_IMAGE)
+
+##@ Daemon development
+.PHONY: daemon
+daemon: ebpf-generate ## Build the daemon.
+	hack/build-daemon.sh
+
+.PHONY: docker-build-daemon
+docker-build-daemon: ## Build the daemon image with docker. To change location, specify DAEMON_IMG=<image>.
+	docker build -t ${DAEMON_IMG} -f Dockerfile.daemon .
+
+.PHONY: docker-push-daemon
+docker-push-daemon: ## Push the daemon image with docker. To change location, specify DAEMON_IMG=<image>.
+	docker push ${DAEMON_IMG}
+
+.PHONY: podman-build-daemon
+podman-build-daemon: ## Build the daemon image with podman. To change location, specify DAEMON_IMG=<image>.
+	podman build -t ${DAEMON_IMG} -f Dockerfile.daemon .
+
+.PHONY: podman-push-daemon
+podman-push-daemon: ## Push the daemon image with docker. To change location, specify DAEMON_IMG=<image>.
+	podman push ${DAEMON_IMG}

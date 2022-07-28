@@ -15,8 +15,29 @@ For fedora, you will need the following packages
 sudo dnf install glibc-devel glibc-devel.i686
 ```
 
+## Building the DaemonSet image
+
+This operator depends on the DaemonSet image. You can build this image and push it to your registry with:
+```
+make podman-build-daemon DAEMON_IMG=<registry>/<image>:<tag>
+make podman-push-daemon DAEMON_IMG=<registry>/<image>:<tag>
+```
+> If you are using docker, replace `podman-build-daemon` with `docker-build-daemon` and `podman-push-daemon` with `docker-push-daemon`.
+
+## Running the operator locally
+
+First, export your kubernetes credentials. Then, you can run this cluster locally with the following command:
+```
+export DAEMONSET_IMAGE=<registry>/<image>:<tag>
+export DAEMONSET_NAMESPACE=ingress-node-firewall-system
+make install run
+```
+
 ## Usage
-Once the Ingress node firewall Operator is installed, you have to create a `IngrNodeFwConfig` custom resource to deploy an instance. The operator will consume this resource and create ingress node firewall daemonset `daemon` based on it. The `IngrNodeFwConfig` custom resource needs to be created inside the `ingress-node-firewall-system` namespace and be named `ingressnodefirewallconfig`. Only one `IngrNodeFwConfig` resource can exist in a cluster.
+
+Once the Ingress Node Firewall Operator is installed, you have to create a `IngrNodeFwConfig` custom resource to deploy the Operator's DaemonSet.
+The `IngrNodeFwConfig` custom resource needs to be created inside the `ingress-node-firewall-system` namespace and be named `ingressnodefirewallconfig`. Only one `IngrNodeFwConfig` resource can exist in a cluster.
+The operator will consume this resource and create ingress node firewall daemonset `daemon` which runs on all nodes that match the `nodeSelector`.
 
 Following is example of `IngrNodeFwConfig` resource:
 ```yaml
@@ -32,9 +53,43 @@ spec:
   - key: "Example"
     operator: "Exists"
     effect: "NoExecute"
-
 ```
+
+After that, deploy one or multiple `IngressNodeFirewall` resources to apply firewall rules to your nodes. Make sure that the `nodeSelector` matches a set of nodes. The Ingress Node Firewall Operator will create objects of kind `IngressNodeFirewallNodeState` for each node that is matches by at least one `IngressNodeFirewall` resource:
+```
+apiVersion: ingress-nodefw.ingress-nodefw/v1alpha1
+kind: IngressNodeFirewall
+metadata:
+  name: ingressnodefirewall-demo-1
+spec:
+  interfaces:
+  - eth0
+  nodeSelector:
+    node-role.kubernetes.io/worker: ""
+  ingress:
+  - sourceCIDRs:
+       - 1.1.1.1/24
+       - 100:1::1/64
+    rules:
+    - order: 10
+      protocol: tcp
+      protoRule:
+        ports: "100-200"
+      action: allow
+```
+
+You can use the following shortcut to deploy samples, including `IngrNodeFwConfig` and `IngressNodeFirewall` resources:
+```
+make deploy-samples
+```
+
+And in order to uninstall them:
+```
+make undeploy-samples
+```
+
 ## Running test
+
 to run ingress-node-firewall-operator unit tests (no cluster required), execute the following :
 ```shell
 make test
