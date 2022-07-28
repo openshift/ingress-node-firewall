@@ -71,9 +71,7 @@ func (infc *IngNodeFwController) IngressNodeFwRulesLoader(ingFireWallConfig ingr
 		return fmt.Errorf("Failed to create map firewall rules: %v", err)
 	}
 
-	if err := infc.ingressNodeFwEvents(); err != nil {
-		return fmt.Errorf("Failed to load perf stats: %v", err)
-	}
+	infc.ingressNodeFwEvents()
 
 	infc.ingressNodeFwStats()
 

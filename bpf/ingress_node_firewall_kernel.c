@@ -16,6 +16,8 @@
 #include <linux/udp.h>
 #include <linux/sctp.h>
 
+#define MAX_CPUS		256
+
 // FIXME: Hack this structure defined in linux/sctp.h however I am getting incomplete type when I reference it
 struct sctphdr {
 	__be16 source;
@@ -28,7 +30,7 @@ struct {
 	__uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
     __type(key, __u32);
     __type(value, __u32);
-    __uint(max_entries, 1);
+    __uint(max_entries, MAX_CPUS);
 } ingress_node_firewall_events_map SEC(".maps");
 
 struct {
@@ -248,8 +250,7 @@ sendEvent(struct xdp_md *ctx, __u16 packet_len, __u8 action, __u16 ruleId, __u8 
 	memset(&hdr, 0, sizeof(hdr));
     hdr.ruleId = ruleId;
     hdr.action = action;
-    hdr.fill = 0;
-
+	hdr.pktLength = (__u16)packet_len;
     memset(&initialStats, 0, sizeof(initialStats));
     statistics = bpf_map_lookup_elem(&ingress_node_firewall_statistics_map, &key);
     if (likely(statistics)) {

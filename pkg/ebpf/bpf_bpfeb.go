@@ -19,10 +19,11 @@ type bpfBpfLpmIpKeySt struct {
 }
 
 type bpfEventHdrSt struct {
-	IfId   uint16
-	RuleId uint16
-	Action uint8
-	Fill   uint8
+	IfId      uint16
+	RuleId    uint16
+	Action    uint8
+	Pad       uint8
+	PktLength uint16
 }
 
 type bpfRuleStatisticsSt struct {
