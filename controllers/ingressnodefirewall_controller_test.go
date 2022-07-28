@@ -21,7 +21,6 @@ var _ = Describe("IngressNodeFirewall controller", func() {
 
 	const (
 		timeout  = time.Second * 10
-		duration = time.Second * 10
 		interval = time.Millisecond * 250
 	)
 
@@ -97,11 +96,10 @@ var _ = Describe("IngressNodeFirewall controller", func() {
 	AfterEach(func() {
 		Expect(k8sClient.DeleteAllOf(context.Background(), &infv1alpha1.IngressNodeFirewall{})).Should(Succeed())
 		Expect(k8sClient.DeleteAllOf(context.Background(), &v1.Node{})).Should(Succeed())
-		// Ignore any not found errors.
-		k8sClient.DeleteAllOf(
+		Expect(k8sClient.DeleteAllOf(
 			context.Background(),
 			&infv1alpha1.IngressNodeFirewallNodeState{},
-			client.InNamespace(IngressNodeFwConfigTestNameSpace))
+			client.InNamespace(IngressNodeFwConfigTestNameSpace))).Should(Succeed())
 	})
 
 	// Baseline test.
