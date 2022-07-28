@@ -8,7 +8,7 @@ import (
 	"path"
 	"syscall"
 
-	ingressnodefwiov1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
+	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -59,7 +59,7 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 }
 
 // IngressNodeFwRulesLoader Add/Update/Delete ingress nod firewll rules to eBPF LPM MAP
-func (infc *IngNodeFwController) IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwiov1alpha1.IngressNodeFirewallRules, isDelete bool) error {
+func (infc *IngNodeFwController) IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwv1alpha1.IngressNodeFirewallRules, isDelete bool) error {
 	objs := infc.objs
 	info, err := objs.bpfMaps.IngressNodeFirewallTableMap.Info()
 	if err != nil {
@@ -82,7 +82,7 @@ func (infc *IngNodeFwController) IngressNodeFwRulesLoader(ingFireWallConfig ingr
 
 // makeIngressFwRulesMap convert IngressNodeFirewallRules into eBPF format which matched what the
 // kerenl hook will be using.
-func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingressnodefwiov1alpha1.IngressNodeFirewallRules, isDelete bool) error {
+func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingressnodefwv1alpha1.IngressNodeFirewallRules, isDelete bool) error {
 	objs := infc.objs
 	rules := bpfRulesValSt{}
 	var key bpfBpfLpmIpKeySt
@@ -92,7 +92,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 	for idx, rule := range ingFirewallConfig.FirewallProtocolRules {
 		rules.Rules[idx].RuleId = rule.Order
 		switch rule.Protocol {
-		case ingressnodefwiov1alpha1.ProtocolTypeTCP:
+		case ingressnodefwv1alpha1.ProtocolTypeTCP:
 			if rule.ProtocolRule.IsRange() {
 				start, end, err := rule.ProtocolRule.GetRange()
 				if err != nil {
@@ -109,7 +109,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 				rules.Rules[idx].DstPortEnd = 0
 			}
 			rules.Rules[idx].Protocol = syscall.IPPROTO_TCP
-		case ingressnodefwiov1alpha1.ProtocolTypeUDP:
+		case ingressnodefwv1alpha1.ProtocolTypeUDP:
 			if rule.ProtocolRule.IsRange() {
 				start, end, err := rule.ProtocolRule.GetRange()
 				if err != nil {
@@ -126,7 +126,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 				rules.Rules[idx].DstPortEnd = 0
 			}
 			rules.Rules[idx].Protocol = syscall.IPPROTO_UDP
-		case ingressnodefwiov1alpha1.ProtocolTypeSCTP:
+		case ingressnodefwv1alpha1.ProtocolTypeSCTP:
 			if rule.ProtocolRule.IsRange() {
 				start, end, err := rule.ProtocolRule.GetRange()
 				if err != nil {
@@ -143,11 +143,11 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 				rules.Rules[idx].DstPortEnd = 0
 			}
 			rules.Rules[idx].Protocol = syscall.IPPROTO_SCTP
-		case ingressnodefwiov1alpha1.ProtocolTypeICMP:
+		case ingressnodefwv1alpha1.ProtocolTypeICMP:
 			rules.Rules[idx].IcmpType = rule.ICMPRule.ICMPType
 			rules.Rules[idx].IcmpCode = rule.ICMPRule.ICMPCode
 			rules.Rules[idx].Protocol = syscall.IPPROTO_ICMP
-		case ingressnodefwiov1alpha1.ProtocolTypeICMPv6:
+		case ingressnodefwv1alpha1.ProtocolTypeICMPv6:
 			rules.Rules[idx].IcmpType = rule.ICMPRule.ICMPType
 			rules.Rules[idx].IcmpCode = rule.ICMPRule.ICMPCode
 			rules.Rules[idx].Protocol = syscall.IPPROTO_ICMPV6
@@ -156,9 +156,9 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 			return fmt.Errorf("Failed invalid protocol %v", rule.Protocol)
 		}
 		switch rule.Action {
-		case ingressnodefwiov1alpha1.IngressNodeFirewallAllow:
+		case ingressnodefwv1alpha1.IngressNodeFirewallAllow:
 			rules.Rules[idx].Action = xdpAllow
-		case ingressnodefwiov1alpha1.IngressNodeFirewallDeny:
+		case ingressnodefwv1alpha1.IngressNodeFirewallDeny:
 			rules.Rules[idx].Action = xdpDeny
 		default:
 			return fmt.Errorf("Failed invalid action %v", rule.Action)

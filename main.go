@@ -20,7 +20,6 @@ import (
 	"flag"
 	"os"
 
-	ingressnodefwiov1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/controllers"
 	"github.com/openshift/ingress-node-firewall/pkg/version"
@@ -45,7 +44,6 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(ingressnodefwiov1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ingressnodefwv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
@@ -53,11 +51,9 @@ func init() {
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
-	var enableWebhook bool
 	var probeAddr string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableWebhook, "enable-webhook", false, "Enable deployment of webhook to validate CR IngressNodeFirewall")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -115,8 +111,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if enableWebhook {
-		if err = (&ingressnodefwiov1alpha1.IngressNodeFirewall{}).SetupWebhookWithManager(mgr); err != nil {
+	if os.Getenv("ENABLE_OPERATOR_WEBHOOK") == "true" {
+		if err = (&ingressnodefwv1alpha1.IngressNodeFirewall{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "IngressNodeFirewall")
 			os.Exit(1)
 		}

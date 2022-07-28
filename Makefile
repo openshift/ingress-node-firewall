@@ -152,14 +152,18 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 	kubectl delete -f config/daemon/namespace.yaml --ignore-not-found=$(ignore-not-found)
 
 .PHONY: deploy
-deploy: manifests kustomize install-cert-manager ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+deploy: manifests kustomize install-cert-manager configure-operator-webhook ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
-	kubectl delete -f $(CERT_MANAGER_URL)
+	$(MAKE) uninstall-cert-manager
+
+.PHONY: configure-operator-webhook
+configure-operator-webhook: ## Update operator manifest ENABLE_OPERATOR_WEBHOOK envvar
+	ENABLE_OPERATOR_WEBHOOK=$(ENABLE_OPERATOR_WEBHOOK) hack/configure_webhook.sh
 
 CERT_MANAGER_URL ?= "https://github.com/cert-manager/cert-manager/releases/download/$(CERT_MANAGER_VERSION)/cert-manager.yaml"
 
@@ -198,8 +202,9 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 
 ## Tool Versions
-KUSTOMIZE_VERSION ?= v3.8.7
+KUSTOMIZE_VERSION ?= v4.1.3
 CONTROLLER_TOOLS_VERSION ?= v0.9.0
+ENABLE_OPERATOR_WEBHOOK ?= true
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize

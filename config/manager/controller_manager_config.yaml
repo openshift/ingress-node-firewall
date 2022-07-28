@@ -9,7 +9,7 @@ webhook:
 leaderElection:
   leaderElect: true
   resourceName: d902e78d.ingress-nodefw
-#   leaderElectionReleaseOnCancel defines if the leader should step down volume 
+#   leaderElectionReleaseOnCancel defines if the leader should step down volume
 #   when the Manager ends. This requires the binary to immediately end when the
 #   Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
 #   speeds up voluntary leader transitions as the new leader don't have to wait
