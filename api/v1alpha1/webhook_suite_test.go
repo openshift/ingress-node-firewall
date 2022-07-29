@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openshift/ingress-node-firewall/pkg/failsaferules"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -254,7 +256,7 @@ var _ = Describe("Rules", func() {
 		It("restricts rule count", func() {
 			firstRule := inf.Spec.Ingress[0].FirewallProtocolRules
 			var i uint32
-			for ; i < MAX_INGRESS_RULES+1; i++ {
+			for ; i < uint32(failsaferules.MAX_INGRESS_RULES+1); i++ {
 				firstRule = append(firstRule, getTCPUDPRule(i, ProtocolTypeTCP, validPort, IngressNodeFirewallAllow))
 			}
 			inf.Spec.Ingress[0].FirewallProtocolRules = firstRule

@@ -15,8 +15,11 @@ package controllers
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 
 	nodefwloader "github.com/openshift/ingress-node-firewall/pkg/ebpf"
+	"github.com/openshift/ingress-node-firewall/pkg/failsaferules"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -101,9 +104,13 @@ func (r *IngressNodeFirewallNodeStateReconciler) syncIngressNodeFirewallResource
 		return err
 	}
 
-	// HACK-POC: we can't load bpf rules from the operator
 	for _, rule := range instance.Spec.Ingress {
-		if err := c.IngressNodeFwRulesLoader(rule, isDelete); err != nil {
+		rule := rule.DeepCopy()
+		if err := addFailSaferules(&rule.FirewallProtocolRules); err != nil {
+			logger.Error(err, "Fail to load ingress firewall fail safe rules", "rule", rule)
+			return err
+		}
+		if err := c.IngressNodeFwRulesLoader(*rule, isDelete); err != nil {
 			logger.Error(err, "Fail to load ingress firewall rule", "rule", rule)
 			return err
 		}
@@ -112,6 +119,41 @@ func (r *IngressNodeFirewallNodeStateReconciler) syncIngressNodeFirewallResource
 	if err := c.IngressNodeFwAttach(*instance.Spec.Interfaces, isDelete); err != nil {
 		logger.Error(err, "Fail to attach ingress firewall prog")
 		return err
+	}
+	return nil
+}
+
+// addFailSaferules appends failSafe rules to user configured one
+func addFailSaferules(rules *[]infv1alpha1.IngressNodeFirewallProtocolRule) error {
+	if rules == nil {
+		return fmt.Errorf("invalid rules")
+	}
+	fsRuleIndex := failsaferules.MAX_INGRESS_RULES
+	// Add TCP failsafe rules
+	tcpFailSafeRules := failsaferules.GetTCP()
+	for _, rule := range tcpFailSafeRules {
+		rule := rule
+		fsRule := infv1alpha1.IngressNodeFirewallProtocolRule{}
+		fsRule.ProtocolRule = new(infv1alpha1.IngressNodeFirewallProtoRule)
+		fsRule.Order = uint32(fsRuleIndex)
+		fsRuleIndex += 1
+		fsRule.Protocol = infv1alpha1.ProtocolTypeTCP
+		(*fsRule.ProtocolRule).Ports = strconv.Itoa(int(rule.GetPort()))
+		fsRule.Action = infv1alpha1.IngressNodeFirewallAllow
+		*rules = append(*rules, fsRule)
+	}
+	// Add UDP failsafe rules
+	udpFailSafeRules := failsaferules.GetUDP()
+	for _, rule := range udpFailSafeRules {
+		rule := rule
+		fsRule := infv1alpha1.IngressNodeFirewallProtocolRule{}
+		fsRule.ProtocolRule = new(infv1alpha1.IngressNodeFirewallProtoRule)
+		fsRule.Order = uint32(fsRuleIndex)
+		fsRuleIndex += 1
+		fsRule.Protocol = infv1alpha1.ProtocolTypeUDP
+		(*fsRule.ProtocolRule).Ports = strconv.Itoa(int(rule.GetPort()))
+		fsRule.Action = infv1alpha1.IngressNodeFirewallAllow
+		*rules = append(*rules, fsRule)
 	}
 	return nil
 }

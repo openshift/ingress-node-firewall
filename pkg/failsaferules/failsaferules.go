@@ -1,5 +1,9 @@
 package failsaferules
 
+const eBPFMaxIngressRules = 100
+
+var MAX_INGRESS_RULES = eBPFMaxIngressRules - len(tcp) - len(udp)
+
 type TransportProtoFailSafeRule struct {
 	serviceName string
 	port        uint16

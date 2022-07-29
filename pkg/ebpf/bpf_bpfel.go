@@ -35,10 +35,6 @@ type bpfRuleStatisticsSt struct {
 		Packets uint64
 		Bytes   uint64
 	}
-	NomatchStats struct {
-		Packets uint64
-		Bytes   uint64
-	}
 }
 
 type bpfRuleTypeSt struct {
@@ -51,10 +47,7 @@ type bpfRuleTypeSt struct {
 	Action       uint8
 }
 
-type bpfRulesValSt struct {
-	NumRules uint32
-	Rules    [100]bpfRuleTypeSt
-}
+type bpfRulesValSt struct{ Rules [100]bpfRuleTypeSt }
 
 // loadBpf returns the embedded CollectionSpec for bpf.
 func loadBpf() (*ebpf.CollectionSpec, error) {

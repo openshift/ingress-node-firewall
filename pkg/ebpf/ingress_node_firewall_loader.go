@@ -86,8 +86,9 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 	var key bpfBpfLpmIpKeySt
 
 	// Parse firewall rules
-	rules.NumRules = uint32(len(ingFirewallConfig.FirewallProtocolRules))
-	for idx, rule := range ingFirewallConfig.FirewallProtocolRules {
+	for _, rule := range ingFirewallConfig.FirewallProtocolRules {
+		rule := rule
+		idx := rule.Order
 		rules.Rules[idx].RuleId = rule.Order
 		switch rule.Protocol {
 		case ingressnodefwiov1alpha1.ProtocolTypeTCP:
@@ -165,6 +166,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 
 	// Parse CIDRs to construct map keys wih shared rules
 	for _, cidr := range ingFirewallConfig.SourceCIDRs {
+		cidr := cidr
 		ip, ipNet, err := net.ParseCIDR(cidr)
 		if err != nil {
 			return fmt.Errorf("Failed to parse SourceCIDRs: %v", err)
@@ -196,6 +198,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 func (infc *IngNodeFwController) IngressNodeFwAttach(ifacesName []string, isDelete bool) error {
 	objs := infc.objs
 	for _, ifaceName := range ifacesName {
+		ifaceName := ifaceName
 		// Look up the network interface by name.
 		iface, err := net.InterfaceByName(ifaceName)
 		if err != nil {

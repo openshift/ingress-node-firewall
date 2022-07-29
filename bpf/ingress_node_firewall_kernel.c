@@ -50,14 +50,14 @@ struct {
 } ingress_node_firewall_table_map SEC(".maps");
 
 __attribute__((__always_inline__)) static inline int
-ip_extract_l4Info(void *dataStart, void *dataEnd, __u16 *dstPort,
+ip_extract_l4Info(void *dataStart, void *dataEnd, __u8 *proto, __u16 *dstPort,
                   __u8 *icmpType, __u8 *icmpCode) {
     struct iphdr *iph = dataStart;
     dataStart += sizeof(struct iphdr);
     if (unlikely(dataStart > dataEnd)) {
         return -1;
     }
-
+	*proto = iph->protocol;
 	switch (iph->protocol) {
 	case IPPROTO_TCP:
 		{
@@ -123,10 +123,10 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
     struct bpf_lpm_ip_key_st key;
     __u32 srcAddr = iph->saddr;
     __u16 dstPort = 0;
-    __u8 icmpCode = 0, icmpType = 0;
+    __u8 icmpCode = 0, icmpType = 0, proto = 0;
     int i;
 
-    if (ip_extract_l4Info(dataStart, dataEnd, &dstPort, &icmpType, &icmpCode) <
+    if (ip_extract_l4Info(dataStart, dataEnd, &proto, &dstPort, &icmpType, &icmpCode) <
       0) {
 		bpf_printk("failed to extract l4 info");
         return SET_ACTION(UNDEF);
@@ -145,11 +145,9 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
     if (likely(NULL != rulesVal)) {
 #pragma clang loop unroll(full)
         for (i = 0; i < MAX_RULES_PER_TARGET; ++i) {
-            if (unlikely(i >= rulesVal->numRules))
-                break;
             struct ruleType_st *rule = &rulesVal->rules[i];
-			bpf_printk("ruleInfo (protocol %d, Id %d, action %d)", rule->protocol, rule->ruleId, rule->action);
-            if (rule->protocol != 0) {
+            if (likely((rule->protocol != 0) && (rule->protocol == proto))) {
+				bpf_printk("ruleInfo (protocol %d, Id %d, action %d)", rule->protocol, rule->ruleId, rule->action);
                 if ((rule->protocol == IPPROTO_TCP) ||
                     (rule->protocol == IPPROTO_UDP) ||
                     (rule->protocol == IPPROTO_SCTP)) {
@@ -174,8 +172,10 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
                 }
             }
         }
+		bpf_printk("Packet didn't match any rule proto %d port %d", proto, bpf_ntohs(dstPort));
+        // we matched CIDR but we have no rules matching so drop
+        return SET_ACTIONRULE_RESPONSE(DENY, 0);
     }
-
     return SET_ACTION(UNDEF);
 }
 
@@ -185,10 +185,10 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
     struct bpf_lpm_ip_key_st key;
     __u32 *srcAddr = &iph->saddr;
     __u16 dstPort = 0;
-    __u8 icmpCode = 0, icmpType = 0;
+    __u8 icmpCode = 0, icmpType = 0, proto = 0;
     int i;
 
-    if (ip_extract_l4Info(dataStart, dataEnd, &dstPort, &icmpType, &icmpCode) <
+    if (ip_extract_l4Info(dataStart, dataEnd, &proto, &dstPort, &icmpType, &icmpCode) <
       0) {
         return SET_ACTION(UNDEF);
     }
@@ -203,20 +203,17 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
         &ingress_node_firewall_table_map, &key);
 
     if (NULL != rulesVal) {
-		bpf_printk("Hit bpf lpm match lookup");
 #pragma clang loop unroll(full)
         for (i = 0; i < MAX_RULES_PER_TARGET; ++i) {
-            if (unlikely(i >= rulesVal->numRules))
-                break;
-
             struct ruleType_st *rule = &rulesVal->rules[i];
-            if (rule->protocol != 0) {
+            if (likely((rule->protocol != 0) && (rule->protocol == proto))) {
+				bpf_printk("ruleInfo (protocol %d, Id %d, action %d)", rule->protocol, rule->ruleId, rule->action);
                 if ((rule->protocol == IPPROTO_TCP) ||
                     (rule->protocol == IPPROTO_UDP) ||
                     (rule->protocol == IPPROTO_SCTP)) {
                     bpf_printk("TCP/UDP/SCTP packet rule_dstPortStart %d rule_dstPortEnd %d pkt_dstPort %d",
 						rule->dstPortStart, rule->dstPortEnd, bpf_ntohs(dstPort));
-					if (rule->dstPortEnd == 0 ) {
+					if (rule->dstPortEnd == 0) {
                         if (rule->dstPortStart == bpf_ntohs(dstPort)) {
                             return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
                         }
@@ -234,8 +231,10 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
                 }
             }
         }
+		bpf_printk("Packet didn't match any rule proto %d port %d", proto, bpf_ntohs(dstPort));
+        // we matched CIDR but we have no rules matching so drop
+        return SET_ACTIONRULE_RESPONSE(DENY, 0);
     }
-
     return SET_ACTION(UNDEF);
 }
 
@@ -262,10 +261,6 @@ sendEvent(struct xdp_md *ctx, __u16 packet_len, __u8 action, __u16 ruleId, __u8 
        case DENY:
             __sync_fetch_and_add(&statistics->deny_stats.packets, 1);
             __sync_fetch_and_add(&statistics->deny_stats.bytes, packet_len);
-            break;
-        case UNDEF:
-            __sync_fetch_and_add(&statistics->nomatch_stats.packets, 1);
-            __sync_fetch_and_add(&statistics->nomatch_stats.bytes, packet_len);
             break;
         }
     } else {
@@ -323,8 +318,7 @@ ingress_node_firewall_main(struct xdp_md *ctx) {
 		bpf_printk("Ingress node firewall action ALLOW -> XDP_PASS");
         return XDP_PASS;
     default:
-        sendEvent(ctx, (__u16)(dataEnd - data), UNDEF, ruleId, 0);
-		bpf_printk("Ingress node firewall action UNDEF -> XDP_PASS");
+		bpf_printk("Ingress node firewall action UNDEF");
         return XDP_PASS;
     }
 }
