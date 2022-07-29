@@ -73,9 +73,11 @@ func (infc *IngNodeFwController) IngressNodeFwRulesLoader(ingFireWallConfig ingr
 
 	infc.ingressNodeFwEvents()
 
-	infc.ingressNodeFwStats()
-
 	return nil
+}
+
+func (infc *IngNodeFwController) GetStatisticsMap() *ebpf.Map {
+	return infc.objs.IngressNodeFirewallStatisticsMap
 }
 
 // makeIngressFwRulesMap convert IngressNodeFirewallRules into eBPF format which matched what the

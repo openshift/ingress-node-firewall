@@ -8,16 +8,13 @@ metadata:
 spec:
   endpoints:
     - interval: 30s
-      port: daemon-metrics
+      port: metrics
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       scheme: https
       tlsConfig:
         caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
         serverName: ingress-node-firewall-daemon-metrics.openshift-ingress-node-firewall.svc
   jobLabel: app
-  namespaceSelector:
-    matchNames:
-      - openshift-ingress-node-firewall
   selector:
     matchLabels:
       app: ingress-node-firewall-daemon
