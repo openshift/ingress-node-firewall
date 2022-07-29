@@ -24,7 +24,7 @@ resources:
   controller: true
   domain: ingress-nodefw
   group: ingress-nodefw
-  kind: IngrNodeFwConfig
+  kind: IngressNodeFirewallConfig
   path: github.com/openshift/ingress-node-firewall/api/v1alpha1
   version: v1alpha1
 - api:

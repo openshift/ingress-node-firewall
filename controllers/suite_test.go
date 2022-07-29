@@ -104,7 +104,7 @@ var _ = BeforeSuite(func() {
 
 	ManifestPath = IngressNodeFirewallManifestPathTest
 
-	err = (&IngrNodeFwConfigReconciler{
+	err = (&IngressNodeFirewallConfigReconciler{
 		Client:    k8sClient,
 		Scheme:    scheme.Scheme,
 		Log:       ctrl.Log.WithName("controllers").WithName("IngressNodeFirewallConfig"),

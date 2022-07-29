@@ -35,14 +35,14 @@ make install run
 
 ## Usage
 
-Once the Ingress Node Firewall Operator is installed, you have to create a `IngrNodeFwConfig` custom resource to deploy the Operator's DaemonSet.
-The `IngrNodeFwConfig` custom resource needs to be created inside the `ingress-node-firewall-system` namespace and be named `ingressnodefirewallconfig`. Only one `IngrNodeFwConfig` resource can exist in a cluster.
+Once the Ingress Node Firewall Operator is installed, you have to create a `IngressNodeFirewallConfig` custom resource to deploy the Operator's DaemonSet.
+The `IngressNodeFirewallConfig` custom resource needs to be created inside the `ingress-node-firewall-system` namespace and be named `ingressnodefirewallconfig`. Only one `IngressNodeFirewallConfig` resource can exist in a cluster.
 The operator will consume this resource and create ingress node firewall daemonset `daemon` which runs on all nodes that match the `nodeSelector`.
 
-Following is example of `IngrNodeFwConfig` resource:
+Following is example of `IngressNodeFirewallConfig` resource:
 ```yaml
 apiVersion: ingress-nodefw.ingress-nodefw/v1alpha1
-kind: IngrNodeFwConfig
+kind: IngressNodeFirewallConfig
 metadata:
   name: ingressnodefirewallconfig
   namespace: ingress-node-firewall-system
@@ -56,7 +56,7 @@ spec:
 ```
 
 After that, deploy one or multiple `IngressNodeFirewall` resources to apply firewall rules to your nodes. Make sure that the `nodeSelector` matches a set of nodes. The Ingress Node Firewall Operator will create objects of kind `IngressNodeFirewallNodeState` for each node that is matches by at least one `IngressNodeFirewall` resource:
-```
+```yaml
 apiVersion: ingress-nodefw.ingress-nodefw/v1alpha1
 kind: IngressNodeFirewall
 metadata:
@@ -78,7 +78,7 @@ spec:
       action: allow
 ```
 
-You can use the following shortcut to deploy samples, including `IngrNodeFwConfig` and `IngressNodeFirewall` resources:
+You can use the following shortcut to deploy samples, including `IngressNodeFirewallConfig` and `IngressNodeFirewall` resources:
 ```
 make deploy-samples
 ```

@@ -21,8 +21,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// IngrNodeFwConfigSpec defines the desired state of IngrNodeFwConfig
-type IngrNodeFwConfigSpec struct {
+// IngressNodeFirewallConfigSpec defines the desired state of IngressNodeFirewallConfig
+type IngressNodeFirewallConfigSpec struct {
 	// Nodes where the daemonset will be running on.
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
@@ -32,8 +32,8 @@ type IngrNodeFwConfigSpec struct {
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
-// IngrNodeFwConfigStatus defines the observed state of IngrNodeFwConfig
-type IngrNodeFwConfigStatus struct {
+// IngressNodeFirewallConfigStatus defines the observed state of IngressNodeFirewallConfig
+type IngressNodeFirewallConfigStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 }
@@ -41,24 +41,24 @@ type IngrNodeFwConfigStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// IngrNodeFwConfig is the Schema for the ingrnodefwconfigs API
-type IngrNodeFwConfig struct {
+// IngressNodeFirewallConfig is the Schema for the ingressnodefirewallconfigs API
+type IngressNodeFirewallConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   IngrNodeFwConfigSpec   `json:"spec,omitempty"`
-	Status IngrNodeFwConfigStatus `json:"status,omitempty"`
+	Spec   IngressNodeFirewallConfigSpec   `json:"spec,omitempty"`
+	Status IngressNodeFirewallConfigStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// IngrNodeFwConfigList contains a list of IngrNodeFwConfig
-type IngrNodeFwConfigList struct {
+// IngressNodeFirewallConfigList contains a list of IngressNodeFirewallConfig
+type IngressNodeFirewallConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []IngrNodeFwConfig `json:"items"`
+	Items           []IngressNodeFirewallConfig `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&IngrNodeFwConfig{}, &IngrNodeFwConfigList{})
+	SchemeBuilder.Register(&IngressNodeFirewallConfig{}, &IngressNodeFirewallConfigList{})
 }

@@ -1,24 +1,20 @@
-# permissions for end users to edit ingrnodefwconfigs.
+# permissions for end users to view ingressnodefirewallconfigs.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: ingrnodefwconfig-editor-role
+  name: ingressnodefirewallconfig-viewer-role
 rules:
 - apiGroups:
   - ingress-nodefw.ingress-nodefw
   resources:
-  - ingrnodefwconfigs
+  - ingressnodefirewallconfigs
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - ingress-nodefw.ingress-nodefw
   resources:
-  - ingrnodefwconfigs/status
+  - ingressnodefirewallconfigs/status
   verbs:
   - get

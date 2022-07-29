@@ -28,6 +28,32 @@ rules:
 - apiGroups:
   - ingress-nodefw.ingress-nodefw
   resources:
+  - ingressnodefirewallconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ingress-nodefw.ingress-nodefw
+  resources:
+  - ingressnodefirewallconfigs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ingress-nodefw.ingress-nodefw
+  resources:
+  - ingressnodefirewallconfigs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ingress-nodefw.ingress-nodefw
+  resources:
   - ingressnodefirewallnodestates
   verbs:
   - create
@@ -59,32 +85,6 @@ rules:
   - ingress-nodefw.ingress-nodefw
   resources:
   - ingressnodefirewalls/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ingress-nodefw.ingress-nodefw
-  resources:
-  - ingrnodefwconfigs
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ingress-nodefw.ingress-nodefw
-  resources:
-  - ingrnodefwconfigs/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - ingress-nodefw.ingress-nodefw
-  resources:
-  - ingrnodefwconfigs/status
   verbs:
   - get
   - patch
