@@ -41,8 +41,8 @@ const (
 
 var ManifestPath = IngressNodeFirewallManifestPath
 
-// IngrNodeFwConfigReconciler reconciles a IngrNodeFwConfig object
-type IngrNodeFwConfigReconciler struct {
+// IngressNodeFirewallConfigReconciler reconciles a IngressNodeFirewallConfig object
+type IngressNodeFirewallConfigReconciler struct {
 	client.Client
 	Scheme    *runtime.Scheme
 	Log       logr.Logger
@@ -51,23 +51,23 @@ type IngrNodeFwConfigReconciler struct {
 
 // +kubebuilder:rbac:groups=apps,namespace=ingress-node-firewall-system,resources=daemonsets,verbs=get;list;watch;create;update;patch;delete
 
-//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingrnodefwconfigs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingrnodefwconfigs/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingrnodefwconfigs/finalizers,verbs=update
+//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewallconfigs,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewallconfigs/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewallconfigs/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// the IngrNodeFwConfig object against the actual cluster state, and then
+// the IngressNodeFirewallConfig object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
-func (r *IngrNodeFwConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *IngressNodeFirewallConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := r.Log.WithValues("ingress node firewall config", req.NamespacedName)
 	req.Namespace = r.Namespace
-	instance := &ingressnodefwv1alpha1.IngrNodeFwConfig{}
+	instance := &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
 	err := r.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -92,14 +92,14 @@ func (r *IngrNodeFwConfigReconciler) Reconcile(ctx context.Context, req ctrl.Req
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *IngrNodeFwConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *IngressNodeFirewallConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ingressnodefwv1alpha1.IngrNodeFwConfig{}).
+		For(&ingressnodefwv1alpha1.IngressNodeFirewallConfig{}).
 		Owns(&appsv1.DaemonSet{}).
 		Complete(r)
 }
 
-func (r *IngrNodeFwConfigReconciler) syncIngressNodeFwConfigResources(ctx context.Context, config *ingressnodefwv1alpha1.IngrNodeFwConfig) error {
+func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(ctx context.Context, config *ingressnodefwv1alpha1.IngressNodeFirewallConfig) error {
 	logger := r.Log.WithName("syncIngressNodeFirewallConfigResources")
 	logger.Info("Start")
 	data := render.MakeRenderData()

@@ -26,7 +26,7 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 
 		It("Should create manifests with images and namespace overriden", func() {
 
-			config := &ingressnodefwv1alpha1.IngrNodeFwConfig{
+			config := &ingressnodefwv1alpha1.IngressNodeFirewallConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      IngressNodeFirewallResourceName,
 					Namespace: IngressNodeFwConfigTestNameSpace,
@@ -55,7 +55,7 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 				Expect(c.Image).To(Equal(image))
 			}
 
-			config = &ingressnodefwv1alpha1.IngrNodeFwConfig{}
+			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
 			err = k8sClient.Get(context.Background(), types.NamespacedName{Name: IngressNodeFirewallResourceName, Namespace: IngressNodeFwConfigTestNameSpace}, config)
 			Expect(err).NotTo(HaveOccurred())
 			By("Specify the NodeSelector")
@@ -73,14 +73,14 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 			Expect(daemonSet).NotTo(BeZero())
 			Expect(len(daemonSet.Spec.Template.Spec.Containers)).To(BeNumerically(">", 0))
 			// Reset nodeSelector configuration
-			config = &ingressnodefwv1alpha1.IngrNodeFwConfig{}
+			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
 			err = k8sClient.Get(context.Background(), types.NamespacedName{Name: IngressNodeFirewallResourceName, Namespace: IngressNodeFwConfigTestNameSpace}, config)
 			Expect(err).NotTo(HaveOccurred())
 			config.Spec.NodeSelector = map[string]string{}
 			err = k8sClient.Update(context.TODO(), config)
 			Expect(err).NotTo(HaveOccurred())
 
-			config = &ingressnodefwv1alpha1.IngrNodeFwConfig{}
+			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
 			err = k8sClient.Get(context.Background(), types.NamespacedName{Name: IngressNodeFirewallResourceName, Namespace: IngressNodeFwConfigTestNameSpace}, config)
 			Expect(err).NotTo(HaveOccurred())
 			By("Specify the Daemon's Tolerations")
@@ -100,7 +100,7 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 			err = k8sClient.Update(context.TODO(), config)
 			Expect(err).NotTo(HaveOccurred())
 
-			config = &ingressnodefwv1alpha1.IngrNodeFwConfig{}
+			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
 			err = k8sClient.Get(context.Background(), types.NamespacedName{Name: IngressNodeFirewallResourceName, Namespace: IngressNodeFwConfigTestNameSpace}, config)
 			Expect(err).NotTo(HaveOccurred())
 			daemonSet = &appsv1.DaemonSet{}
@@ -114,7 +114,7 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 			Expect(daemonSet).NotTo(BeZero())
 			Expect(len(daemonSet.Spec.Template.Spec.Containers)).To(BeNumerically(">", 0))
 			// Reset toleration configuration
-			config = &ingressnodefwv1alpha1.IngrNodeFwConfig{}
+			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
 			err = k8sClient.Get(context.Background(), types.NamespacedName{Name: IngressNodeFirewallResourceName, Namespace: IngressNodeFwConfigTestNameSpace}, config)
 			Expect(err).NotTo(HaveOccurred())
 			config.Spec.Tolerations = nil
@@ -125,7 +125,7 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 })
 
 func cleanTestNamespace() error {
-	err := k8sClient.DeleteAllOf(context.Background(), &ingressnodefwv1alpha1.IngrNodeFwConfig{}, client.InNamespace(IngressNodeFwConfigTestNameSpace))
+	err := k8sClient.DeleteAllOf(context.Background(), &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}, client.InNamespace(IngressNodeFwConfigTestNameSpace))
 	if err != nil {
 		return err
 	}

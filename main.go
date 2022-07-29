@@ -20,7 +20,6 @@ import (
 	"flag"
 	"os"
 
-	ingressnodefwiov1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/controllers"
 	"github.com/openshift/ingress-node-firewall/pkg/version"
@@ -45,7 +44,6 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(ingressnodefwiov1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ingressnodefwv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
@@ -116,18 +114,18 @@ func main() {
 	}
 
 	if enableWebhook {
-		if err = (&ingressnodefwiov1alpha1.IngressNodeFirewall{}).SetupWebhookWithManager(mgr); err != nil {
+		if err = (&ingressnodefwv1alpha1.IngressNodeFirewall{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "IngressNodeFirewall")
 			os.Exit(1)
 		}
 	}
-	if err = (&controllers.IngrNodeFwConfigReconciler{
+	if err = (&controllers.IngressNodeFirewallConfigReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
 		Log:       ctrl.Log.WithName("controllers").WithName("IngressNodeFirewallConfig"),
 		Namespace: nameSpace,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "IngrNodeFwConfig")
+		setupLog.Error(err, "unable to create controller", "controller", "IngressNodeFirewallConfig")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
