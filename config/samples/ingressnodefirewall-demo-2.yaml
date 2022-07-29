@@ -9,7 +9,7 @@ spec:
     do-node-ingress-firewall: 'true'
   ingress:
   - sourceCIDRs:
-       - 172.20.0.0/24
+       - 172.16.0.0/12
     rules:
     - order: 10
       protocol: icmp

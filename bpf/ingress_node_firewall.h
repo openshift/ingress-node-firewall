@@ -44,10 +44,6 @@ struct ruleStatistics_st {
         __u64 packets;
         __u64 bytes;
     } deny_stats;
-    struct nomatch_stats_st {
-        __u64 packets;
-        __u64 bytes;
-    } nomatch_stats;
 };
 // Force emitting struct ruleStatistics_st into the ELF.
 const struct ruleStatistics_st *unused3 __attribute__((unused));
@@ -83,7 +79,6 @@ struct bpf_lpm_ip_key_st {
 } __attribute__((packed));
 
 struct rulesVal_st {
-    __u32 numRules;
     struct ruleType_st rules[MAX_RULES_PER_TARGET];
 } __attribute__((packed));
 

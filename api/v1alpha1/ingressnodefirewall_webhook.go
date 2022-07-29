@@ -31,10 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
-//This constant is defined in C code used to generate LPM trie map value array
-//TODO(mk): Move this constant to a better location and import it
-const MAX_INGRESS_RULES = 100
-
 type empty struct{}
 type uint32Set map[uint32]empty
 
@@ -195,9 +191,9 @@ func isConflictWithSafeRulesTransport(rule IngressNodeFirewallProtocolRule) (boo
 }
 
 func validateRuleLength(infRules []IngressNodeFirewallProtocolRule, infRulesIndex int, infName string) *field.Error {
-	if len(infRules) > MAX_INGRESS_RULES {
+	if len(infRules) > failsaferules.MAX_INGRESS_RULES {
 		return field.Invalid(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("rules"),
-			infName, fmt.Sprintf("must be no more than %d rules", MAX_INGRESS_RULES))
+			infName, fmt.Sprintf("must be no more than %d rules", failsaferules.MAX_INGRESS_RULES))
 	}
 	return nil
 }
