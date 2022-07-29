@@ -1,10 +1,3 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  labels:
-    control-plane: controller-manager
-  name: system
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -37,8 +30,10 @@ spec:
       - command:
         - /manager
         args:
-         - --leader-elect
-         - --enable-webhook
+          - "--health-probe-bind-address=:8081"
+          - "--metrics-bind-address=127.0.0.1:39300"
+          - "--leader-elect"
+          - "--enable-webhook"
         image: controller:latest
         name: manager
         livenessProbe:
@@ -62,5 +57,58 @@ spec:
           requests:
             cpu: 10m
             memory: 64Mi
+      - name: kube-rbac-proxy
+        image: quay.io/openshift/origin-kube-rbac-proxy:latest
+        command:
+          - /bin/bash
+          - -c
+          - |
+            #!/bin/bash
+            set -euo pipefail
+            TLS_PK=/etc/pki/tls/metrics-certs/tls.key
+            TLS_CERT=/etc/pki/tls/metrics-certs/tls.crt
+            # As the secret mount is optional we must wait for the files to be present.
+            # If it isn't created there is probably an issue so we want to crashloop.
+            TS=$(date +%s)
+            WARN_TS=$(( ${TS} + $(( 20 * 60)) ))
+            HAS_LOGGED_INFO=0
+            log_missing_certs(){
+                CUR_TS=$(date +%s)
+                if [[ "${CUR_TS}" -gt "${WARN_TS}"  ]]; then
+                  echo $(date -Iseconds) WARN: ingress-node-firewall-controller-manager-metrics-certs not mounted after 20 minutes.
+                elif [[ "${HAS_LOGGED_INFO}" -eq 0 ]] ; then
+                  echo $(date -Iseconds) INFO: ingress-node-firewall-controller-manager-metrics-certs not mounted. Waiting 20 minutes.
+                  HAS_LOGGED_INFO=1
+                fi
+            }
+            while [[ ! -f "${TLS_PK}" ||  ! -f "${TLS_CERT}" ]] ; do
+              log_missing_certs
+              sleep 5
+            done
+            echo $(date -Iseconds) INFO: ingress-node-firewall-controller-manager-metrics-certs mounted, starting kube-rbac-proxy
+            exec /usr/bin/kube-rbac-proxy \
+              --logtostderr \
+              --secure-listen-address=:9300 \
+              --tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256 \
+              --upstream=http://127.0.0.1:39300 / \
+              --tls-private-key-file=${TLS_PK} \
+              --tls-cert-file=${TLS_CERT}
+        ports:
+          - containerPort: 9300
+            name: https
+        resources:
+          requests:
+            cpu: 10m
+            memory: 20Mi
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+          - name: ingress-node-firewall-controller-manager-metrics-certs
+            mountPath: /etc/pki/tls/metrics-certs
+            readOnly: True
+      volumes:
+        - name: ingress-node-firewall-controller-manager-metrics-certs
+          secret:
+            secretName: ingress-node-firewall-controller-manager-metrics-certs
+            optional: true
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
