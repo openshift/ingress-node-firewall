@@ -116,6 +116,23 @@ create-kind-cluster: ## Create a kind cluster.
 destroy-kind-cluster: ## Destroy the kind cluster.
 	kind delete cluster
 
+TESTS_REPORTS_PATH ?= /tmp/test_e2e_logs/
+VALIDATION_TESTS_REPORTS_PATH ?= /tmp/test_validation_logs/
+.PHONY: test-validation
+test-validation: generate fmt vet manifests  ## Run validation tests
+	rm -rf ${VALIDATION_TESTS_REPORTS_PATH}
+	mkdir -p ${VALIDATION_TESTS_REPORTS_PATH}
+	go test --tags=validationtests -v ./test/e2e/validation -ginkgo.v -junit $(VALIDATION_TESTS_REPORTS_PATH) -report $(VALIDATION_TESTS_REPORTS_PATH)
+
+.PHONY: test-functional
+test-functional: generate fmt vet manifests  ## Run functional tests
+	rm -rf ${TESTS_REPORTS_PATH}
+	mkdir -p ${TESTS_REPORTS_PATH}
+	go test --tags=e2etests -v ./test/e2e/functional -ginkgo.v -junit $(TESTS_REPORTS_PATH) -report $(TESTS_REPORTS_PATH)
+
+.PHONY: test-e2e
+test-e2e: generate fmt vet manifests test-validation test-functional  ## Run e2e tests
+
 ##@ Build
 
 .PHONY: build

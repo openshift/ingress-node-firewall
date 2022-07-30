@@ -132,3 +132,18 @@ make undeploy
 
 ## Disable webhook
 Remove manager binary flag `--enable-webhook` from the containers command in file config/manager/manager.yaml
+
+## Running E2E test
+- bring up Kind cluster and deploy ingress node firewall operator
+```shell
+ make create-kind-cluster
+ kind get kubeconfig > kubeconfig
+ export KUBECONFIG=$(pwd)/kubeconfig
+ export DAEMONSET_IMAGE=quay.io/mmahmoud/ingress-node-firewall-daemon:latest
+ make install
+ make deploy
+```
+- run full e2e test
+```shell
+make test-e2e
+```
