@@ -42,7 +42,7 @@ struct {
 
 struct {
     __uint(type, BPF_MAP_TYPE_LPM_TRIE);
-    __type(key, struct bpf_lpm_ip_key_st);
+    __type(key, struct lpm_ip_key_st);
     __type(value, struct rulesVal_st);
     __uint(max_entries, MAX_TARGETS);
     __uint(map_flags, BPF_F_NO_PREALLOC);
@@ -120,7 +120,7 @@ ip_extract_l4Info(void *dataStart, void *dataEnd, __u8 *proto, __u16 *dstPort,
 __attribute__((__always_inline__)) static inline __u32
 ipv4_checkTuple(void *dataStart, void *dataEnd) {
     struct iphdr *iph = dataStart;
-    struct bpf_lpm_ip_key_st key;
+    struct lpm_ip_key_st key;
     __u32 srcAddr = iph->saddr;
     __u16 dstPort = 0;
     __u8 icmpCode = 0, icmpType = 0, proto = 0;
@@ -182,7 +182,7 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
 __attribute__((__always_inline__)) static inline __u32
 ipv6_checkTuple(void *dataStart, void *dataEnd) {
     struct iphdr *iph = dataStart;
-    struct bpf_lpm_ip_key_st key;
+    struct lpm_ip_key_st key;
     __u32 *srcAddr = &iph->saddr;
     __u16 dstPort = 0;
     __u8 icmpCode = 0, icmpType = 0, proto = 0;

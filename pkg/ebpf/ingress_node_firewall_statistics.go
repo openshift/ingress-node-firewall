@@ -17,7 +17,7 @@ func (infc *IngNodeFwController) ingressNodeFwStats() {
 		defer ticker.Stop()
 		log.Printf("Waiting for statistics update")
 		for range ticker.C {
-			var ruleStats []bpfRuleStatisticsSt
+			var ruleStats []BpfRuleStatisticsSt
 			for rule := 0; rule < maxRules; rule++ {
 				if err := objs.IngressNodeFirewallStatisticsMap.Lookup(uint32(rule), &ruleStats); err != nil {
 					log.Printf("Failed to lookup statistics map err: %v", err)

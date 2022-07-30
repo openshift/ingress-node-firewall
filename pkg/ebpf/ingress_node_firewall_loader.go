@@ -26,7 +26,7 @@ const (
 // ingress node firewall resource
 type IngNodeFwController struct {
 	// eBPF objs to create/update eBPF maps
-	objs bpfObjects
+	objs BpfObjects
 	// eBPF interfaces attachment objects
 	links []link.Link
 	// eBPF pingPath
@@ -34,7 +34,7 @@ type IngNodeFwController struct {
 }
 
 // $BPF_CLANG and $BPF_CFLAGS are set by the Makefile.
-//go:generate bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS -type ruleType_st -type event_hdr_st -type ruleStatistics_st bpf ../../bpf/ingress_node_firewall_kernel.c -- -I ../../bpf/headers -I/usr/include/x86_64-linux-gnu/
+//go:generate bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS -type ruleType_st -type event_hdr_st -type ruleStatistics_st Bpf ../../bpf/ingress_node_firewall_kernel.c -- -I ../../bpf/headers -I/usr/include/x86_64-linux-gnu/
 
 // NewIngNodeFwController creates new IngressNodeFirewall controller object
 func NewIngNodeFwController() (*IngNodeFwController, error) {
@@ -48,8 +48,8 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 		return nil, fmt.Errorf("failed to create pinDir %s: %s", pinDir, err)
 	}
 	// Load pre-compiled programs into the kernel.
-	objs := bpfObjects{}
-	if err := loadBpfObjects(&objs, &ebpf.CollectionOptions{Maps: ebpf.MapOptions{PinPath: pinDir}}); err != nil {
+	objs := BpfObjects{}
+	if err := LoadBpfObjects(&objs, &ebpf.CollectionOptions{Maps: ebpf.MapOptions{PinPath: pinDir}}); err != nil {
 		return nil, fmt.Errorf("loading objects: pinDir:%s, err:%s", pinDir, err)
 	}
 	return &IngNodeFwController{
@@ -61,11 +61,11 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 // IngressNodeFwRulesLoader Add/Update/Delete ingress nod firewll rules to eBPF LPM MAP
 func (infc *IngNodeFwController) IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwiov1alpha1.IngressNodeFirewallRules, isDelete bool) error {
 	objs := infc.objs
-	info, err := objs.bpfMaps.IngressNodeFirewallTableMap.Info()
+	info, err := objs.BpfMaps.IngressNodeFirewallTableMap.Info()
 	if err != nil {
 		return fmt.Errorf("Cannot get map info: %v", err)
 	}
-	klog.Infof("Ingress node firewall map Info: %+v with FD %s", info, objs.bpfMaps.IngressNodeFirewallTableMap.String())
+	klog.Infof("Ingress node firewall map Info: %+v with FD %s", info, objs.BpfMaps.IngressNodeFirewallTableMap.String())
 
 	if err := infc.makeIngressFwRulesMap(ingFireWallConfig, isDelete); err != nil {
 		return fmt.Errorf("Failed to create map firewall rules: %v", err)
@@ -82,8 +82,8 @@ func (infc *IngNodeFwController) IngressNodeFwRulesLoader(ingFireWallConfig ingr
 // kerenl hook will be using.
 func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingressnodefwiov1alpha1.IngressNodeFirewallRules, isDelete bool) error {
 	objs := infc.objs
-	rules := bpfRulesValSt{}
-	var key bpfBpfLpmIpKeySt
+	rules := BpfRulesValSt{}
+	var key BpfLpmIpKeySt
 
 	// Parse firewall rules
 	for _, rule := range ingFirewallConfig.FirewallProtocolRules {
@@ -181,12 +181,12 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 		// Handle Ingress firewall map operation
 		if isDelete {
 			log.Printf("Deleting ingress firewall rules for key %v", key)
-			if err := objs.bpfMaps.IngressNodeFirewallTableMap.Delete(key); err != nil {
+			if err := objs.BpfMaps.IngressNodeFirewallTableMap.Delete(key); err != nil {
 				return fmt.Errorf("Failed Deleting ingress firewall rules: %v", err)
 			}
 		} else {
 			log.Printf("Creating ingress firewall rules for key %v", key)
-			if err := objs.bpfMaps.IngressNodeFirewallTableMap.Update(key, rules, ebpf.UpdateAny); err != nil {
+			if err := objs.BpfMaps.IngressNodeFirewallTableMap.Update(key, rules, ebpf.UpdateAny); err != nil {
 				return fmt.Errorf("Failed Adding/Updating ingress firewall rules: %v", err)
 			}
 		}
