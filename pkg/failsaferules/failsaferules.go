@@ -33,6 +33,10 @@ var udp = []TransportProtoFailSafeRule{
 		"DHCP",
 		68,
 	},
+	{
+		"mDNS",
+		5353,
+	},
 }
 
 func GetTCP() []TransportProtoFailSafeRule {
