@@ -30,6 +30,18 @@ func (infc *IngNodeFwController) ingressNodeFwEvents() {
 		log.Printf("Failed creating perf event reader: %q", err)
 		return
 	}
+	logFile, ok := os.LookupEnv("EVENT_LOGGING_FILE")
+	if !ok {
+		log.Printf("EVENT_LOGGING_FILE env variable must be set")
+		return
+	}
+	file, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		log.Printf("Cannot open events logging file at path %q: %v", logFile, err)
+		return
+	}
+	eventsLogger := log.New(file, "", log.LstdFlags)
+
 	go func() {
 		// Wait for a signal and close the perf reader,
 		// which will interrupt rd.Read() and make the program exit.
@@ -38,6 +50,10 @@ func (infc *IngNodeFwController) ingressNodeFwEvents() {
 
 		if err := rd.Close(); err != nil {
 			log.Printf("Closing perf event reader: %q", err)
+			return
+		}
+		if err := file.Close(); err != nil {
+			log.Printf("Failed to close events log file")
 			return
 		}
 	}()
@@ -49,6 +65,7 @@ func (infc *IngNodeFwController) ingressNodeFwEvents() {
 		var eventHdr BpfEventHdrSt
 		const eventHdrSize = unsafe.Sizeof(eventHdr)
 		buf := make([]byte, eventHdrSize)
+
 		for {
 			record, err := rd.Read()
 			if err != nil {
@@ -79,43 +96,42 @@ func (infc *IngNodeFwController) ingressNodeFwEvents() {
 				log.Printf("Parsing perf event packet header : %v", err)
 				continue
 			}
-			log.Printf("========= Drop Event ===========")
-			log.Printf("\truleId %d action %s len %d", eventHdr.RuleId, convertXdpActionToString(eventHdr.Action), eventHdr.PktLength)
+			eventsLogger.Printf("\truleId %d action %s len %d\n", eventHdr.RuleId, convertXdpActionToString(eventHdr.Action), eventHdr.PktLength)
 			decodePacket := gopacket.NewPacket(packet, layers.LayerTypeEthernet, gopacket.Default)
 			// check for IPv4
 			if ip4Layer := decodePacket.Layer(layers.LayerTypeIPv4); ip4Layer != nil {
 				ip, _ := ip4Layer.(*layers.IPv4)
-				log.Printf("\tipv4 src addr %s dst addr %s", ip.SrcIP.String(), ip.DstIP.String())
+				eventsLogger.Printf("\tipv4 src addr %s dst addr %s\n", ip.SrcIP.String(), ip.DstIP.String())
 			}
 			// check for IPv6
 			if ip6Layer := decodePacket.Layer(layers.LayerTypeIPv6); ip6Layer != nil {
 				ip, _ := ip6Layer.(*layers.IPv6)
-				log.Printf("\tipv6 src addr %s dst addr %s", ip.SrcIP.String(), ip.DstIP.String())
+				eventsLogger.Printf("\tipv6 src addr %s dst addr %s\n", ip.SrcIP.String(), ip.DstIP.String())
 			}
 			// check for TCP
 			if tcpLayer := decodePacket.Layer(layers.LayerTypeTCP); tcpLayer != nil {
 				tcp, _ := tcpLayer.(*layers.TCP)
-				log.Printf("\ttcp srcPort %d dstPort %d", tcp.SrcPort, tcp.DstPort)
+				eventsLogger.Printf("\ttcp srcPort %d dstPort %d\n", tcp.SrcPort, tcp.DstPort)
 			}
 			// check for UDP
 			if udpLayer := decodePacket.Layer(layers.LayerTypeUDP); udpLayer != nil {
 				udp, _ := udpLayer.(*layers.UDP)
-				log.Printf("\tudp srcPort %d dstPort %d", udp.SrcPort, udp.DstPort)
+				eventsLogger.Printf("\tudp srcPort %d dstPort %d\n", udp.SrcPort, udp.DstPort)
 			}
 			// check fo SCTP
 			if sctpLayer := decodePacket.Layer(layers.LayerTypeSCTP); sctpLayer != nil {
 				sctp, _ := sctpLayer.(*layers.SCTP)
-				log.Printf("\tsctp srcPort %d dstPort %d", sctp.SrcPort, sctp.DstPort)
+				eventsLogger.Printf("\tsctp srcPort %d dstPort %d\n", sctp.SrcPort, sctp.DstPort)
 			}
 			// check for ICMPv4
 			if icmpv4Layer := decodePacket.Layer(layers.LayerTypeICMPv4); icmpv4Layer != nil {
 				icmp, _ := icmpv4Layer.(*layers.ICMPv4)
-				log.Printf("\ticmpv4 type %d code %d", icmp.TypeCode.Type(), icmp.TypeCode.Code())
+				eventsLogger.Printf("\ticmpv4 type %d code %d\n", icmp.TypeCode.Type(), icmp.TypeCode.Code())
 			}
 			// check for ICMPV6
 			if icmpv6Layer := decodePacket.Layer(layers.LayerTypeICMPv6); icmpv6Layer != nil {
 				icmp, _ := icmpv6Layer.(*layers.ICMPv6)
-				log.Printf("\ticmpv6 type %d code %d", icmp.TypeCode.Type(), icmp.TypeCode.Code())
+				eventsLogger.Printf("\ticmpv6 type %d code %d\n", icmp.TypeCode.Type(), icmp.TypeCode.Code())
 			}
 		}
 	}()
