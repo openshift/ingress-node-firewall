@@ -13,7 +13,7 @@ spec:
     metadata:
       labels:
         app: ingress-node-firewall-daemon
-        component: network
+        component: daemon
         type: infra
     spec:
       hostNetwork: true
