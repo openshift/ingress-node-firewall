@@ -73,7 +73,7 @@ const struct ruleType_st *unused2 __attribute__((unused));
 
 // using Longest prefix match in case of overlapping CIDRs we need to match to
 // the more specific CIDR.
-struct bpf_lpm_ip_key_st {
+struct lpm_ip_key_st {
     __u32 prefixLen;
     __u8 ip_data[16];
 } __attribute__((packed));
