@@ -95,6 +95,10 @@ func main() {
 	}
 
 	stats, err := metrics.NewStatistics(pollPeriod)
+	if err != nil {
+		setupLog.Error(err, "unable to create new metrics")
+		os.Exit(1)
+	}
 	stats.Register()
 	defer stats.StopPoll()
 

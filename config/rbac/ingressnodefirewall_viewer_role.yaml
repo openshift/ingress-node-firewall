@@ -5,7 +5,7 @@ metadata:
   name: ingressnodefirewall-viewer-role
 rules:
 - apiGroups:
-  - ingress-nodefw.ingress-nodefw
+  - ingressnodefirewall.openshift.io
   resources:
   - ingressnodefirewalls
   verbs:
@@ -13,7 +13,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - ingress-nodefw.ingress-nodefw
+  - ingressnodefirewall.openshift.io
   resources:
   - ingressnodefirewalls/status
   verbs:

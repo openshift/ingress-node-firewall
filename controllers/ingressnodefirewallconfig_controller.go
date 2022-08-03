@@ -51,9 +51,9 @@ type IngressNodeFirewallConfigReconciler struct {
 
 // +kubebuilder:rbac:groups=apps,namespace=ingress-node-firewall-system,resources=daemonsets,verbs=get;list;watch;create;update;patch;delete
 
-//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewallconfigs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewallconfigs/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewallconfigs/finalizers,verbs=update
+//+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewallconfigs,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewallconfigs/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewallconfigs/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to

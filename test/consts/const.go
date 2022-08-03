@@ -6,11 +6,11 @@ const (
 	// IngressNodeFirewallOperatorDeploymentLabel contains the label of the IngressNodeFirewall Operator deployment
 	IngressNodeFirewallOperatorDeploymentLabel = "controller-manager"
 	// IngressNodeFirewallConfigCRDName contains the name of the IngressNodeFirewall Config CRD
-	IngressNodeFirewallConfigCRDName = "ingressnodefirewallconfigs.ingress-nodefw.ingress-nodefw"
+	IngressNodeFirewallConfigCRDName = "ingressnodefirewallconfigs.ingressnodefirewall.openshift.io"
 	// IngressNodeFirewallRulesCRDName contains the name of the IngressNodeFirewall Rules CRD
-	IngressNodeFirewallRulesCRDName = "ingressnodefirewalls.ingress-nodefw.ingress-nodefw"
+	IngressNodeFirewallRulesCRDName = "ingressnodefirewalls.ingressnodefirewall.openshift.io"
 	// IngressNodeFirewallNodeStateCRDName contains the name of the IngressNodeFirewall NodeState CRD
-	IngressNodeFirewallNodeStateCRDName = "ingressnodefirewallnodestates.ingress-nodefw.ingress-nodefw"
+	IngressNodeFirewallNodeStateCRDName = "ingressnodefirewallnodestates.ingressnodefirewall.openshift.io"
 	// IngressNodeFirewallDaemonsetName contains the name of the IngressNodeFirewall daemonset
 	IngressNodeFirewallDaemonsetName = "ingress-node-firewall-daemon"
 	// DefaultOperatorNameSpace is the default operator namespace

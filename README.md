@@ -41,7 +41,7 @@ The operator will consume this resource and create ingress node firewall daemons
 
 Following is example of `IngressNodeFirewallConfig` resource:
 ```yaml
-apiVersion: ingress-nodefw.ingress-nodefw/v1alpha1
+apiVersion: ingressnodefirewall.openshift.io/v1alpha1
 kind: IngressNodeFirewallConfig
 metadata:
   name: ingressnodefirewallconfig
@@ -57,7 +57,7 @@ spec:
 
 After that, deploy one or multiple `IngressNodeFirewall` resources to apply firewall rules to your nodes. Make sure that the `nodeSelector` matches a set of nodes. The Ingress Node Firewall Operator will create objects of kind `IngressNodeFirewallNodeState` for each node that is matches by at least one `IngressNodeFirewall` resource:
 ```yaml
-apiVersion: ingress-nodefw.ingress-nodefw/v1alpha1
+apiVersion: ingressnodefirewall.openshift.io/v1alpha1
 kind: IngressNodeFirewall
 metadata:
   name: ingressnodefirewall-demo-1
@@ -72,10 +72,11 @@ spec:
        - 100:1::1/64
     rules:
     - order: 10
-      protocol: tcp
-      protoRule:
-        ports: "100-200"
-      action: allow
+      protocolConfig:
+        protocol: TCP
+        tcp:
+          ports: "100-200"
+      action: Allow
 ```
 
 You can use the following shortcut to deploy samples, including `IngressNodeFirewallConfig` and `IngressNodeFirewall` resources:
@@ -100,7 +101,7 @@ make test
 2. Install KinD and export KUBECONFIG
 ```sh
 make create-kind-cluster
-export KUBECONFIG=hack/kubeconfig
+export KUBECONFIG=$(pwd)/hack/kubeconfig
 ```
 3. Install custom resource definitions
 ```sh

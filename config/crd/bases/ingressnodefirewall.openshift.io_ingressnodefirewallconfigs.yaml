@@ -5,9 +5,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.9.0
   creationTimestamp: null
-  name: ingressnodefirewallconfigs.ingress-nodefw.ingress-nodefw
+  name: ingressnodefirewallconfigs.ingressnodefirewall.openshift.io
 spec:
-  group: ingress-nodefw.ingress-nodefw
+  group: ingressnodefirewall.openshift.io
   names:
     kind: IngressNodeFirewallConfig
     listKind: IngressNodeFirewallConfigList
@@ -19,7 +19,7 @@ spec:
     schema:
       openAPIV3Schema:
         description: IngressNodeFirewallConfig is the Schema for the ingressnodefirewallconfigs
-          API
+          API.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -35,16 +35,17 @@ spec:
             type: object
           spec:
             description: IngressNodeFirewallConfigSpec defines the desired state of
-              IngressNodeFirewallConfig
+              IngressNodeFirewallConfig.
             properties:
               nodeSelector:
                 additionalProperties:
                   type: string
-                description: Nodes where the daemonset will be running on.
+                description: nodeSelector is used to select which Nodes the ingress
+                  node firewall DaemonSet will be run on.
                 type: object
               tolerations:
-                description: tolerations is a list of tolerations applied to ingress
-                  node firewall controller deployments.
+                description: A list of tolerations applied to ingress node firewall
+                  controller. daemonsets.
                 items:
                   description: The pod this Toleration is attached to tolerates any
                     taint that matches the triple <key,value,effect> using the matching
@@ -86,7 +87,7 @@ spec:
             type: object
           status:
             description: IngressNodeFirewallConfigStatus defines the observed state
-              of IngressNodeFirewallConfig
+              of IngressNodeFirewallConfig.
             type: object
         type: object
     served: true

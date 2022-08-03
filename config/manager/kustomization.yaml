@@ -10,3 +10,5 @@ patchesStrategicMerge:
 images:
 - name: controller
   newName: quay.io/mmahmoud/controller
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization

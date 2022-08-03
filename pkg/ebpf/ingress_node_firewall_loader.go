@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	ingressnodefwiov1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
+	"github.com/openshift/ingress-node-firewall/pkg/utils"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -95,69 +96,75 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 		rule := rule
 		idx := rule.Order
 		rules.Rules[idx].RuleId = rule.Order
-		switch rule.Protocol {
+		switch rule.ProtocolConfig.Protocol {
 		case ingressnodefwiov1alpha1.ProtocolTypeTCP:
-			if rule.ProtocolRule.IsRange() {
-				start, end, err := rule.ProtocolRule.GetRange()
+			if utils.IsRange(rule.ProtocolConfig.TCP) {
+				start, end, err := utils.GetRange(rule.ProtocolConfig.TCP)
 				if err != nil {
-					return fmt.Errorf("invalid Port range %s for protocol %v", rule.ProtocolRule.Ports, rule.Protocol)
+					return fmt.Errorf("invalid Port range %s for protocol %v",
+						rule.ProtocolConfig.TCP.Ports.String(), rule.ProtocolConfig.Protocol)
 				}
 				rules.Rules[idx].DstPortStart = start
 				rules.Rules[idx].DstPortEnd = end
 			} else {
-				port, err := rule.ProtocolRule.GetPort()
+				port, err := utils.GetPort(rule.ProtocolConfig.TCP)
 				if err != nil {
-					return fmt.Errorf("invalid Port %s for protocol %v", rule.ProtocolRule.Ports, rule.Protocol)
+					return fmt.Errorf("invalid Port %s for protocol %v",
+						rule.ProtocolConfig.TCP.Ports.String(), rule.ProtocolConfig.Protocol)
 				}
 				rules.Rules[idx].DstPortStart = port
 				rules.Rules[idx].DstPortEnd = 0
 			}
 			rules.Rules[idx].Protocol = syscall.IPPROTO_TCP
 		case ingressnodefwiov1alpha1.ProtocolTypeUDP:
-			if rule.ProtocolRule.IsRange() {
-				start, end, err := rule.ProtocolRule.GetRange()
+			if utils.IsRange(rule.ProtocolConfig.UDP) {
+				start, end, err := utils.GetRange(rule.ProtocolConfig.UDP)
 				if err != nil {
-					return fmt.Errorf("invalid Port range %s for protocol %v", rule.ProtocolRule.Ports, rule.Protocol)
+					return fmt.Errorf("invalid Port range %s for protocol %v",
+						rule.ProtocolConfig.UDP.Ports.String(), rule.ProtocolConfig.Protocol)
 				}
 				rules.Rules[idx].DstPortStart = start
 				rules.Rules[idx].DstPortEnd = end
 			} else {
-				port, err := rule.ProtocolRule.GetPort()
+				port, err := utils.GetPort(rule.ProtocolConfig.UDP)
 				if err != nil {
-					return fmt.Errorf("invalid Port %s for protocol %v", rule.ProtocolRule.Ports, rule.Protocol)
+					return fmt.Errorf("invalid Port %s for protocol %v",
+						rule.ProtocolConfig.UDP.Ports.String(), rule.ProtocolConfig.Protocol)
 				}
 				rules.Rules[idx].DstPortStart = port
 				rules.Rules[idx].DstPortEnd = 0
 			}
 			rules.Rules[idx].Protocol = syscall.IPPROTO_UDP
 		case ingressnodefwiov1alpha1.ProtocolTypeSCTP:
-			if rule.ProtocolRule.IsRange() {
-				start, end, err := rule.ProtocolRule.GetRange()
+			if utils.IsRange(rule.ProtocolConfig.SCTP) {
+				start, end, err := utils.GetRange(rule.ProtocolConfig.SCTP)
 				if err != nil {
-					return fmt.Errorf("invalid Port range %s for protocol %v", rule.ProtocolRule.Ports, rule.Protocol)
+					return fmt.Errorf("invalid Port range %s for protocol %v",
+						rule.ProtocolConfig.SCTP.Ports.String(), rule.ProtocolConfig.Protocol)
 				}
 				rules.Rules[idx].DstPortStart = start
 				rules.Rules[idx].DstPortEnd = end
 			} else {
-				port, err := rule.ProtocolRule.GetPort()
+				port, err := utils.GetPort(rule.ProtocolConfig.SCTP)
 				if err != nil {
-					return fmt.Errorf("invalid Port %s for protocol %v", rule.ProtocolRule.Ports, rule.Protocol)
+					return fmt.Errorf("invalid Port %s for protocol %v",
+						rule.ProtocolConfig.SCTP.Ports.String(), rule.ProtocolConfig.Protocol)
 				}
 				rules.Rules[idx].DstPortStart = port
 				rules.Rules[idx].DstPortEnd = 0
 			}
 			rules.Rules[idx].Protocol = syscall.IPPROTO_SCTP
 		case ingressnodefwiov1alpha1.ProtocolTypeICMP:
-			rules.Rules[idx].IcmpType = rule.ICMPRule.ICMPType
-			rules.Rules[idx].IcmpCode = rule.ICMPRule.ICMPCode
+			rules.Rules[idx].IcmpType = rule.ProtocolConfig.ICMP.ICMPType
+			rules.Rules[idx].IcmpCode = rule.ProtocolConfig.ICMP.ICMPCode
 			rules.Rules[idx].Protocol = syscall.IPPROTO_ICMP
 		case ingressnodefwiov1alpha1.ProtocolTypeICMP6:
-			rules.Rules[idx].IcmpType = rule.ICMPRule.ICMPType
-			rules.Rules[idx].IcmpCode = rule.ICMPRule.ICMPCode
+			rules.Rules[idx].IcmpType = rule.ProtocolConfig.ICMPv6.ICMPType
+			rules.Rules[idx].IcmpCode = rule.ProtocolConfig.ICMPv6.ICMPCode
 			rules.Rules[idx].Protocol = syscall.IPPROTO_ICMPV6
 
 		default:
-			return fmt.Errorf("Failed invalid protocol %v", rule.Protocol)
+			return fmt.Errorf("Failed invalid protocol %v", rule.ProtocolConfig.Protocol)
 		}
 		switch rule.Action {
 		case ingressnodefwiov1alpha1.IngressNodeFirewallAllow:
