@@ -21,3 +21,11 @@ spec:
       protoRule:
         ports: "8000-9000"
       action: deny
+  - sourceCIDRs:
+       - fc00:f853:ccd:e793::0/64
+    rules:
+    - order: 10
+      protocol: icmp6
+      icmpRule:
+        icmpType: 128 #ICMPV6 Echo request
+      action: deny

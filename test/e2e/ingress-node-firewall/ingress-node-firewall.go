@@ -75,7 +75,7 @@ func LoadIngressNodeFirewallConfigFromFile(config *ingressnodefwv1alpha1.Ingress
 	return decodeYAML(f, config)
 }
 
-func nodesIP(nodes []v1.Node) []string {
+func NodesIP(nodes []v1.Node) []string {
 	res := []string{}
 	for _, n := range nodes {
 		for _, a := range n.Status.Addresses {
@@ -89,7 +89,7 @@ func nodesIP(nodes []v1.Node) []string {
 
 func RunPingTest(nodes []v1.Node) (error, int) {
 	var errs []error
-	ii := nodesIP(nodes)
+	ii := NodesIP(nodes)
 	for _, ip := range ii {
 		if _, err := exec.Command("ping", "-c", "1", ip).CombinedOutput(); err != nil {
 			errs = append(errs, err)

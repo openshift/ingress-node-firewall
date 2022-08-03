@@ -83,7 +83,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 		})
 
 		It("should run Ingress node firewall apply rules and check the actions", func() {
-			By("get nodes IPv4 with matching labels and ping their IPs")
+			By("get nodes IP addresses with matching labels and ping their IPs")
 			nodes, err := testclient.Client.Nodes().List(context.Background(), metav1.ListOptions{LabelSelector: "node-role.kubernetes.io/worker"})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -121,6 +121,19 @@ var _ = Describe("Ingress Node Firewall", func() {
 								},
 							},
 						},
+						{
+							SourceCIDRs: []string{"fc00:f853:ccd:e793::0/64"},
+							FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+								{
+									Order: 10,
+									ICMPRule: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
+										ICMPType: 128,
+									},
+									Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP6,
+									Action:   ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+								},
+							},
+						},
 					},
 					Interfaces: &[]string{
 						"eth0",
@@ -154,7 +167,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			By("checking Ingress node firewall rules deny ping packets")
 			Eventually(func() bool {
 				err, cnt := infwutils.RunPingTest(nodes.Items)
-				if err != nil && cnt == len(nodes.Items) {
+				if err != nil && cnt == len(infwutils.NodesIP(nodes.Items)) {
 					return true
 				}
 				return false

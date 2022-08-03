@@ -94,7 +94,7 @@ spec:
                               UDP.
                             enum:
                             - icmp
-                            - icmpv6
+                            - icmp6
                             - tcp
                             - udp
                             - sctp

@@ -62,7 +62,7 @@ type IngressNodeFirewallProtocolRule struct {
 
 	// Protocol can be ICMP, ICMPv6, TCP, SCTP or UDP.
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum="icmp";"icmpv6";"tcp";"udp";"sctp"
+	// +kubebuilder:validation:Enum="icmp";"icmp6";"tcp";"udp";"sctp"
 	Protocol IngressNodeFirewallRuleProtocolType `json:"protocol"`
 
 	// Action can be allow or deny, default action is deny
@@ -79,8 +79,8 @@ const (
 	// ProtocolTypeICMP refers to the ICMP protocol
 	ProtocolTypeICMP IngressNodeFirewallRuleProtocolType = "icmp"
 
-	// ProtocolTypeICMPv6 refers to the ICMPv6 protocol
-	ProtocolTypeICMPv6 IngressNodeFirewallRuleProtocolType = "icmpv6"
+	// ProtocolTypeICMP6 refers to the ICMPv6 protocol
+	ProtocolTypeICMP6 IngressNodeFirewallRuleProtocolType = "icmp6"
 
 	// ProtocolTypeTCP refers to the TCP protocol, for either IPv4 or IPv6
 	ProtocolTypeTCP IngressNodeFirewallRuleProtocolType = "tcp"

@@ -414,7 +414,7 @@ func initCIDRICMPRule(inf *IngressNodeFirewall, cidr string, order uint32, isICM
 
 	icmpVer := ProtocolTypeICMP
 	if isICMPV6 {
-		icmpVer = ProtocolTypeICMPv6
+		icmpVer = ProtocolTypeICMP6
 	}
 
 	rule := IngressNodeFirewallRules{
