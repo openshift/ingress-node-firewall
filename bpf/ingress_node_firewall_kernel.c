@@ -60,8 +60,8 @@ ip_extract_l4Info(void *dataStart, void *dataEnd, __u8 *proto, __u16 *dstPort,
             return -1;
         }
 		*proto = iph->protocol;
-	} else {
-		struct ipv6hdr *iph = dataStart;
+    } else {
+        struct ipv6hdr *iph = dataStart;
         dataStart += sizeof(struct ipv6hdr);
         if (unlikely(dataStart > dataEnd)) {
             return -1;
