@@ -51,14 +51,24 @@ struct {
 
 __attribute__((__always_inline__)) static inline int
 ip_extract_l4Info(void *dataStart, void *dataEnd, __u8 *proto, __u16 *dstPort,
-                  __u8 *icmpType, __u8 *icmpCode) {
-    struct iphdr *iph = dataStart;
-    dataStart += sizeof(struct iphdr);
-    if (unlikely(dataStart > dataEnd)) {
-        return -1;
-    }
-	*proto = iph->protocol;
-	switch (iph->protocol) {
+                  __u8 *icmpType, __u8 *icmpCode, __u8 is_v4) {
+
+    if (likely(is_v4)) {
+        struct iphdr *iph = dataStart;
+        dataStart += sizeof(struct iphdr);
+        if (unlikely(dataStart > dataEnd)) {
+            return -1;
+        }
+		*proto = iph->protocol;
+	} else {
+		struct ipv6hdr *iph = dataStart;
+        dataStart += sizeof(struct ipv6hdr);
+        if (unlikely(dataStart > dataEnd)) {
+            return -1;
+        }
+		*proto = iph->nexthdr;
+	}
+	switch (*proto) {
 	case IPPROTO_TCP:
 		{
             struct tcphdr *tcph = (struct tcphdr *)dataStart;
@@ -126,8 +136,7 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
     __u8 icmpCode = 0, icmpType = 0, proto = 0;
     int i;
 
-    if (ip_extract_l4Info(dataStart, dataEnd, &proto, &dstPort, &icmpType, &icmpCode) <
-      0) {
+    if (ip_extract_l4Info(dataStart, dataEnd, &proto, &dstPort, &icmpType, &icmpCode, 1) < 0) {
 		bpf_printk("failed to extract l4 info");
         return SET_ACTION(UNDEF);
     }
@@ -181,23 +190,19 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
 
 __attribute__((__always_inline__)) static inline __u32
 ipv6_checkTuple(void *dataStart, void *dataEnd) {
-    struct iphdr *iph = dataStart;
+    struct ipv6hdr *iph = dataStart;
     struct lpm_ip_key_st key;
-    __u32 *srcAddr = &iph->saddr;
+    __u8 *srcAddr = iph->saddr.in6_u.u6_addr8;
     __u16 dstPort = 0;
     __u8 icmpCode = 0, icmpType = 0, proto = 0;
     int i;
 
-    if (ip_extract_l4Info(dataStart, dataEnd, &proto, &dstPort, &icmpType, &icmpCode) <
-      0) {
+    if (ip_extract_l4Info(dataStart, dataEnd, &proto, &dstPort, &icmpType, &icmpCode, 0) < 0) {
         return SET_ACTION(UNDEF);
     }
     memset(&key, 0, sizeof(key));
     key.prefixLen = 128;
-#pragma clang loop unroll(full)
-    for (i = 0; i < 16; ++i) {
-        key.ip_data[i] = (srcAddr[i / 4] >> ((i % 4) * 8)) & 0xFF;
-    }
+    memcpy(key.ip_data, srcAddr, 16);
 
     struct rulesVal_st *rulesVal = (struct rulesVal_st *)bpf_map_lookup_elem(
         &ingress_node_firewall_table_map, &key);
@@ -225,6 +230,7 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
                 }
 
                 if (rule->protocol == IPPROTO_ICMPV6) {
+                	bpf_printk("ICMPV6 packet rule(type:%d, code:%d) pkt(type:%d, code %d)", rule->icmpType, rule->icmpCode, icmpType, icmpCode);
                     if ((rule->icmpType == icmpType) && (rule->icmpCode == icmpCode)) {
                         return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
                     }

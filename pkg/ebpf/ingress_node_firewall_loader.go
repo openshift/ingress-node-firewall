@@ -146,7 +146,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 			rules.Rules[idx].IcmpType = rule.ICMPRule.ICMPType
 			rules.Rules[idx].IcmpCode = rule.ICMPRule.ICMPCode
 			rules.Rules[idx].Protocol = syscall.IPPROTO_ICMP
-		case ingressnodefwiov1alpha1.ProtocolTypeICMPv6:
+		case ingressnodefwiov1alpha1.ProtocolTypeICMP6:
 			rules.Rules[idx].IcmpType = rule.ICMPRule.ICMPType
 			rules.Rules[idx].IcmpCode = rule.ICMPRule.ICMPCode
 			rules.Rules[idx].Protocol = syscall.IPPROTO_ICMPV6
