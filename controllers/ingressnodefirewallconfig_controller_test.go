@@ -34,7 +34,7 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 			}
 			daemonContainers := map[string]string{
 				"daemon":          "test-daemon:latest",
-				"kube-rbac-proxy": "quay.io/openshift/origin-kube-rbac-proxy:latest",
+				"kube-rbac-proxy": "kube-rbac-proxy:latest",
 			}
 
 			By("Creating a Ingress node firewall config resource")
