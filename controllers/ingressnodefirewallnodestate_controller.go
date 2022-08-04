@@ -17,7 +17,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"time"
 
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	nodefwloader "github.com/openshift/ingress-node-firewall/pkg/ebpf"
@@ -120,7 +119,7 @@ func (r *IngressNodeFirewallNodeStateReconciler) syncIngressNodeFirewallResource
 		}
 	}
 
-	r.Stats.StartPoll(c.GetStatisticsMap(), time.Second)
+	r.Stats.StartPoll(c.GetStatisticsMap())
 
 	if err := c.IngressNodeFwAttach(*instance.Spec.Interfaces, isDelete); err != nil {
 		logger.Error(err, "Fail to attach ingress firewall prog")

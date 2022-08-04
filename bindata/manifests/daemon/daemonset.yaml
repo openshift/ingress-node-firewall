@@ -37,6 +37,8 @@ spec:
                   fieldPath: metadata.namespace
             - name: EVENT_LOGGING_FILE
               value: "/tmp/ingress_node_firewall_events.log"
+            - name: POLL_PERIOD_SECONDS
+              value: "{{ .PollPeriodSeconds }}"
           securityContext:
             privileged: true
             runAsUser: 0

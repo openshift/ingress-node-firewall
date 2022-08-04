@@ -1,7 +1,9 @@
 package metrics
 
 import (
+	"fmt"
 	"log"
+	"strconv"
 	"sync"
 	"time"
 
@@ -53,10 +55,15 @@ type Statistics struct {
 	//mu controls access to isMapPollActive/mapStopCh
 	mapStopCh       chan struct{}
 	isMapPollActive bool
+	pollPeriod      time.Duration
 }
 
-func NewStatistics() *Statistics {
-	return &Statistics{}
+func NewStatistics(pollPeriod string) (*Statistics, error) {
+	i, err := strconv.Atoi(pollPeriod)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert %q to integer: %v", pollPeriod, err)
+	}
+	return &Statistics{pollPeriod: time.Duration(i) * time.Second}, nil
 }
 
 func (m *Statistics) Register() {
@@ -68,7 +75,7 @@ func (m *Statistics) Register() {
 	})
 }
 
-func (m *Statistics) StartPoll(statsMap *ebpf.Map, period time.Duration) {
+func (m *Statistics) StartPoll(statsMap *ebpf.Map) {
 	if m.isMapPollActive {
 		log.Println("Metrics are already being polled")
 		return
@@ -79,7 +86,7 @@ func (m *Statistics) StartPoll(statsMap *ebpf.Map, period time.Duration) {
 
 	go func() {
 		defer m.mapWG.Done()
-		updateMetrics(m.mapStopCh, statsMap, period)
+		updateMetrics(m.mapStopCh, statsMap, m.pollPeriod)
 		m.isMapPollActive = false
 	}()
 }

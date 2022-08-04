@@ -76,6 +76,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	pollPeriod, ok := os.LookupEnv("POLL_PERIOD_SECONDS")
+	if !ok {
+		setupLog.Error(nil, "POLL_PERIOD_SECONDS env variable must be set")
+		os.Exit(1)
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     metricsAddr,
@@ -88,7 +94,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	stats := metrics.NewStatistics()
+	stats, err := metrics.NewStatistics(pollPeriod)
 	stats.Register()
 	defer stats.StopPoll()
 
