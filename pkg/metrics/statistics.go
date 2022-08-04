@@ -15,28 +15,28 @@ import (
 	controllerruntimemetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
-var metricAllowPacketCount = prometheus.NewGauge(prometheus.GaugeOpts{
+var metricAllowCount = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: metricINFNamespace,
 	Subsystem: metricINFSubsystemNode,
 	Name:      "packet_allow_total",
 	Help:      "The number of packets which results in an allow IP packet result",
 })
 
-var metricAllowPacketBytes = prometheus.NewGauge(prometheus.GaugeOpts{
+var metricAllowBytesCount = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: metricINFNamespace,
 	Subsystem: metricINFSubsystemNode,
 	Name:      "packet_allow_bytes",
 	Help:      "The number of bytes for packets which results in an allow IP packet result",
 })
 
-var metricDenyPacketCount = prometheus.NewGauge(prometheus.GaugeOpts{
+var metricDenyCount = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: metricINFNamespace,
 	Subsystem: metricINFSubsystemNode,
 	Name:      "packet_deny_total",
 	Help:      "The number of packets which results in a deny IP packet result",
 })
 
-var metricDenyPacketBytes = prometheus.NewGauge(prometheus.GaugeOpts{
+var metricDenyBytesCount = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: metricINFNamespace,
 	Subsystem: metricINFSubsystemNode,
 	Name:      "packet_deny_bytes",
@@ -68,10 +68,10 @@ func NewStatistics(pollPeriod string) (*Statistics, error) {
 
 func (m *Statistics) Register() {
 	m.regOnce.Do(func() {
-		controllerruntimemetrics.Registry.MustRegister(metricAllowPacketCount)
-		controllerruntimemetrics.Registry.MustRegister(metricAllowPacketBytes)
-		controllerruntimemetrics.Registry.MustRegister(metricDenyPacketCount)
-		controllerruntimemetrics.Registry.MustRegister(metricDenyPacketBytes)
+		controllerruntimemetrics.Registry.MustRegister(metricAllowCount)
+		controllerruntimemetrics.Registry.MustRegister(metricAllowBytesCount)
+		controllerruntimemetrics.Registry.MustRegister(metricDenyCount)
+		controllerruntimemetrics.Registry.MustRegister(metricDenyBytesCount)
 	})
 }
 
@@ -102,7 +102,7 @@ func (m *Statistics) StopPoll() {
 func updateMetrics(stopCh <-chan struct{}, statsMap *ebpf.Map, period time.Duration) {
 	log.Println("Starting node metrics updater. Metrics will be polled periodically and presented as prometheus metrics")
 	ticker := time.NewTicker(period)
-	var allowPackets, allowBytes, denyPackets, denyBytes, result float64
+	var allowCount, allowBytesCount, denyCount, denyBytesCount, result float64
 	var ruleStats []nodefwloader.BpfRuleStatisticsSt
 	var ok bool
 	var err error
@@ -111,7 +111,7 @@ func updateMetrics(stopCh <-chan struct{}, statsMap *ebpf.Map, period time.Durat
 	for {
 		select {
 		case <-ticker.C:
-			allowPackets, allowBytes, denyPackets, denyBytes, result = 0, 0, 0, 0, 0
+			allowCount, allowBytesCount, denyCount, denyBytesCount, result = 0, 0, 0, 0, 0
 
 			for rule := 1; rule < failsaferules.MAX_INGRESS_RULES; rule++ {
 				if err = statsMap.Lookup(uint32(rule), &ruleStats); err != nil {
@@ -120,35 +120,35 @@ func updateMetrics(stopCh <-chan struct{}, statsMap *ebpf.Map, period time.Durat
 				}
 
 				for _, stat := range ruleStats {
-					if result, ok = addUInt64Float64(stat.AllowStats.Packets, allowPackets); !ok {
+					if result, ok = addUInt64Float64(stat.AllowStats.Packets, allowCount); !ok {
 						log.Println("Overflow occurred during addition of allow packet statistic")
 					} else {
-						allowPackets = result
+						allowCount = result
 					}
 
-					if result, ok = addUInt64Float64(stat.AllowStats.Bytes, allowBytes); !ok {
+					if result, ok = addUInt64Float64(stat.AllowStats.Bytes, allowBytesCount); !ok {
 						log.Println("Overflow occurred during addition of allow byte statistic")
 					} else {
-						allowBytes = result
+						allowBytesCount = result
 					}
 
-					if result, ok = addUInt64Float64(stat.DenyStats.Packets, denyPackets); !ok {
+					if result, ok = addUInt64Float64(stat.DenyStats.Packets, denyCount); !ok {
 						log.Println("Overflow occurred during addition of deny packet statistic")
 					} else {
-						denyPackets = result
+						denyCount = result
 					}
 
-					if result, ok = addUInt64Float64(stat.DenyStats.Bytes, denyBytes); !ok {
+					if result, ok = addUInt64Float64(stat.DenyStats.Bytes, denyBytesCount); !ok {
 						log.Println("Overflow occurred during addition of deny byte statistic")
 					} else {
-						denyBytes = result
+						denyBytesCount = result
 					}
 				}
 			}
-			metricAllowPacketCount.Set(allowPackets)
-			metricAllowPacketBytes.Set(allowBytes)
-			metricDenyPacketCount.Set(denyPackets)
-			metricDenyPacketBytes.Set(denyBytes)
+			metricAllowCount.Set(allowCount)
+			metricAllowBytesCount.Set(allowBytesCount)
+			metricDenyCount.Set(denyCount)
+			metricDenyBytesCount.Set(denyBytesCount)
 		case <-stopCh:
 			log.Println("Stopped node metric updates")
 			return
