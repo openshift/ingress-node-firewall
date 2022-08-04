@@ -8,6 +8,7 @@ import (
 	"time"
 
 	nodefwloader "github.com/openshift/ingress-node-firewall/pkg/ebpf"
+	"github.com/openshift/ingress-node-firewall/pkg/failsaferules"
 
 	"github.com/cilium/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
@@ -43,7 +44,6 @@ var metricDenyPacketBytes = prometheus.NewGauge(prometheus.GaugeOpts{
 })
 
 const (
-	maxRules               = 100 // Max number of rules per sourceCIDRs
 	metricINFNamespace     = "ingressnodefirewall"
 	metricINFSubsystemNode = "node"
 )
@@ -113,7 +113,7 @@ func updateMetrics(stopCh <-chan struct{}, statsMap *ebpf.Map, period time.Durat
 		case <-ticker.C:
 			allowPackets, allowBytes, denyPackets, denyBytes, result = 0, 0, 0, 0, 0
 
-			for rule := 0; rule < maxRules; rule++ {
+			for rule := 1; rule < failsaferules.MAX_INGRESS_RULES; rule++ {
 				if err = statsMap.Lookup(uint32(rule), &ruleStats); err != nil {
 					log.Printf("Failed to lookup statistics for rule %d: %v\n", rule, err)
 					continue
