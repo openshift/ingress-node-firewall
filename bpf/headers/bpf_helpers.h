@@ -257,6 +257,11 @@ enum libbpf_tristate {
 		   __bpf_printk /*1*/, __bpf_printk /*0*/)
 
 /* Helper macro to print out debug messages */
-#define bpf_printk(fmt, args...) ___bpf_pick_printk(args)(fmt, ##args)
 
+/* #define DEBUG */
+#ifdef DEBUG
+#define bpf_printk(fmt, args...) ___bpf_pick_printk(args)(fmt, ##args)
+#else
+#define bpf_printk(fmt, args...)
+#endif
 #endif
