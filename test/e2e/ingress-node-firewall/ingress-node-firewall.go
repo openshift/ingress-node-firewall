@@ -28,8 +28,8 @@ const (
 	Interval      = time.Second * 4
 )
 
-// Delete and check the IngressNodeFirewallConfig custom resource is deleted to avoid status leak in between tests.
-func Delete(config *ingressnodefwv1alpha1.IngressNodeFirewallConfig) {
+// DeleteINFConfig and check the IngressNodeFirewallConfig custom resource is deleted to avoid status leak in between tests.
+func DeleteINFConfig(config *ingressnodefwv1alpha1.IngressNodeFirewallConfig) {
 	err := testclient.Client.Delete(context.Background(), config)
 	if errors.IsNotFound(err) { // Ignore err, could be already deleted.
 		return
@@ -66,13 +66,21 @@ func decodeYAML(r io.Reader, obj interface{}) error {
 }
 
 func LoadIngressNodeFirewallConfigFromFile(config *ingressnodefwv1alpha1.IngressNodeFirewallConfig, fileName string) error {
+	return loadFromFile(config, fileName)
+}
+
+func LoadIngressNodeFirewallFromFile(inf *ingressnodefwv1alpha1.IngressNodeFirewall, fileName string) error {
+	return loadFromFile(inf, fileName)
+}
+
+func loadFromFile(obj interface{}, fileName string) error {
 	f, err := os.Open(fmt.Sprintf("../../../config/samples/%s", fileName))
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	return decodeYAML(f, config)
+	return decodeYAML(f, obj)
 }
 
 func NodesIP(nodes []v1.Node) []string {

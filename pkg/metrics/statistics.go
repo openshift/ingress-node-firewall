@@ -16,37 +16,47 @@ import (
 )
 
 var metricAllowCount = prometheus.NewGauge(prometheus.GaugeOpts{
-	Namespace: metricINFNamespace,
-	Subsystem: metricINFSubsystemNode,
+	Namespace: MetricINFNamespace,
+	Subsystem: MetricINFSubsystemNode,
 	Name:      "packet_allow_total",
 	Help:      "The number of packets which results in an allow IP packet result",
 })
 
 var metricAllowBytesCount = prometheus.NewGauge(prometheus.GaugeOpts{
-	Namespace: metricINFNamespace,
-	Subsystem: metricINFSubsystemNode,
+	Namespace: MetricINFNamespace,
+	Subsystem: MetricINFSubsystemNode,
 	Name:      "packet_allow_bytes",
 	Help:      "The number of bytes for packets which results in an allow IP packet result",
 })
 
 var metricDenyCount = prometheus.NewGauge(prometheus.GaugeOpts{
-	Namespace: metricINFNamespace,
-	Subsystem: metricINFSubsystemNode,
+	Namespace: MetricINFNamespace,
+	Subsystem: MetricINFSubsystemNode,
 	Name:      "packet_deny_total",
 	Help:      "The number of packets which results in a deny IP packet result",
 })
 
 var metricDenyBytesCount = prometheus.NewGauge(prometheus.GaugeOpts{
-	Namespace: metricINFNamespace,
-	Subsystem: metricINFSubsystemNode,
+	Namespace: MetricINFNamespace,
+	Subsystem: MetricINFSubsystemNode,
 	Name:      "packet_deny_bytes",
 	Help:      "The number of bytes for packets which results in an deny IP packet result",
 })
 
 const (
-	metricINFNamespace     = "ingressnodefirewall"
-	metricINFSubsystemNode = "node"
+	MetricINFNamespace     = "ingressnodefirewall"
+	MetricINFSubsystemNode = "node"
 )
+
+// GetPrometheusStatisticNames returns all statistic metric names - to aid testing only.
+func GetPrometheusStatisticNames() []string {
+	return []string{
+		MetricINFNamespace + "_" + MetricINFSubsystemNode + "_" + "packet_allow_total",
+		MetricINFNamespace + "_" + MetricINFSubsystemNode + "_" + "packet_allow_bytes",
+		MetricINFNamespace + "_" + MetricINFSubsystemNode + "_" + "packet_deny_total",
+		MetricINFNamespace + "_" + MetricINFSubsystemNode + "_" + "packet_deny_bytes",
+	}
+}
 
 type Statistics struct {
 	//regOnce ensures that we only register metrics once otherwise panic may occur
