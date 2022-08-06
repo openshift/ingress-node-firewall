@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	goclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -104,4 +105,23 @@ func RunPingTest(nodes []v1.Node) (error, int) {
 		}
 	}
 	return kerrors.NewAggregate(errs), len(errs)
+}
+
+func GetDaemonSetPods(ns string) (*v1.PodList, error) {
+	var podList *v1.PodList
+	err := wait.PollImmediate(1*time.Second, 10*time.Second, func() (done bool, err error) {
+		podList, err = testclient.Client.Pods(ns).List(context.TODO(), metav1.ListOptions{
+			LabelSelector: "app=ingress-node-firewall-daemon",
+		})
+
+		if err != nil {
+			return false, err
+		}
+
+		if len(podList.Items) > 0 {
+			return true, nil
+		}
+		return false, nil
+	})
+	return podList, err
 }
