@@ -23,6 +23,7 @@ import (
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/controllers"
 	"github.com/openshift/ingress-node-firewall/pkg/version"
+	"github.com/openshift/ingress-node-firewall/pkg/webhook"
 
 	//+kubebuilder:scaffold:imports
 
@@ -43,7 +44,6 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 	utilruntime.Must(ingressnodefwv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
@@ -114,7 +114,7 @@ func main() {
 	}
 
 	if enableWebhook {
-		if err = (&ingressnodefwv1alpha1.IngressNodeFirewall{}).SetupWebhookWithManager(mgr); err != nil {
+		if err = (&webhook.IngressNodeFirewallWebhook{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "IngressNodeFirewall")
 			os.Exit(1)
 		}
