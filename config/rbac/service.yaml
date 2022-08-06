@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    control-plane: controller-manager
+  name: controller-manager-metrics
+  namespace: system
+spec:
+  ports:
+  - name: metrics
+    port: 9300
+    protocol: TCP
+    targetPort: https
+  selector:
+    control-plane: controller-manager
+  clusterIP: None
+  publishNotReadyAddresses: true
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: ingress-node-firewall-daemon
+  name: daemon-metrics
+  namespace: system
+spec:
+  ports:
+    - name: metrics
+      port: 9301
+      protocol: TCP
+      targetPort: https
+  selector:
+    app: ingress-node-firewall-daemon
+  clusterIP: None
+  publishNotReadyAddresses: true
+  sessionAffinity: None
+  type: ClusterIP

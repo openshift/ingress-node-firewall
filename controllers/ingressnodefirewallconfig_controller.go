@@ -106,6 +106,7 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 
 	data.Data["Image"] = os.Getenv("DAEMONSET_IMAGE")
 	data.Data["NameSpace"] = r.Namespace
+	data.Data["RBACProxyImage"] = os.Getenv("KUBE_RBAC_PROXY_IMAGE")
 
 	objs, err := render.RenderDir(ManifestPath, &data)
 	if err != nil {

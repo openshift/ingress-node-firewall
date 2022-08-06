@@ -38,6 +38,9 @@ github.com/PuerkitoBio/urlesc
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
+# github.com/blang/semver/v4 v4.0.0
+## explicit; go 1.14
+github.com/blang/semver/v4
 # github.com/cespare/xxhash/v2 v2.1.2
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
@@ -154,6 +157,10 @@ github.com/mitchellh/copystructure
 # github.com/mitchellh/reflectwalk v1.0.2
 ## explicit
 github.com/mitchellh/reflectwalk
+# github.com/moby/spdystream v0.2.0
+## explicit; go 1.13
+github.com/moby/spdystream
+github.com/moby/spdystream/spdy
 # github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
 ## explicit
 github.com/modern-go/concurrent
@@ -213,6 +220,8 @@ github.com/prometheus/client_golang/prometheus
 github.com/prometheus/client_golang/prometheus/collectors
 github.com/prometheus/client_golang/prometheus/internal
 github.com/prometheus/client_golang/prometheus/promhttp
+github.com/prometheus/client_golang/prometheus/testutil
+github.com/prometheus/client_golang/prometheus/testutil/promlint
 # github.com/prometheus/client_model v0.2.0
 ## explicit; go 1.9
 github.com/prometheus/client_model/go
@@ -260,6 +269,8 @@ golang.org/x/net/http/httpguts
 golang.org/x/net/http2
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
+golang.org/x/net/internal/socks
+golang.org/x/net/proxy
 # golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 ## explicit; go 1.11
 golang.org/x/oauth2
@@ -450,12 +461,15 @@ k8s.io/apimachinery/pkg/util/cache
 k8s.io/apimachinery/pkg/util/diff
 k8s.io/apimachinery/pkg/util/errors
 k8s.io/apimachinery/pkg/util/framer
+k8s.io/apimachinery/pkg/util/httpstream
+k8s.io/apimachinery/pkg/util/httpstream/spdy
 k8s.io/apimachinery/pkg/util/intstr
 k8s.io/apimachinery/pkg/util/json
 k8s.io/apimachinery/pkg/util/managedfields
 k8s.io/apimachinery/pkg/util/mergepatch
 k8s.io/apimachinery/pkg/util/naming
 k8s.io/apimachinery/pkg/util/net
+k8s.io/apimachinery/pkg/util/remotecommand
 k8s.io/apimachinery/pkg/util/runtime
 k8s.io/apimachinery/pkg/util/sets
 k8s.io/apimachinery/pkg/util/strategicpatch
@@ -467,6 +481,7 @@ k8s.io/apimachinery/pkg/util/yaml
 k8s.io/apimachinery/pkg/version
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/third_party/forked/golang/json
+k8s.io/apimachinery/third_party/forked/golang/netutil
 k8s.io/apimachinery/third_party/forked/golang/reflect
 # k8s.io/client-go v0.24.3
 ## explicit; go 1.16
@@ -592,9 +607,12 @@ k8s.io/client-go/tools/pager
 k8s.io/client-go/tools/record
 k8s.io/client-go/tools/record/util
 k8s.io/client-go/tools/reference
+k8s.io/client-go/tools/remotecommand
 k8s.io/client-go/transport
+k8s.io/client-go/transport/spdy
 k8s.io/client-go/util/cert
 k8s.io/client-go/util/connrotation
+k8s.io/client-go/util/exec
 k8s.io/client-go/util/flowcontrol
 k8s.io/client-go/util/homedir
 k8s.io/client-go/util/jsonpath
@@ -605,6 +623,9 @@ k8s.io/client-go/util/workqueue
 ## explicit; go 1.16
 k8s.io/component-base/config
 k8s.io/component-base/config/v1alpha1
+k8s.io/component-base/metrics
+k8s.io/component-base/metrics/testutil
+k8s.io/component-base/version
 # k8s.io/klog v1.0.0
 ## explicit; go 1.12
 k8s.io/klog

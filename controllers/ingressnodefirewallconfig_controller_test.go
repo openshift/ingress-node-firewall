@@ -32,9 +32,9 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 					Namespace: IngressNodeFwConfigTestNameSpace,
 				},
 			}
-			daemonImage := "test-daemon:latest"
 			daemonContainers := map[string]string{
-				"daemon": daemonImage,
+				"daemon":          "test-daemon:latest",
+				"kube-rbac-proxy": "kube-rbac-proxy:latest",
 			}
 
 			By("Creating a Ingress node firewall config resource")

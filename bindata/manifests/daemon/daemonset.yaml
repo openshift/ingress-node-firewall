@@ -22,7 +22,9 @@ spec:
         kubernetes.io/os: linux
       priorityClassName: "system-node-critical"
       containers:
-        - command: ['/bin/sh', '-c', 'mount bpffs /sys/fs/bpf -t bpf && /usr/bin/daemon']
+        - name: daemon
+          image: '{{.Image}}'
+          command: ['/bin/sh', '-c', 'mount bpffs /sys/fs/bpf -t bpf && /usr/bin/daemon']
           #- command: ['/bin/sh', '-c', 'mount bpffs /sys/fs/bpf -t bpf && strace -fe trace=bpf /usr/bin/daemon']
           env:
             - name: NODE_NAME
@@ -35,8 +37,8 @@ spec:
                   fieldPath: metadata.namespace
             - name: EVENT_LOGGING_FILE
               value: "/tmp/ingress_node_firewall_events.log"
-          image: '{{.Image}}'
-          name: daemon
+            - name: POLL_PERIOD_SECONDS
+              value: "30"
           securityContext:
             privileged: true
             runAsUser: 0
@@ -49,9 +51,63 @@ spec:
             - name: bpf-maps
               mountPath: /sys/fs/bpf
               mountPropagation: Bidirectional
+        - name: kube-rbac-proxy
+          image: '{{.RBACProxyImage}}'
+          command:
+            - /bin/bash
+            - -c
+            - |
+              #!/bin/bash
+              set -euo pipefail
+              TLS_PK=/etc/pki/tls/metrics-certs/tls.key
+              TLS_CERT=/etc/pki/tls/metrics-certs/tls.crt
+              # As the secret mount is optional we must wait for the files to be present.
+              # If it isn't created there is probably an issue so we want to crashloop.
+              TS=$(date +%s)
+              WARN_TS=$(( ${TS} + $(( 20 * 60)) ))
+              HAS_LOGGED_INFO=0
+              log_missing_certs(){
+                  CUR_TS=$(date +%s)
+                  if [[ "${CUR_TS}" -gt "${WARN_TS}"  ]]; then
+                    echo $(date -Iseconds) WARN: ingress-node-firewall-daemon-metrics-certs not mounted after 20 minutes.
+                  elif [[ "${HAS_LOGGED_INFO}" -eq 0 ]] ; then
+                    echo $(date -Iseconds) INFO: ingress-node-firewall-daemon-metrics-certs not mounted. Waiting 20 minutes.
+                    HAS_LOGGED_INFO=1
+                  fi
+              }
+              while [[ ! -f "${TLS_PK}" ||  ! -f "${TLS_CERT}" ]] ; do
+                log_missing_certs
+                sleep 5
+              done
+              echo $(date -Iseconds) INFO: ingress-node-firewall-daemon-metrics-certs mounted, starting kube-rbac-proxy
+              exec /usr/bin/kube-rbac-proxy \
+                --logtostderr \
+                --secure-listen-address=:9301 \
+                --tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256 \
+                --upstream=http://127.0.0.1:39301 / \
+                --tls-private-key-file=${TLS_PK} \
+                --tls-cert-file=${TLS_CERT}
+          ports:
+            - containerPort: 9301
+              name: https
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
+          terminationMessagePolicy: FallbackToLogsOnError
+          volumeMounts:
+            - name: ingress-node-firewall-daemon-metrics-certs
+              mountPath: /etc/pki/tls/metrics-certs
+              readOnly: True
       volumes:
         - name: bpf-maps
           hostPath:
             path: /sys/fs/bpf
             type: DirectoryOrCreate
+        # Must be optional because the ingress-node-firewall-daemon-metrics-certs is a service serving
+        # certificate and those cannot be generated without the daemon running
+        - name: ingress-node-firewall-daemon-metrics-certs
+          secret:
+            secretName: ingress-node-firewall-daemon-metrics-certs
+            optional: true
       serviceAccountName: ingress-node-firewall-daemon

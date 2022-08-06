@@ -18,8 +18,10 @@ import (
 	"fmt"
 	"strconv"
 
+	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	nodefwloader "github.com/openshift/ingress-node-firewall/pkg/ebpf"
 	"github.com/openshift/ingress-node-firewall/pkg/failsaferules"
+	"github.com/openshift/ingress-node-firewall/pkg/metrics"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -27,8 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 )
 
 // IngressNodeFirewallNodeStateReconciler reconciles a IngressNodeFirewallNodeState object
@@ -38,6 +38,7 @@ type IngressNodeFirewallNodeStateReconciler struct {
 	NodeName  string
 	Namespace string
 	Log       logr.Logger
+	Stats     *metrics.Statistics
 }
 
 //+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewallnodestates,verbs=get;list;watch;create;update;patch;delete
@@ -98,6 +99,8 @@ func (r *IngressNodeFirewallNodeStateReconciler) syncIngressNodeFirewallResource
 	logger := r.Log.WithName("syncIngressNodeFirewallResources")
 	logger.Info("Start")
 
+	r.Stats.StopPoll()
+
 	c, err := nodefwloader.NewIngNodeFwController()
 	if err != nil {
 		logger.Error(err, "Fail to create nodefw controller instance")
@@ -115,6 +118,8 @@ func (r *IngressNodeFirewallNodeStateReconciler) syncIngressNodeFirewallResource
 			return err
 		}
 	}
+
+	r.Stats.StartPoll(c.GetStatisticsMap())
 
 	if err := c.IngressNodeFwAttach(*instance.Spec.Interfaces, isDelete); err != nil {
 		logger.Error(err, "Fail to attach ingress firewall prog")

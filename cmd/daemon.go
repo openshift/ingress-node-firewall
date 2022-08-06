@@ -31,6 +31,7 @@ import (
 	ingressnodefwiov1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/controllers"
+	"github.com/openshift/ingress-node-firewall/pkg/metrics"
 	"github.com/openshift/ingress-node-firewall/pkg/version"
 	//+kubebuilder:scaffold:imports
 )
@@ -51,8 +52,9 @@ func init() {
 func main() {
 	var metricsAddr string
 	var probeAddr string
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	// We are host networked, we set default to loopback by default
+	flag.StringVar(&probeAddr, "health-probe-bind-address", "127.0.0.1:39300", "The address the probe endpoint binds to.")
+	flag.StringVar(&metricsAddr, "metrics-bind-address", "127.0.0.1:39301", "The address the metric endpoint binds to.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -70,14 +72,19 @@ func main() {
 	}
 	namespace, ok := os.LookupEnv("NAMESPACE")
 	if !ok {
-		setupLog.Error(nil, "NODE_NAME env variable must be set")
+		setupLog.Error(nil, "NAMESPACE env variable must be set")
+		os.Exit(1)
+	}
+
+	pollPeriod, ok := os.LookupEnv("POLL_PERIOD_SECONDS")
+	if !ok {
+		setupLog.Error(nil, "POLL_PERIOD_SECONDS env variable must be set")
 		os.Exit(1)
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         false,
 		Namespace:              namespace,
@@ -87,12 +94,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	stats, err := metrics.NewStatistics(pollPeriod)
+	stats.Register()
+	defer stats.StopPoll()
+
 	if err = (&controllers.IngressNodeFirewallNodeStateReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
 		NodeName:  nodeName,
 		Namespace: namespace,
 		Log:       ctrl.Log.WithName("controllers").WithName("IngressNodeFirewall"),
+		Stats:     stats,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "IngressNodeFirewallNodeState")
 		os.Exit(1)

@@ -160,23 +160,29 @@ endif
 .PHONY: install
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl apply -f -
-	kubectl apply -f config/daemon/namespace.yaml # Hack to get install to behave.
-	$(KUSTOMIZE) build config/daemon | kubectl apply -f -
 
 .PHONY: uninstall
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
-	$(KUSTOMIZE) build config/daemon | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
-	kubectl delete -f config/daemon/namespace.yaml --ignore-not-found=$(ignore-not-found)
+
+.PHONY: deploy-kind
+deploy-kind: manifests kustomize install-cert-manager ## Deploy controller to the KinD cluster
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/kind | kubectl apply -f -
+
+.PHONY: undeploy-kind
+undeploy-kind: ## Undeploy controller from the KinD cluster. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+	$(KUSTOMIZE) build config/kind | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	kubectl delete -f $(CERT_MANAGER_URL)
 
 .PHONY: deploy
-deploy: manifests kustomize install-cert-manager ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+deploy: manifests kustomize ## Deploy controller to OCP cluster.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default | kubectl apply -f -
+	$(KUSTOMIZE) build config/openshift | kubectl apply -f -
 
 .PHONY: undeploy
-undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+undeploy: ## Undeploy controller from the OCP cluster. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+	$(KUSTOMIZE) build config/openshift | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 CERT_MANAGER_URL ?= "https://github.com/cert-manager/cert-manager/releases/download/$(CERT_MANAGER_VERSION)/cert-manager.yaml"
 

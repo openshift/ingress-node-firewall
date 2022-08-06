@@ -53,8 +53,8 @@ func main() {
 	var enableLeaderElection bool
 	var enableWebhook bool
 	var probeAddr string
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":39201", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableWebhook, "enable-webhook", false, "Enable deployment of webhook to validate CR IngressNodeFirewall")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
@@ -76,6 +76,10 @@ func main() {
 	nameSpace, ok := os.LookupEnv("DAEMONSET_NAMESPACE")
 	if !ok {
 		setupLog.Error(nil, "DAEMONSET_NAMESPACE env variable must be set")
+		os.Exit(1)
+	}
+	if _, ok = os.LookupEnv("KUBE_RBAC_PROXY_IMAGE"); !ok {
+		setupLog.Error(nil, "KUBE_RBAC_PROXY_IMAGE env variable must be set")
 		os.Exit(1)
 	}
 
