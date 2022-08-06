@@ -46,6 +46,7 @@ const (
 	IngressNodeFirewallManifestPathTest = "../bindata/manifests/daemon"
 	DeamonSetName                       = "ingress-node-firewall-daemon"
 	IngressNodeFirewallResourceName     = "ingressnodefirewallconfig"
+	daemonReconcilerNodeName            = "worker-daemon"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -117,6 +118,15 @@ var _ = BeforeSuite(func() {
 		Client:    k8sClient,
 		Scheme:    scheme.Scheme,
 		Log:       ctrl.Log.WithName("controllers").WithName("IngressNodeFirewall"),
+		Namespace: IngressNodeFwConfigTestNameSpace,
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	err = (&IngressNodeFirewallNodeStateReconciler{
+		Client:    k8sClient,
+		Scheme:    scheme.Scheme,
+		Log:       ctrl.Log.WithName("controllers").WithName("IngressNodeFirewall"),
+		NodeName:  daemonReconcilerNodeName,
 		Namespace: IngressNodeFwConfigTestNameSpace,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
