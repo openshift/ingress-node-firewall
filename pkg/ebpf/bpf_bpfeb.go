@@ -22,8 +22,9 @@ type BpfEventHdrSt struct {
 }
 
 type BpfLpmIpKeySt struct {
-	PrefixLen uint32
-	IpData    [16]uint8
+	PrefixLen      uint32
+	IpData         [16]uint8
+	IngressIfindex uint32
 }
 
 type BpfRuleStatisticsSt struct {

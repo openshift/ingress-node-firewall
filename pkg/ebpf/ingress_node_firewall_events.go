@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -87,6 +88,7 @@ func (infc *IngNodeFwController) ingressNodeFwEvents() {
 				continue
 			}
 			// Note position of the bytes in the buf slice depends on the layout of bpfEventHdrSt struct
+			eventHdr.IfId = binary.LittleEndian.Uint16(buf[0:2])
 			eventHdr.RuleId = binary.LittleEndian.Uint16(buf[2:4])
 			eventHdr.Action = buf[4]
 			eventHdr.PktLength = binary.LittleEndian.Uint16(buf[6:8])
@@ -96,7 +98,14 @@ func (infc *IngNodeFwController) ingressNodeFwEvents() {
 				log.Printf("Parsing perf event packet header : %v", err)
 				continue
 			}
-			eventsLogger.Printf("\truleId %d action %s len %d\n", eventHdr.RuleId, convertXdpActionToString(eventHdr.Action), eventHdr.PktLength)
+			// Look up the network interface by index.
+			iface, err := net.InterfaceByIndex(int(eventHdr.IfId))
+			if err != nil {
+				log.Printf("lookup network iface %d: %s", eventHdr.IfId, err)
+				continue
+			}
+			eventsLogger.Printf("\truleId %d action %s len %d if %s\n",
+				eventHdr.RuleId, convertXdpActionToString(eventHdr.Action), eventHdr.PktLength, iface.Name)
 			decodePacket := gopacket.NewPacket(packet, layers.LayerTypeEthernet, gopacket.Default)
 			// check for IPv4
 			if ip4Layer := decodePacket.Layer(layers.LayerTypeIPv4); ip4Layer != nil {

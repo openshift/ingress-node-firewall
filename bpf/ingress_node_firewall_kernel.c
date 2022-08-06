@@ -128,7 +128,7 @@ ip_extract_l4Info(void *dataStart, void *dataEnd, __u8 *proto, __u16 *dstPort,
 }
 
 __attribute__((__always_inline__)) static inline __u32
-ipv4_checkTuple(void *dataStart, void *dataEnd) {
+ipv4_checkTuple(void *dataStart, void *dataEnd, __u32 ifId) {
     struct iphdr *iph = dataStart;
     struct lpm_ip_key_st key;
     __u32 srcAddr = iph->saddr;
@@ -146,6 +146,7 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
     key.ip_data[1] = (srcAddr >> 8) & 0xFF;
     key.ip_data[2] = (srcAddr >> 16) & 0xFF;
     key.ip_data[3] = (srcAddr >> 24) & 0xFF;
+    key.ingress_ifindex = ifId;
 
     struct rulesVal_st *rulesVal = (struct rulesVal_st *)bpf_map_lookup_elem(
         &ingress_node_firewall_table_map, &key);
@@ -189,7 +190,7 @@ ipv4_checkTuple(void *dataStart, void *dataEnd) {
 }
 
 __attribute__((__always_inline__)) static inline __u32
-ipv6_checkTuple(void *dataStart, void *dataEnd) {
+ipv6_checkTuple(void *dataStart, void *dataEnd, __u32 ifId) {
     struct ipv6hdr *iph = dataStart;
     struct lpm_ip_key_st key;
     __u8 *srcAddr = iph->saddr.in6_u.u6_addr8;
@@ -203,6 +204,7 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
     memset(&key, 0, sizeof(key));
     key.prefixLen = 128;
     memcpy(key.ip_data, srcAddr, 16);
+    key.ingress_ifindex = ifId;
 
     struct rulesVal_st *rulesVal = (struct rulesVal_st *)bpf_map_lookup_elem(
         &ingress_node_firewall_table_map, &key);
@@ -245,7 +247,7 @@ ipv6_checkTuple(void *dataStart, void *dataEnd) {
 }
 
 __attribute__((__always_inline__)) static inline void
-sendEvent(struct xdp_md *ctx, __u16 packet_len, __u8 action, __u16 ruleId, __u8 generateEvent) {
+sendEvent(struct xdp_md *ctx, __u16 packet_len, __u8 action, __u16 ruleId, __u8 generateEvent, __u32 ifId) {
     struct ruleStatistics_st *statistics, initialStats;
     struct event_hdr_st hdr;
 	__u64 flags = BPF_F_CURRENT_CPU;
@@ -256,6 +258,8 @@ sendEvent(struct xdp_md *ctx, __u16 packet_len, __u8 action, __u16 ruleId, __u8 
     hdr.ruleId = ruleId;
     hdr.action = action;
 	hdr.pktLength = (__u16)packet_len;
+    hdr.ifId = (__u16)ifId;
+
     memset(&initialStats, 0, sizeof(initialStats));
     statistics = bpf_map_lookup_elem(&ingress_node_firewall_statistics_map, &key);
     if (likely(statistics)) {
@@ -290,8 +294,9 @@ ingress_node_firewall_main(struct xdp_md *ctx) {
     struct ethhdr *eth = data;
     void *dataStart = data + sizeof(struct ethhdr);
     __u32 result = UNDEF;
+    __u32 ifId = ctx->ingress_ifindex;
 
-	bpf_printk("Ingress node firewall start processing a packet");
+    bpf_printk("Ingress node firewall start processing a packet on %d", ifId);
     if (unlikely(dataStart > dataEnd)) {
 		bpf_printk("Ingress node firewall bad packet XDP_DROP");
         return XDP_DROP;
@@ -299,15 +304,15 @@ ingress_node_firewall_main(struct xdp_md *ctx) {
 
     switch (eth->h_proto) {
     case bpf_htons(ETH_P_IP):
-		bpf_printk("Ingress node firewall process IPv4 packet");
-        result = ipv4_checkTuple(dataStart, dataEnd);
+        bpf_printk("Ingress node firewall process IPv4 packet");
+        result = ipv4_checkTuple(dataStart, dataEnd, ifId);
         break;
     case bpf_htons(ETH_P_IPV6):
-		bpf_printk("Ingress node firewall process IPv6 packet");
-        result = ipv6_checkTuple(dataStart, dataEnd);
+        bpf_printk("Ingress node firewall process IPv6 packet");
+        result = ipv6_checkTuple(dataStart, dataEnd, ifId);
         break;
     default:
-		bpf_printk("Ingress node firewall unknown L3 protocol XDP_PASS");
+        bpf_printk("Ingress node firewall unknown L3 protocol XDP_PASS");
         return XDP_PASS;
     }
 
@@ -316,15 +321,15 @@ ingress_node_firewall_main(struct xdp_md *ctx) {
 
 	switch (action) {
     case DENY:
-        sendEvent(ctx, (__u16)(dataEnd - data), DENY, ruleId, 1);
-		bpf_printk("Ingress node firewall action DENY -> XDP_DROP");
+        sendEvent(ctx, (__u16)(dataEnd - data), DENY, ruleId, 1, ifId);
+        bpf_printk("Ingress node firewall action DENY -> XDP_DROP");
         return XDP_DROP;
     case ALLOW:
-        sendEvent(ctx, (__u16)(dataEnd - data), ALLOW, ruleId, 0);
-		bpf_printk("Ingress node firewall action ALLOW -> XDP_PASS");
+        sendEvent(ctx, (__u16)(dataEnd - data), ALLOW, ruleId, 0, ifId);
+        bpf_printk("Ingress node firewall action ALLOW -> XDP_PASS");
         return XDP_PASS;
     default:
-		bpf_printk("Ingress node firewall action UNDEF");
+        bpf_printk("Ingress node firewall action UNDEF");
         return XDP_PASS;
     }
 }
