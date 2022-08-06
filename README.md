@@ -106,44 +106,75 @@ export KUBECONFIG=hack/kubeconfig
 ```sh
 make install
 ```
-4. Build container images
+4. Build controller container image
 ```sh
-make docker-build IMG=<some-registry>/ingress-node-firewall:tag
+make docker-build IMG=<some-registry>/ingress-node-firewall-controller:tag
 ```
-5. Load container image to KinD container(s)
+5. Load controller container image to KinD container(s)
 ```sh
-kind load docker-image <some-registry>/ingress-node-firewall:tag
+kind load docker-image <some-registry>/ingress-node-firewall-controller:tag
 ```
-6. Deploy resources to KinD cluster
+6. Build daemon container image
 ```sh
-make deploy IMG=<some-registry>/ingress-node-firewall:tag
+make docker-build-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-daemon:tag
 ```
-
-## Uninstall CRDs
-To delete the CRDs from the cluster:
+7. Load daemon container image to KinD container(s)
+```sh
+kind load docker-image <some-registry>/ingress-node-firewall-daemon:tag
+```
+8. Manually edit "config/manager/env.yaml" and add the daemon image to value of environment variable "DAEMONSET_IMAGE"
+9. Deploy resources to KinD cluster
+```sh
+make deploy-kind IMG=<some-registry>/ingress-node-firewall-controller:tag
+```
+7. Undeploy resources from KinD cluster
+```sh
+make undeploy-kind
+```
+8. Uninstall custom resource definitions
 ```sh
 make uninstall
 ```
-## Undeploy controller
-UnDeploy the controller to the cluster:
+
+## Running on an OCP cluster
+1. Create OCP cluster
+2. Install custom resource definitions
+```sh
+make install
+```
+3. Build controller container image
+```sh
+make docker-build IMG=<some-registry>/ingress-node-firewall-controller:tag
+```
+4. Push controller container image to an image registry
+```sh
+make docker-push IMG=<some-registry>/ingress-node-firewall-controller:tag
+```
+5. Build daemon container image
+```sh
+make docker-build-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-controller:tag
+```
+6. Push controller container image to an image registry
+```sh
+make docker-push-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-controller:tag
+```
+7. Manually edit "config/manager/env.yaml" and add the daemon image name to value of environment variable "DAEMONSET_IMAGE"
+8. make deploy IMG=<some-registry>/ingress-node-firewall-controller:tag
+9. Undeploy resources from OCP cluster
 ```sh
 make undeploy
+```
+10. Uninstall custom resource definitions
+```sh
+make uninstall
 ```
 
 ## Disable webhook
 Remove manager binary flag `--enable-webhook` from the containers command in file config/manager/manager.yaml
 
 ## Running E2E test
-- bring up Kind cluster and deploy ingress node firewall operator
-```shell
- make create-kind-cluster
- kind get kubeconfig > kubeconfig
- export KUBECONFIG=$(pwd)/kubeconfig
- export DAEMONSET_IMAGE=quay.io/mmahmoud/ingress-node-firewall-daemon:latest
- make install
- make deploy
-```
-- run full e2e test
+1. Bring up KinD cluster and deploy ingress node firewall operator from the steps outlined previous
+2. Run full E2E test
 ```shell
 make test-e2e
 ```
