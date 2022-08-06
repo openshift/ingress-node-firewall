@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
@@ -179,6 +180,22 @@ var _ = Describe("Ingress Node Firewall", func() {
 				return false
 			}, infwutils.Timeout, infwutils.Interval).Should(BeTrue())
 
+			By("checking ingress node firewall events are generated")
+			podList, err := infwutils.GetDaemonSetPods(config.Namespace)
+			Expect(err).To(BeNil())
+			Expect(podList).ToNot(BeNil())
+			daemonPod := &podList.Items[0]
+			out, _, err := pods.ExecCommand(testclient.Client, daemonPod, "cat", consts.IngressNodeFirewallEventsLogFile)
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(func() bool {
+				for _, ip := range infwutils.NodesIP(nodes.Items) {
+					if !strings.Contains(out, ip) {
+						return false
+					}
+				}
+				return true
+			}, infwutils.Timeout, infwutils.Interval).Should(BeTrue())
+
 			By("checking Ingress node firewall nodeState resource is deleted")
 			Eventually(func() bool {
 				for _, nState := range nodeStateList.Items {
@@ -258,21 +275,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 		})
 
 		It("should expose daemon metrics", func() {
-			var podList *corev1.PodList
-			err := wait.PollImmediate(1*time.Second, 10*time.Second, func() (done bool, err error) {
-				podList, err = testclient.Client.Pods(config.Namespace).List(context.TODO(), metav1.ListOptions{
-					LabelSelector: "app=ingress-node-firewall-daemon",
-				})
-
-				if err != nil {
-					return false, err
-				}
-
-				if len(podList.Items) > 0 {
-					return true, nil
-				}
-				return false, nil
-			})
+			podList, err := infwutils.GetDaemonSetPods(config.Namespace)
 			Expect(err).To(BeNil())
 			Expect(podList).ToNot(BeNil())
 			daemonPod := &podList.Items[0]

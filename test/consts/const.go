@@ -17,4 +17,6 @@ const (
 	DefaultOperatorNameSpace = "ingress-node-firewall-system"
 	// IngressNodeFirewallConfigCRFile configuration yaml file
 	IngressNodeFirewallConfigCRFile = "ingress-node-firewall-config.yaml"
+	// IngressNodeFirewallEventsLogFile eBPF events logs file
+	IngressNodeFirewallEventsLogFile = "/tmp/ingress_node_firewall_events.log"
 )
