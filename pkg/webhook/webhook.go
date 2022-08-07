@@ -128,7 +128,9 @@ func validateRule(rule ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule, in
 			return field.Invalid(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("rules").Index(ruleIndex),
 				infName, fmt.Sprintf("must be a valid %s rule: %s", rule.Protocol, reason))
 		}
+	}
 
+	if rule.Protocol == ingressnodefwv1alpha1.ProtocolTypeTCP || rule.Protocol == ingressnodefwv1alpha1.ProtocolTypeUDP {
 		if isConflict, err := isConflictWithSafeRulesTransport(rule); !isConflict && err != nil {
 			return field.Invalid(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("rules").Index(ruleIndex),
 				infName, fmt.Sprintf("must be a valid %s rule: %v", rule.Protocol, err))
