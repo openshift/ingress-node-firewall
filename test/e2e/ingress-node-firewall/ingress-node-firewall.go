@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
@@ -52,13 +53,6 @@ func DeleteINFConfig(config *ingressnodefwv1alpha1.IngressNodeFirewallConfig) {
 			LabelSelector: fmt.Sprintf("component=%s", consts.IngressNodeFirewallDaemonsetName)})
 		return len(pods.Items) == 0
 	}, DeployTimeout, Interval).Should(BeTrue())
-}
-
-func Get(operatorNamespace string) (*ingressnodefwv1alpha1.IngressNodeFirewallConfig, error) {
-	config := &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
-	config.SetName("ingressnodefirewallconfig")
-	config.SetNamespace(operatorNamespace)
-	return config, nil
 }
 
 func decodeYAML(r io.Reader, obj interface{}) error {
@@ -124,4 +118,71 @@ func GetDaemonSetPods(ns string) (*v1.PodList, error) {
 		return false, nil
 	})
 	return podList, err
+}
+
+func GetINF(operatorNamespace string) *ingressnodefwv1alpha1.IngressNodeFirewall {
+	inf := &ingressnodefwv1alpha1.IngressNodeFirewall{}
+	inf.SetName("e2e-test")
+	inf.SetNamespace(operatorNamespace)
+	return inf
+}
+
+func DefineWithWorkerNodeSelector(inf *ingressnodefwv1alpha1.IngressNodeFirewall) {
+	inf.Spec.NodeSelector = map[string]string{
+		"node-role.kubernetes.io/worker": "",
+	}
+}
+
+func DefineWithInterface(inf *ingressnodefwv1alpha1.IngressNodeFirewall, interfaceName string) {
+	inf.Spec.Interfaces = &[]string{
+		interfaceName,
+	}
+}
+
+func DefineDenyTCPRule(inf *ingressnodefwv1alpha1.IngressNodeFirewall, sourceCIDR string, port uint16) {
+	inf.Spec.Ingress = append(inf.Spec.Ingress, ingressnodefwv1alpha1.IngressNodeFirewallRules{
+		SourceCIDRs: []string{sourceCIDR},
+		FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+			{
+				Order: 1,
+				ProtocolRule: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
+					Ports: strconv.Itoa(int(port)),
+				},
+				Protocol: ingressnodefwv1alpha1.ProtocolTypeTCP,
+				Action:   ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+			},
+		},
+	})
+}
+
+func DefineDenyUDPRule(inf *ingressnodefwv1alpha1.IngressNodeFirewall, sourceCIDR string, port uint16) {
+	inf.Spec.Ingress = append(inf.Spec.Ingress, ingressnodefwv1alpha1.IngressNodeFirewallRules{
+		SourceCIDRs: []string{sourceCIDR},
+		FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+			{
+				Order: 1,
+				ProtocolRule: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
+					Ports: strconv.Itoa(int(port)),
+				},
+				Protocol: ingressnodefwv1alpha1.ProtocolTypeUDP,
+				Action:   ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+			},
+		},
+	})
+}
+
+func DefineDenyICMPV4Rule(inf *ingressnodefwv1alpha1.IngressNodeFirewall, sourceCIDR string) {
+	inf.Spec.Ingress = append(inf.Spec.Ingress, ingressnodefwv1alpha1.IngressNodeFirewallRules{
+		SourceCIDRs: []string{sourceCIDR},
+		FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+			{
+				Order: 1,
+				ICMPRule: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
+					ICMPCode: 8,
+				},
+				Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP,
+				Action:   ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+			},
+		},
+	})
 }
