@@ -120,9 +120,9 @@ func GetDaemonSetPods(ns string) (*v1.PodList, error) {
 	return podList, err
 }
 
-func GetINF(operatorNamespace string) *ingressnodefwv1alpha1.IngressNodeFirewall {
+func GetINF(operatorNamespace string, name string) *ingressnodefwv1alpha1.IngressNodeFirewall {
 	inf := &ingressnodefwv1alpha1.IngressNodeFirewall{}
-	inf.SetName("e2e-test")
+	inf.SetName(name)
 	inf.SetNamespace(operatorNamespace)
 	return inf
 }
@@ -171,6 +171,22 @@ func DefineDenyUDPRule(inf *ingressnodefwv1alpha1.IngressNodeFirewall, sourceCID
 	})
 }
 
+func DefineDenySCTPRule(inf *ingressnodefwv1alpha1.IngressNodeFirewall, sourceCIDR string, port uint16) {
+	inf.Spec.Ingress = append(inf.Spec.Ingress, ingressnodefwv1alpha1.IngressNodeFirewallRules{
+		SourceCIDRs: []string{sourceCIDR},
+		FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+			{
+				Order: 1,
+				ProtocolRule: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
+					Ports: strconv.Itoa(int(port)),
+				},
+				Protocol: ingressnodefwv1alpha1.ProtocolTypeSCTP,
+				Action:   ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+			},
+		},
+	})
+}
+
 func DefineDenyICMPV4Rule(inf *ingressnodefwv1alpha1.IngressNodeFirewall, sourceCIDR string) {
 	inf.Spec.Ingress = append(inf.Spec.Ingress, ingressnodefwv1alpha1.IngressNodeFirewallRules{
 		SourceCIDRs: []string{sourceCIDR},
@@ -181,6 +197,22 @@ func DefineDenyICMPV4Rule(inf *ingressnodefwv1alpha1.IngressNodeFirewall, source
 					ICMPCode: 8,
 				},
 				Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP,
+				Action:   ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+			},
+		},
+	})
+}
+
+func DefineDenyICMPV6Rule(inf *ingressnodefwv1alpha1.IngressNodeFirewall, sourceCIDR string) {
+	inf.Spec.Ingress = append(inf.Spec.Ingress, ingressnodefwv1alpha1.IngressNodeFirewallRules{
+		SourceCIDRs: []string{sourceCIDR},
+		FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+			{
+				Order: 1,
+				ICMPRule: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
+					ICMPCode: 8,
+				},
+				Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP6,
 				Action:   ingressnodefwv1alpha1.IngressNodeFirewallDeny,
 			},
 		},
