@@ -269,6 +269,16 @@ var _ = Describe("Rules", func() {
 				getTCPUDPRule(validOrder, ingressnodefwv1alpha1.ProtocolTypeTCP, validPort, ingressnodefwv1alpha1.IngressNodeFirewallAllow))
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
+
+		It("only unique order is allowed", func() {
+			// create inf which has sourceCIRDR X order one
+			Expect(createIngressNodeFirewall(inf)).To(Succeed())
+			// again, create inf which has sourceCIRDR X order one and expect failure
+			inf2 := inf.DeepCopy()
+			inf2.Name = "meta-order-unique"
+			Expect(createIngressNodeFirewall(inf2)).ToNot(Succeed())
+			Expect(deleteIngressNodeFirewall(inf)).To(Succeed())
+		})
 	})
 })
 
