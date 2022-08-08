@@ -116,7 +116,7 @@ func validateRules(allErrs field.ErrorList, rules []ingressnodefwv1alpha1.Ingres
 }
 
 func validateRule(rule ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule, infRulesIndex, ruleIndex int, infName string) *field.Error {
-	if rule.Protocol == ingressnodefwv1alpha1.ProtocolTypeICMP {
+	if rule.Protocol == ingressnodefwv1alpha1.ProtocolTypeICMP || rule.Protocol == ingressnodefwv1alpha1.ProtocolTypeICMP6 {
 		if isValid, reason := isValidICMPICMPV6Rule(rule); !isValid {
 			return field.Invalid(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("rules").Index(ruleIndex),
 				infName, fmt.Sprintf("must be a valid ICMP(V6) rule: %s", reason))
@@ -128,7 +128,9 @@ func validateRule(rule ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule, in
 			return field.Invalid(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("rules").Index(ruleIndex),
 				infName, fmt.Sprintf("must be a valid %s rule: %s", rule.Protocol, reason))
 		}
+	}
 
+	if rule.Protocol == ingressnodefwv1alpha1.ProtocolTypeTCP || rule.Protocol == ingressnodefwv1alpha1.ProtocolTypeUDP {
 		if isConflict, err := isConflictWithSafeRulesTransport(rule); !isConflict && err != nil {
 			return field.Invalid(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("rules").Index(ruleIndex),
 				infName, fmt.Sprintf("must be a valid %s rule: %v", rule.Protocol, err))

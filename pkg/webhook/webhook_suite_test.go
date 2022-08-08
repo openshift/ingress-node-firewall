@@ -245,6 +245,94 @@ var _ = Describe("Rules", func() {
 		})
 	})
 
+	Context("protocol is UDP", func() {
+		var inf *ingressnodefwv1alpha1.IngressNodeFirewall
+		BeforeEach(func() {
+			inf = getIngressNodeFirewall("ruleudp")
+		})
+
+		It("accepts rule with port range defined", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeUDP, validPortRange, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).To(Succeed())
+			Expect(deleteIngressNodeFirewall(inf))
+		})
+
+		It("rejects rule with port range defined where start is greater than end", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeUDP, invalidPortRangeA, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rejects rule with port range defined where start and end range are equal", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeUDP, invalidPortRangeB, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rejects rule with port range defined where only end is defined", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeUDP, invalidPortRangeC, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rejects rule with no port defined", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeUDP, validPort, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolRule = nil
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rejects rule with port as 0", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeUDP, "0", ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rejects rule with port greater than 65535", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeUDP, "65536", ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+	})
+
+	Context("protocol is SCTP", func() {
+		var inf *ingressnodefwv1alpha1.IngressNodeFirewall
+		BeforeEach(func() {
+			inf = getIngressNodeFirewall("rulessctp")
+		})
+
+		It("accepts rule with port range defined", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeSCTP, validPortRange, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).To(Succeed())
+			Expect(deleteIngressNodeFirewall(inf))
+		})
+
+		It("rejects rule with port range defined where start is greater than end", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeSCTP, invalidPortRangeA, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rejects rule with port range defined where start and end range are equal", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeSCTP, invalidPortRangeB, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rejects rule with port range defined where only end is defined", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeSCTP, invalidPortRangeC, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rejects rule with no port defined", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeSCTP, validPort, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolRule = nil
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rejects rule with port as 0", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeSCTP, "0", ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rejects rule with port greater than 65535", func() {
+			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeSCTP, "65536", ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+	})
+
 	Context("Meta", func() {
 		var inf *ingressnodefwv1alpha1.IngressNodeFirewall
 
