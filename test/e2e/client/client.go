@@ -55,7 +55,7 @@ func New(kubeconfig string) *ClientSet {
 	}
 	if err != nil {
 		glog.Infof("Failed to init kubernetes client, please check the $KUBECONFIG environment variable")
-		return nil
+		panic(err)
 	}
 
 	clientSet := &ClientSet{}
