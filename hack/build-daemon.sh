@@ -6,7 +6,8 @@ REPO=github.com/openshift/ingress-node-firewall
 WHAT=daemon
 BIN_PATH=bin
 
-GOFLAGS=${GOFLAGS:-}
+GOFLAGS=${GOFLAGS:-"-mod=vendor"}
+
 LDFLAGS=${LDFLAGS:-}
 
 # Set cross compilation flags and version override.
