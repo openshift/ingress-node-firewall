@@ -1,0 +1,60 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+  name: ingress-node-firewall.v0.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: IngressNodeFirewallConfig is the Schema for the ingressnodefirewallconfigs
+        API
+      displayName: Ingress Node Firewall Config
+      kind: IngressNodeFirewallConfig
+      name: ingressnodefirewallconfigs.ingress-nodefw.ingress-nodefw
+      version: v1alpha1
+    - description: IngressNodeFirewallNodeState is the Schema for the ingressnodefirewallnodestates
+        API
+      displayName: Ingress Node Firewall Node State
+      kind: IngressNodeFirewallNodeState
+      name: ingressnodefirewallnodestates.ingress-nodefw.ingress-nodefw
+      version: v1alpha1
+    - description: IngressNodeFirewall is the Schema for the ingressnodefirewalls
+        API
+      displayName: Ingress Node Firewall
+      kind: IngressNodeFirewall
+      name: ingressnodefirewalls.ingress-nodefw.ingress-nodefw
+      version: v1alpha1
+  description: Ingress node firewall operator
+  displayName: ingress-node-firewall-operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - ingressnodefirewall
+  links:
+  - name: Ingress Node Firewall
+    url: https://ingress-node-firewall.domain
+  maintainers:
+  - email: mmahmoud@redhat.com
+    name: msherif1234
+  maturity: alpha
+  provider:
+    name: RedHat
+  version: 0.0.0
