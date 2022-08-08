@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/pkg/failsaferules"
@@ -13,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
@@ -20,13 +22,19 @@ type IngressNodeFirewallWebhook struct {
 	ingressnodefwv1alpha1.IngressNodeFirewall
 }
 
-//+kubebuilder:webhook:path=/validate-ingress-nodefw-ingress-nodefw-v1alpha1-ingressnodefirewall,mutating=false,failurePolicy=fail,sideEffects=None,groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewalls,verbs=create;update,versions=v1alpha1,name=vingressnodefirewall.kb.io,admissionReviewVersions=v1
-var _ webhook.CustomValidator = &IngressNodeFirewallWebhook{ingressnodefwv1alpha1.IngressNodeFirewall{}}
+type (
+	empty     struct{}
+	uint32Set map[uint32]empty
+)
 
-type empty struct{}
-type uint32Set map[uint32]empty
+//+kubebuilder:webhook:path=/validate-ingress-nodefw-ingress-nodefw-v1alpha1-ingressnodefirewall,mutating=false,failurePolicy=fail,sideEffects=None,groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewalls,verbs=create;update,versions=v1alpha1,name=vingressnodefirewall.kb.io,admissionReviewVersions=v1
+var (
+	_          webhook.CustomValidator = &IngressNodeFirewallWebhook{ingressnodefwv1alpha1.IngressNodeFirewall{}}
+	kubeClient client.Client
+)
 
 func (r *IngressNodeFirewallWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
+	kubeClient = mgr.GetClient()
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(&ingressnodefwv1alpha1.IngressNodeFirewall{}).
 		WithValidator(&IngressNodeFirewallWebhook{}).
@@ -34,23 +42,23 @@ func (r *IngressNodeFirewallWebhook) SetupWebhookWithManager(mgr ctrl.Manager) e
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *IngressNodeFirewallWebhook) ValidateCreate(_ context.Context, newObj runtime.Object) error {
+func (r *IngressNodeFirewallWebhook) ValidateCreate(ctx context.Context, newObj runtime.Object) error {
 	newINF, ok := newObj.(*ingressnodefwv1alpha1.IngressNodeFirewall)
 	if !ok {
 		return apierrors.NewBadRequest(fmt.Sprintf("expected an IngressNodeFirewall but got a %T", newObj))
 	}
 
-	return validateIngressNodeFirewall(newINF)
+	return validateIngressNodeFirewall(ctx, newINF, kubeClient)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *IngressNodeFirewallWebhook) ValidateUpdate(_ context.Context, _, newObj runtime.Object) error {
+func (r *IngressNodeFirewallWebhook) ValidateUpdate(ctx context.Context, _, newObj runtime.Object) error {
 	newINF, ok := newObj.(*ingressnodefwv1alpha1.IngressNodeFirewall)
 	if !ok {
 		return apierrors.NewBadRequest(fmt.Sprintf("expected an IngressNodeFirewall but got a %T", newObj))
 	}
 
-	return validateIngressNodeFirewall(newINF)
+	return validateIngressNodeFirewall(ctx, newINF, kubeClient)
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
@@ -58,8 +66,8 @@ func (r *IngressNodeFirewallWebhook) ValidateDelete(_ context.Context, _ runtime
 	return nil
 }
 
-func validateIngressNodeFirewall(inf *ingressnodefwv1alpha1.IngressNodeFirewall) error {
-	if allErrs := validateINFRules(inf.Spec.Ingress, inf.Name); len(allErrs) > 0 {
+func validateIngressNodeFirewall(ctx context.Context, inf *ingressnodefwv1alpha1.IngressNodeFirewall, kubeClient client.Client) error {
+	if allErrs := validateINFRules(ctx, inf.Spec.Ingress, inf.Name, kubeClient); len(allErrs) > 0 {
 		return apierrors.NewInvalid(
 			schema.GroupKind{Group: ingressnodefwv1alpha1.GroupVersion.Group, Kind: ingressnodefwv1alpha1.IngressNodeFirewall{}.Kind},
 			inf.Name, allErrs)
@@ -67,14 +75,26 @@ func validateIngressNodeFirewall(inf *ingressnodefwv1alpha1.IngressNodeFirewall)
 	return nil
 }
 
-func validateINFRules(infRules []ingressnodefwv1alpha1.IngressNodeFirewallRules, infName string) field.ErrorList {
+func validateINFRules(ctx context.Context, infRules []ingressnodefwv1alpha1.IngressNodeFirewallRules, infName string, kubeClient client.Client) field.ErrorList {
 	var allErrs field.ErrorList
+
+	infList, newErr := getINFList(ctx, kubeClient)
+	if newErr != nil {
+		allErrs = append(allErrs, newErr)
+		return allErrs
+	}
+
 	for infRulesIndex, infRule := range infRules {
 		if newErrs := validatesourceCIDRs(allErrs, infRule.SourceCIDRs, infRulesIndex, infName); len(newErrs) > 0 {
 			allErrs = append(allErrs, newErrs...)
 		}
 
 		if newErrs := validateRules(allErrs, infRule.FirewallProtocolRules, infRulesIndex, infName); len(newErrs) > 0 {
+			allErrs = append(allErrs, newErrs...)
+		}
+
+		if newErrs := validateAgainstExistingINFs(allErrs, infList, infRule.SourceCIDRs, infRule.FirewallProtocolRules,
+			infRulesIndex, infName); len(newErrs) > 0 {
 			allErrs = append(allErrs, newErrs...)
 		}
 	}
@@ -230,12 +250,12 @@ func isValidTCPUDPSCTPRule(rule ingressnodefwv1alpha1.IngressNodeFirewallProtoco
 	return true, ""
 }
 
-func orderIsUnique(infRules []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule) bool {
+func orderIsUnique(rules []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule) bool {
 	orderSet := uint32Set{}
-	for _, rule := range infRules {
+	for _, rule := range rules {
 		orderSet[rule.Order] = empty{}
 	}
-	if len(orderSet) != len(infRules) {
+	if len(orderSet) != len(rules) {
 		return false
 	}
 	return true
@@ -243,4 +263,47 @@ func orderIsUnique(infRules []ingressnodefwv1alpha1.IngressNodeFirewallProtocolR
 
 func withinRange(i, lowerBound, upperBound uint16) bool {
 	return i >= lowerBound && i <= upperBound
+}
+
+func getINFList(ctx context.Context, kubeClient client.Client) (*ingressnodefwv1alpha1.IngressNodeFirewallList, *field.Error) {
+	infList := &ingressnodefwv1alpha1.IngressNodeFirewallList{}
+	if err := kubeClient.List(ctx, infList, &client.ListOptions{}); err != nil {
+		return nil, field.InternalError(field.NewPath("spec").Child("ingress"),
+			fmt.Errorf("failed to get list of IngressNodeFirewalls from Kubernetes API server and therefore unable"+
+				" to validate IngressNodeFirewall against existing IngressNodeFirewall: %v", err))
+	}
+	return infList, nil
+}
+
+func validateAgainstExistingINFs(allErrs field.ErrorList, infList *ingressnodefwv1alpha1.IngressNodeFirewallList, newSourceCIDRs []string,
+	newRules []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule, newINFRulesIndex int, newINFName string) field.ErrorList {
+
+	for _, existingINF := range infList.Items {
+		for _, existingRules := range existingINF.Spec.Ingress {
+			for _, existingSourceCIDR := range existingRules.SourceCIDRs {
+				for _, newSourceCIDR := range newSourceCIDRs {
+					if strings.TrimSpace(newSourceCIDR) == strings.TrimSpace(existingSourceCIDR) {
+						if isOrderOverlapping(existingRules.FirewallProtocolRules, newRules) {
+							allErrs = append(allErrs,
+								field.Invalid(field.NewPath("spec").Child("ingress").Index(newINFRulesIndex).Key("rules"),
+									newINFName, fmt.Sprintf("order is not unique for sourceCIDR %q and conflicts with "+
+										"IngressNodeFirewall %q", newSourceCIDR, existingINF.Name)))
+						}
+					}
+				}
+			}
+		}
+	}
+	return allErrs
+}
+
+func isOrderOverlapping(rulesA []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule, rulesB []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule) bool {
+	for _, ruleA := range rulesA {
+		for _, ruleB := range rulesB {
+			if ruleA.Order == ruleB.Order {
+				return true
+			}
+		}
+	}
+	return false
 }
