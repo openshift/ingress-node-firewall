@@ -104,16 +104,18 @@ func (r *IngressNodeFirewallReconciler) Reconcile(ctx context.Context, req ctrl.
 		}
 
 		// If the node name was found ...
-		// a) compare the specs. If the specs are different, update the current spec.
-		if !equality.Semantic.DeepEqual(ingressNodeFirewallCurrentNodeState.Spec, desiredNodeState.Spec) {
+		// a) compare the specs or owner reference. If the specs or owner reference are different, update the current spec.
+		if !equality.Semantic.DeepEqual(ingressNodeFirewallCurrentNodeState.Spec, desiredNodeState.Spec) ||
+			!equality.Semantic.DeepEqual(ingressNodeFirewallCurrentNodeState.OwnerReferences, desiredNodeState.OwnerReferences) {
 			// Otherwise, if the Spec and/or Status does not match, update the current node state.
 			// Also, remove the object from the nodeStateDesiredSpecs so that we can later iterate over the items
 			// that must still be created.
-			r.Log.Info("Existing object found but it has a different Spec, triggering update",
+			r.Log.Info("Existing object found but it has a different Spec or OwnerReferences, triggering update",
 				"req.Name", req.Name,
 				"ingressNodeFirewallCurrentNodeState.Name", ingressNodeFirewallCurrentNodeState.Name)
 			// i) Update the Spec.
 			ingressNodeFirewallCurrentNodeState.Spec = desiredNodeState.Spec
+			ingressNodeFirewallCurrentNodeState.OwnerReferences = desiredNodeState.OwnerReferences
 			err = r.Update(ctx, &ingressNodeFirewallCurrentNodeState)
 			if err != nil {
 				r.Log.Error(err, "Failed to update IngressNodeFirewallNodeState",
@@ -161,8 +163,9 @@ func (r *IngressNodeFirewallReconciler) Reconcile(ctx context.Context, req ctrl.
 		// a) Create the new resource - this will set the spec.
 		ingressNodeFirewallNodeState := infv1alpha1.IngressNodeFirewallNodeState{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      nodeToCreate,
-				Namespace: r.Namespace,
+				Name:            nodeToCreate,
+				Namespace:       r.Namespace,
+				OwnerReferences: desiredNodeState.OwnerReferences,
 			},
 			Spec: desiredNodeState.Spec,
 		}
@@ -225,14 +228,21 @@ func (r *IngressNodeFirewallReconciler) triggerReconciliation(object client.Obje
 	}
 }
 
-// SetupWithManager sets up the controller with the Manager. In addition to watching IngressNodeFirewall
-// this also watches objects of Kind Node.
+// SetupWithManager sets up the controller with the Manager.
+// In addition to watching IngressNodeFirewall this also watches all objects of Kind Node and any change to a node
+// will trigger a reconciliation request.
+// Additionally, changes to objects of type IngressNodeFirewallNodeState with an owner references will lead to
+// reconciliation as well. Given that an IngressNodeFirewallNodeState can have multiple owners, reconciliation will
+// be triggered for any of them (thus, IsController: false).
 func (r *IngressNodeFirewallReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infv1alpha1.IngressNodeFirewall{}).
 		Watches(
 			&source.Kind{Type: &v1.Node{}},
 			handler.EnqueueRequestsFromMapFunc(r.triggerReconciliation)).
+		Watches(
+			&source.Kind{Type: &infv1alpha1.IngressNodeFirewallNodeState{}},
+			&handler.EnqueueRequestForOwner{OwnerType: &infv1alpha1.IngressNodeFirewall{}, IsController: false}).
 		Complete(r)
 }
 
@@ -272,6 +282,26 @@ func (r *IngressNodeFirewallReconciler) buildNodeStates(
 			} else {
 				state = infv1alpha1.IngressNodeFirewallNodeState{}
 				state.Spec.InterfaceIngressRules = make(map[string][]infv1alpha1.IngressNodeFirewallRules)
+			}
+
+			// Build and/or update the node state object's owner reference.
+			ownerRefFound := false
+			for _, ownerReference := range state.OwnerReferences {
+				if ownerReference.Kind == firewallObj.Kind &&
+					ownerReference.APIVersion == firewallObj.APIVersion &&
+					ownerReference.Name == firewallObj.Name &&
+					ownerReference.UID == firewallObj.UID {
+					ownerRefFound = true
+					break
+				}
+			}
+			if !ownerRefFound {
+				state.OwnerReferences = append(state.OwnerReferences, metav1.OwnerReference{
+					APIVersion: firewallObj.APIVersion,
+					Kind:       firewallObj.Kind,
+					Name:       firewallObj.Name,
+					UID:        firewallObj.UID,
+				})
 			}
 
 			// Check the current synchronization status. If the status indicates a synchronization error then
