@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"strings"
 	"syscall"
 
 	ingressnodefwiov1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
@@ -17,9 +18,10 @@ import (
 )
 
 const (
-	xdpDeny   = 1 // XDP_DROP value
-	xdpAllow  = 2 // XDP_PASS value
-	bpfFSPath = "/sys/fs/bpf"
+	xdpDeny     = 1 // XDP_DROP value
+	xdpAllow    = 2 // XDP_PASS value
+	bpfFSPath   = "/sys/fs/bpf"
+	xdpEBUSYErr = "device or resource busy"
 )
 
 // IngNodeFwController structure is the object hold controls for starting
@@ -220,6 +222,10 @@ func (infc *IngNodeFwController) IngressNodeFwAttach(ifacesName []string, isDele
 				Interface: iface.Index,
 			})
 			if err != nil {
+				if strings.Contains(err.Error(), xdpEBUSYErr) {
+					log.Printf("Interface %s is already attached", ifaceName)
+					return ifMap, nil
+				}
 				return ifMap, fmt.Errorf("could not attach XDP program: %s", err)
 			}
 			lPinDir := path.Join(infc.pinPath, ifaceName+"_link")
@@ -238,20 +244,28 @@ func (infc *IngNodeFwController) IngressNodeFwAttach(ifacesName []string, isDele
 	return ifMap, nil
 }
 
-// cleanup will delete all link objects for all interfaces and remove all the maps
+// cleanup will delete interface's eBPF objects.
 func (infc *IngNodeFwController) cleanup(ifName string) error {
 	l, ok := infc.links[ifName]
 	if !ok {
 		return fmt.Errorf("failed to find Link object for interface %s", ifName)
 	}
+	if err := l.Unpin(); err != nil {
+		return fmt.Errorf("failed to unpin link for %s err: %q", ifName, err)
+	}
 	if err := l.Close(); err != nil {
-		return err
+		return fmt.Errorf("failed to close and detach link %s err: %q", ifName, err)
 	}
 	delete(infc.links, ifName)
-	if len(infc.links) == 0 {
-		if err := infc.objs.Close(); err != nil {
-			return err
-		}
+	return nil
+}
+
+func (infc *IngNodeFwController) CleaneBPFObjs() error {
+	if err := infc.objs.Close(); err != nil {
+		return fmt.Errorf("failed to close eBPF objs err: %q", err)
+	}
+	if err := os.RemoveAll(infc.pinPath); err != nil {
+		return fmt.Errorf("failed to remove pinpath %s err: %q", infc.pinPath, err)
 	}
 	return nil
 }
