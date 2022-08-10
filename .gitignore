@@ -9,6 +9,8 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
+# Temporary direcyories and files
 bin/*
-
+testbin/*
 kubeconfig
+
