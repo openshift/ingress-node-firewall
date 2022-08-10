@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -33,12 +34,13 @@ var _ = Describe("IngressNodeFirewall controller", func() {
 			FirewallProtocolRules: []infv1alpha1.IngressNodeFirewallProtocolRule{
 				{
 					Order: 10,
-					ProtocolRule: &infv1alpha1.IngressNodeFirewallProtoRule{
-						Ports: "80",
+					ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
+						Protocol: infv1alpha1.ProtocolTypeTCP,
+						TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
+							Ports: intstr.FromInt(80),
+						},
 					},
-					ICMPRule: &infv1alpha1.IngressNodeFirewallICMPRule{},
-					Protocol: "tcp",
-					Action:   "allow",
+					Action: infv1alpha1.IngressNodeFirewallAllow,
 				},
 			},
 		},
@@ -81,11 +83,11 @@ var _ = Describe("IngressNodeFirewall controller", func() {
 			TypeMeta:   metav1.TypeMeta{},
 			ObjectMeta: metav1.ObjectMeta{Name: ingressNodeFirewallName},
 			Spec: infv1alpha1.IngressNodeFirewallSpec{
-				NodeSelector: map[string]string{
-					"node-role.kubernetes.io/worker": "",
+				NodeSelector: metav1.LabelSelector{
+					MatchLabels: map[string]string{"node-role.kubernetes.io/worker": ""},
 				},
 				Ingress:    rules,
-				Interfaces: &interfaces,
+				Interfaces: interfaces,
 			},
 			Status: infv1alpha1.IngressNodeFirewallStatus{},
 		}
@@ -142,7 +144,7 @@ var _ = Describe("IngressNodeFirewall controller", func() {
 								"for object with name %s\n", nodeState.Name)
 						return false
 					}
-					if len(*nodeState.Spec.Interfaces) != 1 || (*nodeState.Spec.Interfaces)[0] != "eth0" {
+					if len(nodeState.Spec.Interfaces) != 1 || (nodeState.Spec.Interfaces)[0] != "eth0" {
 						fmt.Fprintf(GinkgoWriter,
 							"IngressNodeFirewallNodeState.Spec.Interfaces does not match IngressNodeFirewall.Spec.Interfaces "+
 								"for object with name %s\n", nodeState.Name)
@@ -179,7 +181,9 @@ var _ = Describe("IngressNodeFirewall controller", func() {
 				inf := &infv1alpha1.IngressNodeFirewall{}
 				key := types.NamespacedName{Name: ingressNodeFirewallName}
 				Expect(k8sClient.Get(ctx, key, inf)).Should(Succeed())
-				inf.Spec.NodeSelector = map[string]string{}
+				inf.Spec.NodeSelector = metav1.LabelSelector{
+					MatchLabels: map[string]string{},
+				}
 				return k8sClient.Update(ctx, inf)
 			})
 			Expect(err).NotTo(HaveOccurred())

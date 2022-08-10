@@ -26,7 +26,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ingress-nodefw.ingress-nodefw
+  - ingressnodefirewall.openshift.io
   resources:
   - ingressnodefirewallconfigs
   verbs:
@@ -38,13 +38,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ingress-nodefw.ingress-nodefw
+  - ingressnodefirewall.openshift.io
   resources:
   - ingressnodefirewallconfigs/finalizers
   verbs:
   - update
 - apiGroups:
-  - ingress-nodefw.ingress-nodefw
+  - ingressnodefirewall.openshift.io
   resources:
   - ingressnodefirewallconfigs/status
   verbs:
@@ -52,7 +52,7 @@ rules:
   - patch
   - update
 - apiGroups:
-  - ingress-nodefw.ingress-nodefw
+  - ingressnodefirewall.openshift.io
   resources:
   - ingressnodefirewallnodestates
   verbs:
@@ -64,7 +64,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ingress-nodefw.ingress-nodefw
+  - ingressnodefirewall.openshift.io
   resources:
   - ingressnodefirewalls
   verbs:
@@ -76,13 +76,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ingress-nodefw.ingress-nodefw
+  - ingressnodefirewall.openshift.io
   resources:
   - ingressnodefirewalls/finalizers
   verbs:
   - update
 - apiGroups:
-  - ingress-nodefw.ingress-nodefw
+  - ingressnodefirewall.openshift.io
   resources:
   - ingressnodefirewalls/status
   verbs:
@@ -110,7 +110,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ingress-nodefw.ingress-nodefw
+  - ingressnodefirewall.openshift.io
   resources:
   - ingressnodefirewallnodestates
   verbs:
@@ -122,13 +122,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ingress-nodefw.ingress-nodefw
+  - ingressnodefirewall.openshift.io
   resources:
   - ingressnodefirewallnodestates/finalizers
   verbs:
   - update
 - apiGroups:
-  - ingress-nodefw.ingress-nodefw
+  - ingressnodefirewall.openshift.io
   resources:
   - ingressnodefirewallnodestates/status
   verbs:

@@ -22,35 +22,27 @@ import (
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// IngressNodeFirewallNodeStateSpec defines the desired state of IngressNodeFirewallNodeState
+// IngressNodeFirewallNodeStateSpec defines the desired state of IngressNodeFirewallNodeState.
 type IngressNodeFirewallNodeStateSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// A list of ingress firewall policy rules.
-	// empty list indicates no ingress firewall i.e allow all incoming traffic.
-	// +kubebuilder:validation:Optional
-	// +optional
+	// ingress is a list of ingress firewall policy rules.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinItems:=1
 	Ingress []IngressNodeFirewallRules `json:"ingress"`
 
-	// A list of interfaces where the ingress firewall policy will be applied on.
-	// empty list indicates the firewall policy applied on all interfaces
-	// +kubebuilder:validation:Optional
-	// +optional
-	// +nullable
-	Interfaces *[]string `json:"interfaces"`
+	// interfaces is a list of interfaces where the ingress firewall policy will be applied on.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinItems:=1
+	Interfaces []string `json:"interfaces"`
 }
 
-// IngressNodeFirewallNodeStateStatus defines the observed state of IngressNodeFirewallNodeState
+// IngressNodeFirewallNodeStateStatus defines the observed state of IngressNodeFirewallNodeState.
 type IngressNodeFirewallNodeStateStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// IngressNodeFirewallNodeState is the Schema for the ingressnodefirewallnodestates API
+// IngressNodeFirewallNodeState is the Schema for the ingressnodefirewallnodestates API.
 type IngressNodeFirewallNodeState struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -61,7 +53,7 @@ type IngressNodeFirewallNodeState struct {
 
 //+kubebuilder:object:root=true
 
-// IngressNodeFirewallNodeStateList contains a list of IngressNodeFirewallNodeState
+// IngressNodeFirewallNodeStateList contains a list of IngressNodeFirewallNodeState.
 type IngressNodeFirewallNodeStateList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

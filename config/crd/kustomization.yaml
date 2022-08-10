@@ -2,9 +2,9 @@
 # since it depends on service name and namespace that are out of this kustomize package.
 # It should be run by config/default
 resources:
-- bases/ingress-nodefw.ingress-nodefw_ingressnodefirewalls.yaml
-- bases/ingress-nodefw.ingress-nodefw_ingressnodefirewallnodestates.yaml
-- bases/ingress-nodefw.ingress-nodefw_ingressnodefirewallconfigs.yaml
+- bases/ingressnodefirewall.openshift.io_ingressnodefirewalls.yaml
+- bases/ingressnodefirewall.openshift.io_ingressnodefirewallnodestates.yaml
+- bases/ingressnodefirewall.openshift.io_ingressnodefirewallconfigs.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge:

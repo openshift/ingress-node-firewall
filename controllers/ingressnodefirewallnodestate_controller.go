@@ -16,7 +16,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	nodefwloader "github.com/openshift/ingress-node-firewall/pkg/ebpf"
@@ -27,6 +26,7 @@ import (
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -41,10 +41,10 @@ type IngressNodeFirewallNodeStateReconciler struct {
 	Stats     *metrics.Statistics
 }
 
-//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewallnodestates,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,namespace=ingress-node-firewall-system,resources=ingressnodefirewallnodestates,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,namespace=ingress-node-firewall-system,resources=ingressnodefirewallnodestates/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,namespace=ingress-node-firewall-system,resources=ingressnodefirewallnodestates/finalizers,verbs=update
+//+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewallnodestates,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,namespace=ingress-node-firewall-system,resources=ingressnodefirewallnodestates,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,namespace=ingress-node-firewall-system,resources=ingressnodefirewallnodestates/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,namespace=ingress-node-firewall-system,resources=ingressnodefirewallnodestates/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -107,12 +107,12 @@ func (r *IngressNodeFirewallNodeStateReconciler) syncIngressNodeFirewallResource
 		return err
 	}
 
-	ifMap, err := c.IngressNodeFwAttach(*instance.Spec.Interfaces, isDelete)
+	ifMap, err := c.IngressNodeFwAttach(instance.Spec.Interfaces, isDelete)
 	if err != nil {
 		logger.Error(err, "Fail to attach ingress firewall prog")
 		return err
 	}
-	for _, intf := range *instance.Spec.Interfaces {
+	for _, intf := range instance.Spec.Interfaces {
 		for _, rule := range instance.Spec.Ingress {
 			rule := rule.DeepCopy()
 			if err := addFailSaferules(&rule.FirewallProtocolRules); err != nil {
@@ -144,11 +144,11 @@ func addFailSaferules(rules *[]infv1alpha1.IngressNodeFirewallProtocolRule) erro
 	for _, rule := range tcpFailSafeRules {
 		rule := rule
 		fsRule := infv1alpha1.IngressNodeFirewallProtocolRule{}
-		fsRule.ProtocolRule = new(infv1alpha1.IngressNodeFirewallProtoRule)
+		fsRule.ProtocolConfig.TCP = new(infv1alpha1.IngressNodeFirewallProtoRule)
 		fsRule.Order = uint32(fsRuleIndex)
 		fsRuleIndex += 1
-		fsRule.Protocol = infv1alpha1.ProtocolTypeTCP
-		(*fsRule.ProtocolRule).Ports = strconv.Itoa(int(rule.GetPort()))
+		fsRule.ProtocolConfig.Protocol = infv1alpha1.ProtocolTypeTCP
+		(*fsRule.ProtocolConfig.TCP).Ports = intstr.FromInt(int(rule.GetPort()))
 		fsRule.Action = infv1alpha1.IngressNodeFirewallAllow
 		*rules = append(*rules, fsRule)
 	}
@@ -157,11 +157,11 @@ func addFailSaferules(rules *[]infv1alpha1.IngressNodeFirewallProtocolRule) erro
 	for _, rule := range udpFailSafeRules {
 		rule := rule
 		fsRule := infv1alpha1.IngressNodeFirewallProtocolRule{}
-		fsRule.ProtocolRule = new(infv1alpha1.IngressNodeFirewallProtoRule)
+		fsRule.ProtocolConfig.UDP = new(infv1alpha1.IngressNodeFirewallProtoRule)
 		fsRule.Order = uint32(fsRuleIndex)
 		fsRuleIndex += 1
-		fsRule.Protocol = infv1alpha1.ProtocolTypeUDP
-		(*fsRule.ProtocolRule).Ports = strconv.Itoa(int(rule.GetPort()))
+		fsRule.ProtocolConfig.Protocol = infv1alpha1.ProtocolTypeUDP
+		(*fsRule.ProtocolConfig.UDP).Ports = intstr.FromInt(int(rule.GetPort()))
 		fsRule.Action = infv1alpha1.IngressNodeFirewallAllow
 		*rules = append(*rules, fsRule)
 	}

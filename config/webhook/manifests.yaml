@@ -11,12 +11,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-ingress-nodefw-ingress-nodefw-v1alpha1-ingressnodefirewall
+      path: /validate-ingressnodefirewall-openshift-io-v1alpha1-ingressnodefirewall
   failurePolicy: Fail
   name: vingressnodefirewall.kb.io
   rules:
   - apiGroups:
-    - ingress-nodefw.ingress-nodefw
+    - ingressnodefirewall.openshift.io
     apiVersions:
     - v1alpha1
     operations:

@@ -45,9 +45,9 @@ type IngressNodeFirewallReconciler struct {
 	Namespace string
 }
 
-//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewalls,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewalls/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewalls/finalizers,verbs=update
+//+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewalls,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewalls/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewalls/finalizers,verbs=update
 //+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -210,7 +210,7 @@ func (r *IngressNodeFirewallReconciler) buildNodeStateSpecs(
 	// and all interfaces.
 	for _, firewallObj := range ingressNodeFirewallList.Items {
 		listOpts := []client.ListOption{
-			client.MatchingLabels(firewallObj.Spec.NodeSelector),
+			client.MatchingLabels(firewallObj.Spec.NodeSelector.MatchLabels),
 		}
 		err = r.List(ctx, &nodeList, listOpts...)
 		if err != nil {
@@ -226,7 +226,7 @@ func (r *IngressNodeFirewallReconciler) buildNodeStateSpecs(
 			}
 			nodeIngressRuleSet[node.Name] = append(nodeIngressRuleSet[node.Name], firewallObj.Spec.Ingress...)
 			if firewallObj.Spec.Interfaces != nil {
-				nodeInterfaceSet[node.Name].Insert(*firewallObj.Spec.Interfaces...)
+				nodeInterfaceSet[node.Name].Insert(firewallObj.Spec.Interfaces...)
 			}
 		}
 	}
@@ -236,7 +236,7 @@ func (r *IngressNodeFirewallReconciler) buildNodeStateSpecs(
 		interfaceList := nodeInterfaceSet[node].List()
 		nodeStateSpecs[node] = infv1alpha1.IngressNodeFirewallNodeStateSpec{
 			Ingress:    ingressRule,
-			Interfaces: &interfaceList,
+			Interfaces: interfaceList,
 		}
 	}
 

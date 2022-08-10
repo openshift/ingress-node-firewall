@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/component-base/metrics/testutil"
 	goclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -104,8 +105,8 @@ var _ = Describe("Ingress Node Firewall", func() {
 					Name: "rules1",
 				},
 				Spec: ingressnodefwv1alpha1.IngressNodeFirewallSpec{
-					NodeSelector: map[string]string{
-						"node-role.kubernetes.io/worker": "",
+					NodeSelector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"node-role.kubernetes.io/worker": ""},
 					},
 					Ingress: []ingressnodefwv1alpha1.IngressNodeFirewallRules{
 						{
@@ -113,19 +114,23 @@ var _ = Describe("Ingress Node Firewall", func() {
 							FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 								{
 									Order: 10,
-									ICMPRule: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
-										ICMPType: 8,
+									ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+										Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP,
+										ICMP: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
+											ICMPType: 8,
+										},
 									},
-									Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP,
-									Action:   ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+									Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
 								},
 								{
 									Order: 20,
-									ProtocolRule: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
-										Ports: "800-900",
+									ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+										Protocol: ingressnodefwv1alpha1.ProtocolTypeTCP,
+										TCP: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
+											Ports: intstr.FromString("800-900"),
+										},
 									},
-									Protocol: ingressnodefwv1alpha1.ProtocolTypeTCP,
-									Action:   ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+									Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
 								},
 							},
 						},
@@ -134,16 +139,18 @@ var _ = Describe("Ingress Node Firewall", func() {
 							FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 								{
 									Order: 10,
-									ICMPRule: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
-										ICMPType: 128,
+									ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+										Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP6,
+										ICMPv6: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
+											ICMPType: 128,
+										},
 									},
-									Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP6,
-									Action:   ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+									Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
 								},
 							},
 						},
 					},
-					Interfaces: &[]string{
+					Interfaces: []string{
 						"eth0",
 					},
 				},
@@ -292,8 +299,8 @@ var _ = Describe("Ingress Node Firewall", func() {
 					Name: "rules1",
 				},
 				Spec: ingressnodefwv1alpha1.IngressNodeFirewallSpec{
-					NodeSelector: map[string]string{
-						"node-role.kubernetes.io/worker": "",
+					NodeSelector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"node-role.kubernetes.io/worker": ""},
 					},
 					Ingress: []ingressnodefwv1alpha1.IngressNodeFirewallRules{
 						{
@@ -301,16 +308,18 @@ var _ = Describe("Ingress Node Firewall", func() {
 							FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 								{
 									Order: 1,
-									ICMPRule: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
-										ICMPType: 8,
+									ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+										Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP,
+										ICMP: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
+											ICMPType: 8,
+										},
 									},
-									Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP,
-									Action:   ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+									Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
 								},
 							},
 						},
 					},
-					Interfaces: &[]string{
+					Interfaces: []string{
 						"eth0",
 					},
 				},
@@ -490,7 +499,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			infwutils.DefineWithWorkerNodeSelector(inf)
 			infwutils.DefineWithInterface(inf, "eth0")
 			infwutils.DefineDenyTCPRule(inf, "1.1.1.1/32", 40000)
-			inf.Spec.Ingress[0].FirewallProtocolRules[0].ICMPRule = &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{ICMPCode: 8}
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.ICMP = &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{ICMPCode: 8}
 			Expect(testclient.Client.Create(context.Background(), inf)).ToNot(Succeed())
 		})
 
@@ -499,7 +508,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			infwutils.DefineWithWorkerNodeSelector(inf)
 			infwutils.DefineWithInterface(inf, "eth0")
 			infwutils.DefineDenyUDPRule(inf, "1.1.1.1/32", 40000)
-			inf.Spec.Ingress[0].FirewallProtocolRules[0].ICMPRule = &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{ICMPCode: 8}
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.ICMP = &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{ICMPCode: 8}
 			Expect(testclient.Client.Create(context.Background(), inf)).ToNot(Succeed())
 		})
 
@@ -508,7 +517,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			infwutils.DefineWithWorkerNodeSelector(inf)
 			infwutils.DefineWithInterface(inf, "eth0")
 			infwutils.DefineDenySCTPRule(inf, "1.1.1.1/32", 40000)
-			inf.Spec.Ingress[0].FirewallProtocolRules[0].ICMPRule = &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{ICMPCode: 8}
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.ICMP = &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{ICMPCode: 8}
 			Expect(testclient.Client.Create(context.Background(), inf)).ToNot(Succeed())
 		})
 
@@ -517,7 +526,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			infwutils.DefineWithWorkerNodeSelector(inf)
 			infwutils.DefineWithInterface(inf, "eth0")
 			infwutils.DefineDenyICMPV4Rule(inf, "1.1.1.1/32")
-			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolRule = &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{Ports: "80"}
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.TCP = &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{Ports: intstr.FromInt(80)}
 			Expect(testclient.Client.Create(context.Background(), inf)).ToNot(Succeed())
 		})
 
@@ -526,7 +535,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			infwutils.DefineWithWorkerNodeSelector(inf)
 			infwutils.DefineWithInterface(inf, "eth0")
 			infwutils.DefineDenyICMPV6Rule(inf, "1.1.1.1/32")
-			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolRule = &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{Ports: "80"}
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.TCP = &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{Ports: intstr.FromInt(80)}
 			Expect(testclient.Client.Create(context.Background(), inf)).ToNot(Succeed())
 		})
 	})

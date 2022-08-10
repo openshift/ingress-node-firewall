@@ -21,27 +21,26 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// IngressNodeFirewallConfigSpec defines the desired state of IngressNodeFirewallConfig
+// IngressNodeFirewallConfigSpec defines the desired state of IngressNodeFirewallConfig.
 type IngressNodeFirewallConfigSpec struct {
-	// Nodes where the daemonset will be running on.
+	// nodeSelector is used to select which Nodes the ingress node firewall DaemonSet will be run on.
+	// + This field is using map[string]string instead of metav1.LabelSelector because it matches the daemonset NodeSelector template. Thus one cannot benefit from additional match criteria that metav1.LabelSelector provides.
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
-	// tolerations is a list of tolerations applied to ingress node firewall controller
-	// deployments.
+	// A list of tolerations applied to ingress node firewall controller.
+	// daemonsets.
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
-// IngressNodeFirewallConfigStatus defines the observed state of IngressNodeFirewallConfig
+// IngressNodeFirewallConfigStatus defines the observed state of IngressNodeFirewallConfig.
 type IngressNodeFirewallConfigStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// IngressNodeFirewallConfig is the Schema for the ingressnodefirewallconfigs API
+// IngressNodeFirewallConfig is the Schema for the ingressnodefirewallconfigs API.
 type IngressNodeFirewallConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -52,7 +51,7 @@ type IngressNodeFirewallConfig struct {
 
 //+kubebuilder:object:root=true
 
-// IngressNodeFirewallConfigList contains a list of IngressNodeFirewallConfig
+// IngressNodeFirewallConfigList contains a list of IngressNodeFirewallConfig.
 type IngressNodeFirewallConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

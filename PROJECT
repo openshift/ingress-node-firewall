@@ -1,4 +1,4 @@
-domain: ingress-nodefw
+domain: ingressnodefirewall.openshift.io
 layout:
 - go.kubebuilder.io/v3
 plugins:
@@ -10,8 +10,8 @@ resources:
 - api:
     crdVersion: v1
   controller: true
-  domain: ingress-nodefw
-  group: ingress-nodefw
+  domain: ingressnodefirewall.openshift.io
+  group: ingressnodefirewall.openshift.io
   kind: IngressNodeFirewall
   path: github.com/openshift/ingress-node-firewall/api/v1alpha1
   version: v1alpha1
@@ -22,8 +22,8 @@ resources:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: ingress-nodefw
-  group: ingress-nodefw
+  domain: ingressnodefirewall.openshift.io
+  group: ingressnodefirewall.openshift.io
   kind: IngressNodeFirewallConfig
   path: github.com/openshift/ingress-node-firewall/api/v1alpha1
   version: v1alpha1
@@ -31,8 +31,8 @@ resources:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: ingress-nodefw
-  group: ingress-nodefw
+  domain: ingressnodefirewall.openshift.io
+  group: ingressnodefirewall.openshift.io
   kind: IngressNodeFirewallNodeState
   path: github.com/openshift/ingress-node-firewall/api/v1alpha1
   version: v1alpha1

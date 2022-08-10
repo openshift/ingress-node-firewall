@@ -1,20 +1,27 @@
-package v1alpha1
+package utils
 
 import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
+
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-func (p IngressNodeFirewallProtoRule) IsRange() bool {
-	return strings.Contains(p.Ports, "-")
+func IsRange(p *infv1alpha1.IngressNodeFirewallProtoRule) bool {
+	if p.Ports.Type == intstr.String {
+		return strings.Contains(p.Ports.String(), "-")
+	}
+	return false
 }
 
-func (p IngressNodeFirewallProtoRule) GetPort() (uint16, error) {
-	if p.IsRange() {
+func GetPort(p *infv1alpha1.IngressNodeFirewallProtoRule) (uint16, error) {
+	if IsRange(p) {
 		return 0, fmt.Errorf("port is a range and not an individual port")
 	}
-	port, err := strconv.ParseUint(p.Ports, 10, 16)
+	port, err := strconv.ParseUint(p.Ports.String(), 10, 16)
 	if err != nil {
 		return 0, fmt.Errorf("invalid Port number %v", err)
 	}
@@ -24,11 +31,11 @@ func (p IngressNodeFirewallProtoRule) GetPort() (uint16, error) {
 	return uint16(port), nil
 }
 
-func (p IngressNodeFirewallProtoRule) GetRange() (uint16, uint16, error) {
-	if !p.IsRange() {
+func GetRange(p *infv1alpha1.IngressNodeFirewallProtoRule) (uint16, uint16, error) {
+	if !IsRange(p) {
 		return 0, 0, fmt.Errorf("port is not a range")
 	}
-	ps := strings.SplitN(p.Ports, "-", 2)
+	ps := strings.SplitN(p.Ports.String(), "-", 2)
 	if len(ps) != 2 {
 		return 0, 0, fmt.Errorf("invalid ports range. Expected two integers seperated by hyphen but found  %q", p.Ports)
 	}

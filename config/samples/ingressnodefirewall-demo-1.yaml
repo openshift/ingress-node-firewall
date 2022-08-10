@@ -1,4 +1,4 @@
-apiVersion: ingress-nodefw.ingress-nodefw/v1alpha1
+apiVersion: ingressnodefirewall.openshift.io/v1alpha1
 kind: IngressNodeFirewall
 metadata:
   name: ingressnodefirewall-demo-1
@@ -6,43 +6,49 @@ spec:
   interfaces:
   - eth0
   nodeSelector:
-    do-node-ingress-firewall: 'true'
+    matchLabels:
+      do-node-ingress-firewall: 'true'
   ingress:
   - sourceCIDRs:
        - 1.1.1.1/24
        - 100:1::1/64
     rules:
     - order: 10
-      protocol: tcp
-      protoRule:
-        ports: "100-200"
-      action: allow
+      protocolConfig:
+        protocol: TCP
+        tcp:
+          ports: "100-200"
+      action: Allow
     - order: 20
-      protocol: udp
-      protoRule:
-        ports: "8000"
-      action: allow
+      protocolConfig:
+        protocol: UDP
+        udp:
+          ports: 8000
+      action: Allow
   - sourceCIDRs:
        - 3.3.3.3/24
     rules:
     - order: 10
-      protocol: icmp
-      icmpRule:
-        icmpType: 3 # Destination unreachable
-        icmpCode: 1 # Host unreachable
-      action: allow
+      protocolConfig:
+        protocol: ICMP
+        icmp:
+          icmpType: 3 # Destination unreachable
+          icmpCode: 1 # Host unreachable
+      action: Allow
   - sourceCIDRs:
        - 10:10::1/64
     rules:
     - order: 10
-      protocol: icmpv6
-      icmpRule:
-        icmpType: 128 # Ping request
-      action: deny
+      protocolConfig:
+        protocol: ICMPv6
+        icmpv6:
+          icmpType: 128 # Ping request
+      action: Deny
   - sourceCIDRs:
        - 0.0.0.0/0
        - 0::0/0
     rules:
     - order: 10
-      protocol: tcp
-      action: allow
+      protocolConfig:
+        protocol: TCP
+      action: Allow

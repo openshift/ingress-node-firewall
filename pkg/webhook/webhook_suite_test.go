@@ -34,6 +34,7 @@ import (
 	//+kubebuilder:scaffold:imports
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -159,13 +160,13 @@ var _ = Describe("Rules", func() {
 		})
 
 		It("rejects rule with no ICMP details defined", func() {
-			inf.Spec.Ingress[0].FirewallProtocolRules[0].ICMPRule = nil
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.ICMP = nil
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 
 		It("rejects rule with port defined", func() {
-			portRule := &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{Ports: validPort}
-			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolRule = portRule
+			portRule := &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{Ports: intstr.FromString(validPort)}
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.TCP = portRule
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 	})
@@ -184,19 +185,13 @@ var _ = Describe("Rules", func() {
 		})
 
 		It("rejects rule with no ICMP details defined", func() {
-			inf.Spec.Ingress[0].FirewallProtocolRules[0].ICMPRule = nil
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.ICMP = nil
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 
 		It("rejects rule with port defined", func() {
-			portRule := &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{Ports: validPort}
-			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolRule = portRule
-			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
-		})
-
-		It("rejects rule with port defined", func() {
-			portRule := &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{Ports: validPort}
-			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolRule = portRule
+			portRule := &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{Ports: intstr.FromString(validPort)}
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.TCP = portRule
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 	})
@@ -230,7 +225,7 @@ var _ = Describe("Rules", func() {
 
 		It("rejects rule with no port defined", func() {
 			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeTCP, validPort, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
-			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolRule = nil
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.TCP = nil
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 
@@ -274,7 +269,7 @@ var _ = Describe("Rules", func() {
 
 		It("rejects rule with no port defined", func() {
 			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeUDP, validPort, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
-			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolRule = nil
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.UDP = nil
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 
@@ -318,7 +313,7 @@ var _ = Describe("Rules", func() {
 
 		It("rejects rule with no port defined", func() {
 			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeSCTP, validPort, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
-			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolRule = nil
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.SCTP = nil
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 
@@ -345,7 +340,7 @@ var _ = Describe("Rules", func() {
 			firstRule := inf.Spec.Ingress[0].FirewallProtocolRules
 			var i uint32
 			for ; i < uint32(failsaferules.MAX_INGRESS_RULES+1); i++ {
-				firstRule = append(firstRule, getTCPUDPRule(i, ingressnodefwv1alpha1.ProtocolTypeTCP, validPort, ingressnodefwv1alpha1.IngressNodeFirewallAllow))
+				firstRule = append(firstRule, getTCPRule(i, ingressnodefwv1alpha1.ProtocolTypeTCP, validPort, ingressnodefwv1alpha1.IngressNodeFirewallAllow))
 			}
 			inf.Spec.Ingress[0].FirewallProtocolRules = firstRule
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
@@ -354,7 +349,7 @@ var _ = Describe("Rules", func() {
 		It("only unique order is allowed", func() {
 			// adding another rule with the same order integer
 			inf.Spec.Ingress[0].FirewallProtocolRules = append(inf.Spec.Ingress[0].FirewallProtocolRules,
-				getTCPUDPRule(validOrder, ingressnodefwv1alpha1.ProtocolTypeTCP, validPort, ingressnodefwv1alpha1.IngressNodeFirewallAllow))
+				getTCPRule(validOrder, ingressnodefwv1alpha1.ProtocolTypeTCP, validPort, ingressnodefwv1alpha1.IngressNodeFirewallAllow))
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 
@@ -498,8 +493,23 @@ func initCIDRTransportRule(inf *ingressnodefwv1alpha1.IngressNodeFirewall, cidr 
 	rule := ingressnodefwv1alpha1.IngressNodeFirewallRules{
 		SourceCIDRs: []string{cidr},
 		FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
-			getTCPUDPRule(order, protocol, ports, action),
+			getTCPRule(order, protocol, ports, action),
 		},
+	}
+	if protocol == ingressnodefwv1alpha1.ProtocolTypeUDP {
+		rule = ingressnodefwv1alpha1.IngressNodeFirewallRules{
+			SourceCIDRs: []string{cidr},
+			FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+				getUDPRule(order, protocol, ports, action),
+			},
+		}
+	} else if protocol == ingressnodefwv1alpha1.ProtocolTypeSCTP {
+		rule = ingressnodefwv1alpha1.IngressNodeFirewallRules{
+			SourceCIDRs: []string{cidr},
+			FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+				getSCTPRule(order, protocol, ports, action),
+			},
+		}
 	}
 	if inf.Spec.Ingress == nil {
 		inf.Spec.Ingress = make([]ingressnodefwv1alpha1.IngressNodeFirewallRules, 0)
@@ -511,30 +521,68 @@ func initCIDRICMPRule(inf *ingressnodefwv1alpha1.IngressNodeFirewall, cidr strin
 	action ingressnodefwv1alpha1.IngressNodeFirewallActionType) {
 
 	icmpVer := ingressnodefwv1alpha1.ProtocolTypeICMP
-	if isICMPV6 {
-		icmpVer = ingressnodefwv1alpha1.ProtocolTypeICMP6
-	}
-
 	rule := ingressnodefwv1alpha1.IngressNodeFirewallRules{
 		SourceCIDRs: []string{cidr},
 		FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 			getICMPRule(order, icmpVer, icmpType, icmpCode, action),
 		},
 	}
+	if isICMPV6 {
+		icmpVer = ingressnodefwv1alpha1.ProtocolTypeICMP6
+		rule = ingressnodefwv1alpha1.IngressNodeFirewallRules{
+			SourceCIDRs: []string{cidr},
+			FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+				getICMPv6Rule(order, icmpVer, icmpType, icmpCode, action),
+			},
+		}
+	}
+
 	if inf.Spec.Ingress == nil {
 		inf.Spec.Ingress = make([]ingressnodefwv1alpha1.IngressNodeFirewallRules, 0)
 	}
 	inf.Spec.Ingress = append(inf.Spec.Ingress, rule)
 }
 
-func getTCPUDPRule(order uint32, protocol ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, ports string,
+func getTCPRule(order uint32, protocol ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, ports string,
 	action ingressnodefwv1alpha1.IngressNodeFirewallActionType) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 
 	return ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
-		Order:    order,
-		Protocol: protocol,
-		ProtocolRule: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
-			Ports: ports,
+		Order: order,
+		ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+			Protocol: protocol,
+			TCP: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
+				Ports: intstr.FromString(ports),
+			},
+		},
+		Action: action,
+	}
+}
+
+func getUDPRule(order uint32, protocol ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, ports string,
+	action ingressnodefwv1alpha1.IngressNodeFirewallActionType) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
+
+	return ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+		Order: order,
+		ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+			Protocol: protocol,
+			UDP: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
+				Ports: intstr.FromString(ports),
+			},
+		},
+		Action: action,
+	}
+}
+
+func getSCTPRule(order uint32, protocol ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, ports string,
+	action ingressnodefwv1alpha1.IngressNodeFirewallActionType) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
+
+	return ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+		Order: order,
+		ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+			Protocol: protocol,
+			SCTP: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
+				Ports: intstr.FromString(ports),
+			},
 		},
 		Action: action,
 	}
@@ -544,11 +592,29 @@ func getICMPRule(order uint32, protocol ingressnodefwv1alpha1.IngressNodeFirewal
 	action ingressnodefwv1alpha1.IngressNodeFirewallActionType) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 
 	return ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
-		Order:    order,
-		Protocol: protocol,
-		ICMPRule: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
-			ICMPType: icmpType,
-			ICMPCode: icmpCode,
+		Order: order,
+		ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+			Protocol: protocol,
+			ICMP: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
+				ICMPType: icmpType,
+				ICMPCode: icmpCode,
+			},
+		},
+		Action: action,
+	}
+}
+
+func getICMPv6Rule(order uint32, protocol ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, icmpType, icmpCode uint8,
+	action ingressnodefwv1alpha1.IngressNodeFirewallActionType) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
+
+	return ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+		Order: order,
+		ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+			Protocol: protocol,
+			ICMPv6: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
+				ICMPType: icmpType,
+				ICMPCode: icmpCode,
+			},
 		},
 		Action: action,
 	}

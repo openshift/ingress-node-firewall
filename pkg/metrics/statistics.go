@@ -121,7 +121,7 @@ func updateMetrics(stopCh <-chan struct{}, statsMap *ebpf.Map, period time.Durat
 	for {
 		select {
 		case <-ticker.C:
-			allowCount, allowBytesCount, denyCount, denyBytesCount, result = 0, 0, 0, 0, 0
+			allowCount, allowBytesCount, denyCount, denyBytesCount = 0, 0, 0, 0
 
 			for rule := 1; rule < failsaferules.MAX_INGRESS_RULES; rule++ {
 				if err = statsMap.Lookup(uint32(rule), &ruleStats); err != nil {

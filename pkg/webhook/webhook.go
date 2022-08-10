@@ -8,6 +8,7 @@ import (
 
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/pkg/failsaferules"
+	"github.com/openshift/ingress-node-firewall/pkg/utils"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -27,7 +28,9 @@ type (
 	uint32Set map[uint32]empty
 )
 
-//+kubebuilder:webhook:path=/validate-ingress-nodefw-ingress-nodefw-v1alpha1-ingressnodefirewall,mutating=false,failurePolicy=fail,sideEffects=None,groups=ingress-nodefw.ingress-nodefw,resources=ingressnodefirewalls,verbs=create;update,versions=v1alpha1,name=vingressnodefirewall.kb.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-ingressnodefirewall-openshift-io-v1alpha1-ingressnodefirewall,mutating=false,failurePolicy=fail,sideEffects=None,groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewalls,verbs=create;update,versions=v1alpha1,name=vingressnodefirewall.kb.io,admissionReviewVersions=v1
+var _ webhook.CustomValidator = &IngressNodeFirewallWebhook{ingressnodefwv1alpha1.IngressNodeFirewall{}}
+
 var (
 	_          webhook.CustomValidator = &IngressNodeFirewallWebhook{ingressnodefwv1alpha1.IngressNodeFirewall{}}
 	kubeClient client.Client
@@ -136,24 +139,24 @@ func validateRules(allErrs field.ErrorList, rules []ingressnodefwv1alpha1.Ingres
 }
 
 func validateRule(rule ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule, infRulesIndex, ruleIndex int, infName string) *field.Error {
-	if rule.Protocol == ingressnodefwv1alpha1.ProtocolTypeICMP || rule.Protocol == ingressnodefwv1alpha1.ProtocolTypeICMP6 {
+	if rule.ProtocolConfig.Protocol == ingressnodefwv1alpha1.ProtocolTypeICMP || rule.ProtocolConfig.Protocol == ingressnodefwv1alpha1.ProtocolTypeICMP6 {
 		if isValid, reason := isValidICMPICMPV6Rule(rule); !isValid {
 			return field.Invalid(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("rules").Index(ruleIndex),
 				infName, fmt.Sprintf("must be a valid ICMP(V6) rule: %s", reason))
 		}
 	}
 
-	if rule.Protocol == ingressnodefwv1alpha1.ProtocolTypeTCP || rule.Protocol == ingressnodefwv1alpha1.ProtocolTypeUDP || rule.Protocol == ingressnodefwv1alpha1.ProtocolTypeSCTP {
+	if rule.ProtocolConfig.Protocol == ingressnodefwv1alpha1.ProtocolTypeTCP || rule.ProtocolConfig.Protocol == ingressnodefwv1alpha1.ProtocolTypeUDP || rule.ProtocolConfig.Protocol == ingressnodefwv1alpha1.ProtocolTypeSCTP {
 		if isValid, reason := isValidTCPUDPSCTPRule(rule); !isValid {
 			return field.Invalid(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("rules").Index(ruleIndex),
-				infName, fmt.Sprintf("must be a valid %s rule: %s", rule.Protocol, reason))
+				infName, fmt.Sprintf("must be a valid %s rule: %s", rule.ProtocolConfig.Protocol, reason))
 		}
 	}
 
-	if rule.Protocol == ingressnodefwv1alpha1.ProtocolTypeTCP || rule.Protocol == ingressnodefwv1alpha1.ProtocolTypeUDP {
+	if rule.ProtocolConfig.Protocol == ingressnodefwv1alpha1.ProtocolTypeTCP || rule.ProtocolConfig.Protocol == ingressnodefwv1alpha1.ProtocolTypeUDP {
 		if isConflict, err := isConflictWithSafeRulesTransport(rule); !isConflict && err != nil {
 			return field.Invalid(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("rules").Index(ruleIndex),
-				infName, fmt.Sprintf("must be a valid %s rule: %v", rule.Protocol, err))
+				infName, fmt.Sprintf("must be a valid %s rule: %v", rule.ProtocolConfig.Protocol, err))
 		} else if isConflict && err != nil {
 			return field.Forbidden(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("rules").Index(ruleIndex),
 				err.Error())
@@ -166,21 +169,24 @@ func isConflictWithSafeRulesTransport(rule ingressnodefwv1alpha1.IngressNodeFire
 	var failSafeRules []failsaferules.TransportProtoFailSafeRule
 	var err error
 	var start, end uint16
+	var r *ingressnodefwv1alpha1.IngressNodeFirewallProtoRule
 
-	if rule.Protocol == ingressnodefwv1alpha1.ProtocolTypeTCP {
+	if rule.ProtocolConfig.Protocol == ingressnodefwv1alpha1.ProtocolTypeTCP {
 		failSafeRules = failsaferules.GetTCP()
-	} else if rule.Protocol == ingressnodefwv1alpha1.ProtocolTypeUDP {
+		r = rule.ProtocolConfig.TCP
+	} else if rule.ProtocolConfig.Protocol == ingressnodefwv1alpha1.ProtocolTypeUDP {
 		failSafeRules = failsaferules.GetUDP()
+		r = rule.ProtocolConfig.UDP
 	} else {
-		return false, fmt.Errorf("unable to determine conflict rules for unknown protocol: %q", rule.Protocol)
+		return false, fmt.Errorf("unable to determine conflict rules for unknown protocol: %q", rule.ProtocolConfig.Protocol)
 	}
 
 	for _, failSafeRule := range failSafeRules {
-		if rule.ProtocolRule == nil {
+		if r == nil {
 			return false, fmt.Errorf("expected ports to be defined for transport protocol")
 		}
-		if rule.ProtocolRule.IsRange() {
-			start, end, err = rule.ProtocolRule.GetRange()
+		if utils.IsRange(r) {
+			start, end, err = utils.GetRange(r)
 			if err != nil {
 				return false, fmt.Errorf("failed to get rule ports range: %v", err)
 			}
@@ -188,7 +194,7 @@ func isConflictWithSafeRulesTransport(rule ingressnodefwv1alpha1.IngressNodeFire
 				return true, fmt.Errorf("port range is in conflict with access to %s", failSafeRule.GetServiceName())
 			}
 		} else {
-			start, err = rule.ProtocolRule.GetPort()
+			start, err = utils.GetPort(r)
 			if err != nil {
 				return false, err
 			}
@@ -216,35 +222,43 @@ func validateSourceCIDR(sourceCIDR string) (bool, string) {
 }
 
 func isValidICMPICMPV6Rule(rule ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule) (bool, string) {
-	if rule.ICMPRule == nil {
+	if rule.ProtocolConfig.ICMP == nil && rule.ProtocolConfig.ICMPv6 == nil {
 		return false, "no ICMP rules defined. Define icmpType/icmpCode"
 	}
 
-	if rule.ProtocolRule != nil {
+	if rule.ProtocolConfig.TCP != nil || rule.ProtocolConfig.UDP != nil || rule.ProtocolConfig.SCTP != nil {
 		return false, "ports are erroneously defined"
 	}
 	return true, ""
 }
 
 func isValidTCPUDPSCTPRule(rule ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule) (bool, string) {
-	if rule.ProtocolRule == nil {
+	var r *ingressnodefwv1alpha1.IngressNodeFirewallProtoRule
+
+	if rule.ProtocolConfig.Protocol == ingressnodefwv1alpha1.ProtocolTypeTCP && rule.ProtocolConfig.TCP != nil {
+		r = rule.ProtocolConfig.TCP
+	} else if rule.ProtocolConfig.Protocol == ingressnodefwv1alpha1.ProtocolTypeUDP && rule.ProtocolConfig.UDP != nil {
+		r = rule.ProtocolConfig.UDP
+	} else if rule.ProtocolConfig.Protocol == ingressnodefwv1alpha1.ProtocolTypeSCTP && rule.ProtocolConfig.SCTP != nil {
+		r = rule.ProtocolConfig.SCTP
+	} else {
 		return false, "no port defined"
 	}
 
-	if rule.ProtocolRule.IsRange() {
+	if utils.IsRange(r) {
 		// GetRange() validates that range is valid and emits an error if this is not the case
-		_, _, err := rule.ProtocolRule.GetRange()
+		_, _, err := utils.GetRange(r)
 		if err != nil {
 			return false, fmt.Sprintf("must be a valid port range: %s", err.Error())
 		}
 	} else {
-		_, err := rule.ProtocolRule.GetPort()
+		_, err := utils.GetPort(r)
 		if err != nil {
 			return false, fmt.Sprintf("must be a valid port: %s", err.Error())
 		}
 	}
 
-	if rule.ICMPRule != nil {
+	if rule.ProtocolConfig.ICMP != nil || rule.ProtocolConfig.ICMPv6 != nil {
 		return false, "ICMP type/code defined for a non-ICMP(V6) rule"
 	}
 	return true, ""
