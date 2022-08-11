@@ -203,9 +203,6 @@ func TestSyncInterfaceIngressRulesAttachAndDetachSingleInterface(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Work around https://github.com/openshift/ingress-node-firewall/issues/92
-	time.Sleep(time.Second)
-
 	fmt.Println("Running the ebpfsyncer's sync to attach rules again")
 	err = GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(rules, false)
 	if err != nil {
@@ -221,8 +218,6 @@ func TestSyncInterfaceIngressRulesAttachAndDetachSingleInterface(t *testing.T) {
 // TestSyncInterfaceIngressRulesAttachAndDetach attaches and detaches rules from interfaces 2x in a row to test
 // that this operation works.
 func TestSyncInterfaceIngressRulesAttachAndDetach(t *testing.T) {
-	t.Skip()
-
 	defer afterEach(t)
 	beforeEach(t)
 
@@ -292,9 +287,6 @@ func TestSyncInterfaceIngressRulesAttachAndDetach(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// Work around https://github.com/openshift/ingress-node-firewall/issues/92
-	time.Sleep(time.Second)
 
 	fmt.Println("Running the ebpfsyncer's sync to attach rules again")
 	err = GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(rules, false)

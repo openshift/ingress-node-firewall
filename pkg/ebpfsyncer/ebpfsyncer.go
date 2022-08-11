@@ -3,6 +3,7 @@ package ebpfsyncer
 import (
 	"context"
 	"fmt"
+	"net"
 	"sync"
 
 	"github.com/go-logr/logr"
@@ -29,16 +30,11 @@ func GetEbpfSyncer(ctx context.Context, log logr.Logger, stats *metrics.Statisti
 	once.Do(func() {
 		// Check if instace is nil. For mock tests, one can provide a custom instance.
 		if mock == nil {
-			c, err := nodefwloader.NewIngNodeFwController()
-			if err != nil {
-				panic(fmt.Errorf("Fail to create nodefw controller instance, err: %q", err))
-			}
-
 			instance = &ebpfSingleton{
-				ctx:   ctx,
-				log:   log,
-				stats: stats,
-				c:     c,
+				ctx:               ctx,
+				log:               log,
+				stats:             stats,
+				managedInterfaces: make(map[string]struct{}),
 			}
 		} else {
 			instance = mock
@@ -49,10 +45,12 @@ func GetEbpfSyncer(ctx context.Context, log logr.Logger, stats *metrics.Statisti
 
 // ebpfSingleton implements ebpfDaemon.
 type ebpfSingleton struct {
-	ctx   context.Context
-	log   logr.Logger
-	stats *metrics.Statistics
-	c     *nodefwloader.IngNodeFwController
+	ctx               context.Context
+	log               logr.Logger
+	stats             *metrics.Statistics
+	c                 *nodefwloader.IngNodeFwController
+	managedInterfaces map[string]struct{}
+	mu                sync.Mutex
 }
 
 // syncInterfaceIngressRules takes a map of <interfaceName>:<interfaceRules> and a boolean parameter that indicates
@@ -62,39 +60,103 @@ type ebpfSingleton struct {
 // If isDelete is false then rules will be synchronized for each of the given interfaces.
 func (e *ebpfSingleton) SyncInterfaceIngressRules(
 	ifaceIngressRules map[string][]infv1alpha1.IngressNodeFirewallRules, isDelete bool) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 
 	logger := e.log.WithName("syncIngressNodeFirewallResources")
-	logger.Info("Start")
+	logger.Info("Running sync operation", "ifaceIngressRules", ifaceIngressRules, "isDelete", isDelete)
 
 	if e.stats != nil {
 		e.stats.StopPoll()
+		defer func() {
+			if e.c != nil {
+				e.stats.StartPoll(e.c.GetStatisticsMap())
+			}
+		}()
 	}
 
-	for intf, ingress := range ifaceIngressRules {
-		ifMap, err := e.c.IngressNodeFwAttach([]string{intf}, isDelete)
+	// For delete operations, detach all interfaces and run a cleanup, set managed interfaces and the
+	// manager to empty / nil values, then return.
+	// TODO: This should purge all XDP attachments on all interfaces even if we are not managing them.
+	// Alternatively, we need something like method XDPInterfacePurge() that would purse all unmanaged interfaces
+	// both from the rules and from the interface attachements.
+	if isDelete {
+		logger.Info("Running detach and eBPF cleanup operation")
+		for intf := range e.managedInterfaces {
+			_, err := e.c.IngressNodeFwAttach([]string{intf}, true)
+			if err != nil {
+				return err
+			}
+		}
+		e.managedInterfaces = make(map[string]struct{})
+		err := e.c.CleaneBPFObjs()
 		if err != nil {
-			logger.Error(err, "Fail to attach ingress firewall prog")
 			return err
 		}
+		e.c = nil
+
+		return nil
+	}
+
+	// Create a new manager if none exists.
+	var err error
+	if e.c == nil {
+		logger.Info("Creating a new eBPF firewall node controller")
+		e.c, err = nodefwloader.NewIngNodeFwController()
+		if err != nil {
+			return fmt.Errorf("Fail to create nodefw controller instance, err: %q", err)
+		}
+	}
+
+	// Detach any interfaces that were managed by us but that should not be managed any more.
+	// Also delete the rules associated to these interfaces. See TODO below.
+	for intf := range e.managedInterfaces {
+		logger.Info("Running detach operation for interface", "intf", intf)
+		if _, ok := ifaceIngressRules[intf]; !ok {
+			_, err := e.c.IngressNodeFwAttach([]string{intf}, true)
+			if err != nil {
+				return err
+			}
+		}
+		// TODO: Clean up all rules that were associated to this interface - somehow part of e.c.'s functionality?
+	}
+
+	// Add rules for both managed and unmanaged interfaces given that the add operation is already idempotent.
+	// TODO missing functionality to purge undesired rules - should be part of e.c's functionality?
+	// Diff both the provided and the currently known IngressNodeFirewallRules interfaces.
+	// Iterate over the current known IngressNodeFirewallRules and purge anything that should not be there.
+	for intf, ingress := range ifaceIngressRules {
+		if _, ok := e.managedInterfaces[intf]; !ok {
+			// Attach to the interfaces.
+			logger.Info("Attaching firewall interface", "intf", intf)
+			_, err := e.c.IngressNodeFwAttach([]string{intf}, isDelete)
+			if err != nil {
+				logger.Error(err, "Fail to attach ingress firewall prog")
+				return err
+			}
+			e.managedInterfaces[intf] = struct{}{}
+		}
+
+		// Look up the network interface by name.
+		iface, err := net.InterfaceByName(intf)
+		if err != nil {
+			return fmt.Errorf("lookup error for network iface %q: %s", intf, err)
+		}
+		ifId := uint32(iface.Index)
+
+		// Add rules (TODO: should also purge undesired rules somehow).
 		for _, rule := range ingress {
 			rule := rule.DeepCopy()
 			if err := addFailSaferules(&rule.FirewallProtocolRules); err != nil {
 				logger.Error(err, "Fail to load ingress firewall fail safe rules", "rule", rule)
 				return err
 			}
-			ifId, ok := ifMap[intf]
-			if !ok {
-				return fmt.Errorf("interface %s not found in attached interface list", intf)
-			}
-			if err := e.c.IngressNodeFwRulesLoader(*rule, isDelete, ifId); err != nil {
-				logger.Error(err, "Fail to load ingress firewall rule", "rule", rule)
+			logger.Info("Loading rule", "intf", intf, "rule", rule)
+			if err := e.c.IngressNodeFwRulesLoader(*rule, false, ifId); err != nil {
+				logger.Error(err, "Failed loading ingress firewall rule", "intf", intf, "rule", rule)
 				return err
 			}
 		}
-	}
-
-	if e.stats != nil {
-		e.stats.StartPoll(e.c.GetStatisticsMap())
 	}
 
 	return nil
