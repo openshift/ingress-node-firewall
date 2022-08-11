@@ -4,7 +4,13 @@
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 VERSION ?= 0.0.1
+CSV_VERSION = $(shell echo $(VERSION) | sed 's/v//')
+ifeq ($(VERSION), latest)
+CSV_VERSION := 0.0.0
+endif
 CERT_MANAGER_VERSION=v1.9.1
+IMAGE_ORG ?= $(USER)
+
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:
@@ -29,12 +35,13 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # ingress-nodefw/ingress-node-firewall-bundle:$VERSION and ingress-nodefw/ingress-node-firewall-catalog:$VERSION.
-IMAGE_TAG_BASE ?= ingress-nodefw/ingress-node-firewall
+IMAGE_TAG_BASE ?= quay.io/$(IMAGE_ORG)/ingress-nodefw/ingress-node-firewall
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
-
+# Default bundle index image tag
+BUNDLE_INDEX_IMG ?= $(BUNDLE_IMG)-index:v$(VERSION)
 # BUNDLE_GEN_FLAGS are the flags passed to the operator-sdk generate bundle command
 BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
 
@@ -46,7 +53,6 @@ ifeq ($(USE_IMAGE_DIGESTS), true)
 	BUNDLE_GEN_FLAGS += --use-image-digests
 endif
 
-IMAGE_ORG ?= $(USER)
 # Image URL to use all building/pushing image targets
 IMG ?= quay.io/$(IMAGE_ORG)/controller
 DAEMON_IMG ?= quay.io/$(IMAGE_ORG)/ingress-node-firewall-daemon
@@ -249,11 +255,11 @@ $(ENVTEST): $(LOCALBIN)
 	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR);
 
 .PHONY: bundle
-bundle: manifests kustomize ## Generate bundle manifests and metadata, then validate generated files.
-	operator-sdk generate kustomize manifests -q
+bundle: operator-sdk manifests kustomize ## Generate bundle manifests and metadata, then validate generated files.
+	$(OPERATOR_SDK) generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
-	$(KUSTOMIZE) build config/manifests | operator-sdk generate bundle $(BUNDLE_GEN_FLAGS)
-	operator-sdk bundle validate ./bundle
+	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
+	$(OPERATOR_SDK) bundle validate ./bundle
 
 .PHONY: bundle-build
 bundle-build: ## Build the bundle image.
@@ -262,6 +268,23 @@ bundle-build: ## Build the bundle image.
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
 	$(MAKE) docker-push IMG=$(BUNDLE_IMG)
+
+.PHONY: deploy-olm
+deploy-olm: operator-sdk ## deploy OLM on the cluster.
+	operator-sdk olm install --version $(OLM_VERSION)
+	operator-sdk olm status
+
+.PHONY: bundle-index-build
+bundle-index-build: opm  ## Build the bundle index image.
+	$(OPM) index add --bundles $(BUNDLE_IMG) --tag $(BUNDLE_INDEX_IMG) -c docker
+
+.PHONY: build-and-push-bundle-images
+build-and-push-bundle-images: docker-build docker-push  ## Generate and push bundle image and bundle index image.
+	$(MAKE) bundle
+	$(MAKE) build-bundle
+	$(MAKE) docker-push IMG=$(BUNDLE_IMG)
+	$(MAKE) bundle-index-build
+	$(MAKE) docker-push IMG=$(BUNDLE_INDEX_IMG)
 
 .PHONY: opm
 OPM = ./bin/opm
@@ -280,17 +303,30 @@ OPM = $(shell which opm)
 endif
 endif
 
+PHONY: operator-sdk
+operator-sdk: ## Get the current operator-sdk binary, If there isn't any, we'll use the GOBIN path.
+ifeq (, $(shell which operator-sdk))
+	@{ \
+	set -e ;\
+	curl -Lk  https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)/operator-sdk_linux_amd64 > $(GOBIN)/operator-sdk ;\
+	chmod u+x $(GOBIN)/operator-sdk ;\
+	}
+OPERATOR_SDK=$(GOBIN)/operator-sdk
+else
+OPERATOR_SDK=$(shell which operator-sdk)
+endif
+
 .PHONY: generate-daemon-manifest
-generate-daemon-manifest: ## Generate DaemonSet manifest
+generate-daemon-manifest: ## Generate DaemonSet manifest.
 	@echo "==== Generating DaemonSet manifest"
 	hack/generate-daemon-manifest.sh
 
-lint: ## Run golangci-lint against code
+lint: ## Run golangci-lint against code.
 	@echo "Running golangci-lint"
 	hack/lint.sh
 
 .PHONY: vendors
-vendors: ## Updating vendors
+vendors: ## Updating vendors.
 	go mod tidy && go mod vendor
 
 
@@ -340,7 +376,7 @@ prereqs: ## Check if prerequisites are met, and installing missing dependencies
 .PHONY: ebpf-generate
 ebpf-generate: export BPF_CLANG := $(CLANG)
 ebpf-generate: export BPF_CFLAGS := $(CFLAGS)
-ebpf-generate: prereqs ## Generating BPF Go bindings
+ebpf-generate: prereqs ## Generating BPF Go bindings.
 	@echo "### Generating BPF Go bindings"
 	go generate ./pkg/...
 

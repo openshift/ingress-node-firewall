@@ -95,7 +95,12 @@ to run ingress-node-firewall-operator unit tests (no cluster required), execute 
 ```shell
 make test
 ```
+## Generating operator bundle
 
+In order to generate an operator bundle, run the following:
+```shell
+make bundle
+```
 ## Running on a KinD cluster
 1. Download latest [KinD](https://kind.sigs.k8s.io/docs/user/quick-start) stable version
 2. Install KinD and export KUBECONFIG
