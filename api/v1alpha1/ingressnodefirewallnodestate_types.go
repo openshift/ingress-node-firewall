@@ -24,20 +24,32 @@ import (
 
 // IngressNodeFirewallNodeStateSpec defines the desired state of IngressNodeFirewallNodeState.
 type IngressNodeFirewallNodeStateSpec struct {
-	// ingress is a list of ingress firewall policy rules.
+	// interfaceIngressRules is a map that matches interface names to ingress firewall policy rules that shall be
+	// applied on the given interface.
+	// An empty map indicates no ingress firewall rules shall be applied, i.e allow all incoming traffic.
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinItems:=1
-	Ingress []IngressNodeFirewallRules `json:"ingress"`
-
-	// interfaces is a list of interfaces where the ingress firewall policy will be applied on.
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinItems:=1
-	Interfaces []string `json:"interfaces"`
+	InterfaceIngressRules map[string][]IngressNodeFirewallRules `json:"interfaceIngressRules"`
 }
 
 // IngressNodeFirewallNodeStateStatus defines the observed state of IngressNodeFirewallNodeState.
 type IngressNodeFirewallNodeStateStatus struct {
+	// syncStatus indicates if this IngressNodeFirewallNodeState object could be successfully generated
+	// from the input IngressNodeFirewall objects or if any issues occurred during this object's generation.
+	SyncStatus IngressNodeFirewallNodeStateSyncStatus `json:"syncStatus,omitempty"`
+	// syncErrorMessage contains futher information about the encountered synchronization error.
+	SyncErrorMessage string `json:"syncErrorMessage,omitempty"`
 }
+
+// IngressNodeFirewallNodeStateSyncStatus defines the various valid synchronization states for
+// IngressNodeFirewallNodeState.
+type IngressNodeFirewallNodeStateSyncStatus string
+
+var (
+	// SyncError indicates that the last synchronization attempt failed.
+	SyncError IngressNodeFirewallNodeStateSyncStatus = "Error"
+	// SyncError indicates that the last synchronization attempt was a success.
+	SyncOK IngressNodeFirewallNodeStateSyncStatus = "Synchronized"
+)
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status

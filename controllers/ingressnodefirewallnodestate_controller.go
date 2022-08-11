@@ -15,18 +15,15 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
-	nodefwloader "github.com/openshift/ingress-node-firewall/pkg/ebpf"
-	"github.com/openshift/ingress-node-firewall/pkg/failsaferules"
+	"github.com/openshift/ingress-node-firewall/pkg/ebpfsyncer"
 	"github.com/openshift/ingress-node-firewall/pkg/metrics"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -69,7 +66,7 @@ func (r *IngressNodeFirewallNodeStateReconciler) Reconcile(ctx context.Context, 
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
-			return r.reconcileResource(ctx, req, nodeState, false)
+			return r.reconcileResource(ctx, req, nodeState, true)
 		}
 		// Error reading the object - requeue the request.
 		r.Log.Error(err, "Failed to get IngressNodeFirewallNodeState")
@@ -87,83 +84,15 @@ func (r *IngressNodeFirewallNodeStateReconciler) SetupWithManager(mgr ctrl.Manag
 		Complete(r)
 }
 
+// mock shall be nil for production but can be overwritten for mock tests.
+var mock ebpfsyncer.EbpfSyncer = nil
+
+// reconcileResource reconciles the resource by getting the EbpfDaemon singleton's SyncInterfaceIngressRules method.
+// For mock tests, var mock can be overwritten.
 func (r *IngressNodeFirewallNodeStateReconciler) reconcileResource(
 	ctx context.Context, req ctrl.Request, instance *infv1alpha1.IngressNodeFirewallNodeState, isDelete bool) (ctrl.Result, error) {
-	if err := r.syncIngressNodeFirewallResources(instance, isDelete); err != nil {
+	if err := ebpfsyncer.GetEbpfSyncer(ctx, r.Log, r.Stats, mock).SyncInterfaceIngressRules(instance.Spec.InterfaceIngressRules, isDelete); err != nil {
 		return ctrl.Result{}, errors.Wrapf(err, "FailedToSyncIngressNodeFirewallResources")
 	}
 	return ctrl.Result{}, nil
-}
-
-func (r *IngressNodeFirewallNodeStateReconciler) syncIngressNodeFirewallResources(instance *infv1alpha1.IngressNodeFirewallNodeState, isDelete bool) error {
-	logger := r.Log.WithName("syncIngressNodeFirewallResources")
-	logger.Info("Start")
-
-	r.Stats.StopPoll()
-
-	c, err := nodefwloader.NewIngNodeFwController()
-	if err != nil {
-		logger.Error(err, "Fail to create nodefw controller instance")
-		return err
-	}
-
-	ifMap, err := c.IngressNodeFwAttach(instance.Spec.Interfaces, isDelete)
-	if err != nil {
-		logger.Error(err, "Fail to attach ingress firewall prog")
-		return err
-	}
-	for _, intf := range instance.Spec.Interfaces {
-		for _, rule := range instance.Spec.Ingress {
-			rule := rule.DeepCopy()
-			if err := addFailSaferules(&rule.FirewallProtocolRules); err != nil {
-				logger.Error(err, "Fail to load ingress firewall fail safe rules", "rule", rule)
-				return err
-			}
-			ifId, ok := ifMap[intf]
-			if !ok {
-				return fmt.Errorf("interface %s not found in attached interface list", intf)
-			}
-			if err := c.IngressNodeFwRulesLoader(*rule, isDelete, ifId); err != nil {
-				logger.Error(err, "Fail to load ingress firewall rule", "rule", rule)
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-// addFailSaferules appends failSafe rules to user configured one
-func addFailSaferules(rules *[]infv1alpha1.IngressNodeFirewallProtocolRule) error {
-	if rules == nil {
-		return fmt.Errorf("invalid rules")
-	}
-	fsRuleIndex := failsaferules.MAX_INGRESS_RULES
-	// Add TCP failsafe rules
-	tcpFailSafeRules := failsaferules.GetTCP()
-	for _, rule := range tcpFailSafeRules {
-		rule := rule
-		fsRule := infv1alpha1.IngressNodeFirewallProtocolRule{}
-		fsRule.ProtocolConfig.TCP = new(infv1alpha1.IngressNodeFirewallProtoRule)
-		fsRule.Order = uint32(fsRuleIndex)
-		fsRuleIndex += 1
-		fsRule.ProtocolConfig.Protocol = infv1alpha1.ProtocolTypeTCP
-		(*fsRule.ProtocolConfig.TCP).Ports = intstr.FromInt(int(rule.GetPort()))
-		fsRule.Action = infv1alpha1.IngressNodeFirewallAllow
-		*rules = append(*rules, fsRule)
-	}
-	// Add UDP failsafe rules
-	udpFailSafeRules := failsaferules.GetUDP()
-	for _, rule := range udpFailSafeRules {
-		rule := rule
-		fsRule := infv1alpha1.IngressNodeFirewallProtocolRule{}
-		fsRule.ProtocolConfig.UDP = new(infv1alpha1.IngressNodeFirewallProtoRule)
-		fsRule.Order = uint32(fsRuleIndex)
-		fsRuleIndex += 1
-		fsRule.ProtocolConfig.Protocol = infv1alpha1.ProtocolTypeUDP
-		(*fsRule.ProtocolConfig.UDP).Ports = intstr.FromInt(int(rule.GetPort()))
-		fsRule.Action = infv1alpha1.IngressNodeFirewallAllow
-		*rules = append(*rules, fsRule)
-	}
-	return nil
 }

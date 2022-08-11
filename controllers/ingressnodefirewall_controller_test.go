@@ -74,11 +74,11 @@ var _ = Describe("IngressNodeFirewall controller", func() {
 			},
 		}
 		for _, node := range nodes {
-			By(fmt.Sprintf("By creating node %s", node.Name))
+			By(fmt.Sprintf("Creating node %s", node.Name))
 			Expect(k8sClient.Create(ctx, &node)).Should(Succeed())
 		}
 
-		By("By creating a new IngressNodeFirewall object that matches the worker label")
+		By("Creating a new IngressNodeFirewall object that matches the worker label")
 		ingressNodeFirewall := infv1alpha1.IngressNodeFirewall{
 			TypeMeta:   metav1.TypeMeta{},
 			ObjectMeta: metav1.ObjectMeta{Name: ingressNodeFirewallName},
@@ -98,16 +98,21 @@ var _ = Describe("IngressNodeFirewall controller", func() {
 	AfterEach(func() {
 		Expect(k8sClient.DeleteAllOf(context.Background(), &infv1alpha1.IngressNodeFirewall{})).Should(Succeed())
 		Expect(k8sClient.DeleteAllOf(context.Background(), &v1.Node{})).Should(Succeed())
-		Expect(k8sClient.DeleteAllOf(
-			context.Background(),
-			&infv1alpha1.IngressNodeFirewallNodeState{},
-			client.InNamespace(IngressNodeFwConfigTestNameSpace))).Should(Succeed())
+		Eventually(func() bool {
+			nodeStateList := &infv1alpha1.IngressNodeFirewallNodeStateList{}
+			err := k8sClient.List(ctx, nodeStateList)
+			if err != nil {
+				fmt.Fprintf(GinkgoWriter, "Could not list IngressNodeFirewallNodeStates on cleanup, err: %q", err)
+				return false
+			}
+			return len(nodeStateList.Items) == 0
+		}).Should(BeTrue())
 	})
 
-	// Baseline test.
+	// I) Baseline test.
 	When("an IngressNodeFirewall object is created that matches all worker nodes", func() {
 		It("All worker nodes should have a valid IngressNodeFirewallNodeState", func() {
-			By("By checking that we have an IngressNodeFirewallNodeState object on every worker node")
+			By("Checking that we have an IngressNodeFirewallNodeState object on every worker node")
 			nodeStateList := &infv1alpha1.IngressNodeFirewallNodeStateList{}
 			expectedNodeNames := []string{"worker-0", "worker-1"}
 			Eventually(func() bool {
@@ -138,15 +143,15 @@ var _ = Describe("IngressNodeFirewall controller", func() {
 				}
 				// Check item content.
 				for _, nodeState := range nodeStateList.Items {
-					if !equality.Semantic.DeepEqual(nodeState.Spec.Ingress, rules) {
+					if _, ok := nodeState.Spec.InterfaceIngressRules["eth0"]; !ok {
 						fmt.Fprintf(GinkgoWriter,
-							"IngressNodeFirewallNodeState.Spec.Ingress does not match IngressNodeFirewall.Spec.Ingress "+
-								"for object with name %s\n", nodeState.Name)
+							"IngressNodeFirewallNodeState.Spec.InterfaceIngressRules[%s] does not exist "+
+								"for object with name %s\n", "eth0", nodeState.Name)
 						return false
 					}
-					if len(nodeState.Spec.Interfaces) != 1 || (nodeState.Spec.Interfaces)[0] != "eth0" {
+					if !equality.Semantic.DeepEqual(nodeState.Spec.InterfaceIngressRules["eth0"], rules) {
 						fmt.Fprintf(GinkgoWriter,
-							"IngressNodeFirewallNodeState.Spec.Interfaces does not match IngressNodeFirewall.Spec.Interfaces "+
+							"IngressNodeFirewallNodeState.Spec.Ingress does not match IngressNodeFirewall.Spec.Ingress "+
 								"for object with name %s\n", nodeState.Name)
 						return false
 					}
@@ -157,103 +162,183 @@ var _ = Describe("IngressNodeFirewall controller", func() {
 		})
 	})
 
-	// Test updates to IngressNodeFirewalls.
-	When("the nodeSelector is updated to match no node", func() {
-		It("The IngressNodeFirewallNodeState objects should be deleted", func() {
-			By("Waiting for the expected number of IngressNodeFirewallNodeStates")
-			nodeStateList := &infv1alpha1.IngressNodeFirewallNodeStateList{}
-			Eventually(func() bool {
-				err := k8sClient.List(ctx, nodeStateList, []client.ListOption{}...)
-				if err != nil {
-					fmt.Fprintf(GinkgoWriter, "Could not list IngressNodeFirewallNodeStates during this iteration\n")
-					return false
-				}
-				// Check number of items.
-				if len(nodeStateList.Items) != 2 {
-					fmt.Fprintf(GinkgoWriter, "Could not find the desired number of IngressNodeFirewallNodeStates\n")
-					return false
-				}
-				return true
-			})
+	// II) Test updates to IngressNodeFirewallNodeState node selectors.
+	When("the IngressNodeFirewallNodeState nodeSelector is updated", func() {
+		// Test updates to IngressNodeFirewalls - empty node selector.
+		When("the nodeSelector is updated to an empty node selector", func() {
+			It("The IngressNodeFirewallNodeState objects should match all nodes", func() {
+				By("Waiting for the expected list of IngressNodeFirewallNodeStates")
+				hasIngressNodeFirewallNodeStates(ctx, k8sClient, []string{"worker-0", "worker-1"})
 
-			By(fmt.Sprintf("Updating the nodeSelector on IngressNodeFirewall %s", ingressNodeFirewallName))
+				By(fmt.Sprintf("Updating the nodeSelector on IngressNodeFirewall %s", ingressNodeFirewallName))
+				err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					inf := &infv1alpha1.IngressNodeFirewall{}
+					key := types.NamespacedName{Name: ingressNodeFirewallName}
+					Expect(k8sClient.Get(ctx, key, inf)).Should(Succeed())
+					inf.Spec.NodeSelector = metav1.LabelSelector{
+						MatchLabels: map[string]string{},
+					}
+					return k8sClient.Update(ctx, inf)
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Checking that we have all IngressNodeFirewallNodeState objects")
+				hasIngressNodeFirewallNodeStates(ctx, k8sClient, []string{"worker-0", "worker-1", "control-plane-0"})
+			})
+		})
+
+		// Test updates to IngressNodeFirewalls - match another label.
+		When("the nodeSelector is updated to match label \"ingress-node-firewall\"=\"enabled\",", func() {
+			It("The IngressNodeFirewallNodeState object for worker-1 should be deleted", func() {
+				By("Waiting for the expected list of IngressNodeFirewallNodeStates")
+				hasIngressNodeFirewallNodeStates(ctx, k8sClient, []string{"worker-0", "worker-1"})
+
+				By(fmt.Sprintf("Updating the nodeSelector on IngressNodeFirewall %s", ingressNodeFirewallName))
+				err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					inf := &infv1alpha1.IngressNodeFirewall{}
+					key := types.NamespacedName{Name: ingressNodeFirewallName}
+					Expect(k8sClient.Get(ctx, key, inf)).Should(Succeed())
+					inf.Spec.NodeSelector = metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"ingress-node-firewall": "enabled",
+						},
+					}
+					return k8sClient.Update(ctx, inf)
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Checking that we have only an IngressNodeFirewallNodeState for worker-0")
+				hasIngressNodeFirewallNodeStates(ctx, k8sClient, []string{"worker-0"})
+			})
+		})
+
+		// Test updates to IngressNodeFirewalls - match a non-existing label.
+		When("the nodeSelector is updated to match label \"label\"=\"does-not-exist\",", func() {
+			It("The IngressNodeFirewallNodeState object for both workers should be deleted", func() {
+				By("Waiting for the expected list of IngressNodeFirewallNodeStates")
+				hasIngressNodeFirewallNodeStates(ctx, k8sClient, []string{})
+
+				By(fmt.Sprintf("Updating the nodeSelector on IngressNodeFirewall %s", ingressNodeFirewallName))
+				err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					inf := &infv1alpha1.IngressNodeFirewall{}
+					key := types.NamespacedName{Name: ingressNodeFirewallName}
+					Expect(k8sClient.Get(ctx, key, inf)).Should(Succeed())
+					inf.Spec.NodeSelector = metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"label": "does-not-exist",
+						},
+					}
+					return k8sClient.Update(ctx, inf)
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Checking that we have no IngressNodeFirewallNodeState object")
+				hasIngressNodeFirewallNodeStates(ctx, k8sClient, []string{})
+			})
+		})
+	})
+
+	// III) Test updates to node labels.
+	When("a node's label is updated", func() {
+		When("the label on worker-1 is removed", func() {
+			It("The IngressNodeFirewallNodeState object for worker-1 should be deleted", func() {
+				By("Waiting for the expected list of IngressNodeFirewallNodeStates")
+				hasIngressNodeFirewallNodeStates(ctx, k8sClient, []string{"worker-0", "worker-1"})
+
+				By(fmt.Sprintf("Updating the label on node worker-1"))
+				err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					node := &v1.Node{}
+					key := types.NamespacedName{Name: "worker-1"}
+					Expect(k8sClient.Get(ctx, key, node)).Should(Succeed())
+					node.Labels = map[string]string{}
+					return k8sClient.Update(ctx, node)
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Checking that we have a single IngressNodeFirewallNodeState object for worker-0")
+				hasIngressNodeFirewallNodeStates(ctx, k8sClient, []string{"worker-0"})
+			})
+		})
+
+		When("label \"node-role.kubernetes.io/worker\"=\"\" is added to control-plane-0", func() {
+			It("The IngressNodeFirewallNodeState object for control-plane-0 should be created", func() {
+				By("Waiting for the expected list of IngressNodeFirewallNodeStates")
+				hasIngressNodeFirewallNodeStates(ctx, k8sClient, []string{"worker-0", "worker-1"})
+
+				By(fmt.Sprintf("Updating the label on node worker-1"))
+				err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					node := &v1.Node{}
+					key := types.NamespacedName{Name: "control-plane-0"}
+					Expect(k8sClient.Get(ctx, key, node)).Should(Succeed())
+					node.Labels = map[string]string{
+						"node-role.kubernetes.io/worker": "",
+					}
+					return k8sClient.Update(ctx, node)
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Checking that we have IngressNodeFirewallNodeState objects for all nodes")
+				hasIngressNodeFirewallNodeStates(ctx, k8sClient, []string{"worker-0", "worker-1", "control-plane-0"})
+			})
+		})
+	})
+
+	// IV) Test deletion of IngressNodeFirewall objects.
+	When("the IngressNodeFirewallNodeState object if deleted", func() {
+		It("The IngressNodeFirewallNodeState objects should be deleted as well", func() {
+			By("Waiting for the expected list of IngressNodeFirewallNodeStates")
+			hasIngressNodeFirewallNodeStates(ctx, k8sClient, []string{"worker-0", "worker-1"})
+
+			By(fmt.Sprintf("Deleting the IngressNodeFirewall %s", ingressNodeFirewallName))
 			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 				inf := &infv1alpha1.IngressNodeFirewall{}
 				key := types.NamespacedName{Name: ingressNodeFirewallName}
 				Expect(k8sClient.Get(ctx, key, inf)).Should(Succeed())
-				inf.Spec.NodeSelector = metav1.LabelSelector{
-					MatchLabels: map[string]string{},
-				}
-				return k8sClient.Update(ctx, inf)
+				return k8sClient.Delete(ctx, inf)
 			})
 			Expect(err).NotTo(HaveOccurred())
-		})
 
-		By("By checking that we have no IngressNodeFirewallNodeState objects")
-		nodeStateList := &infv1alpha1.IngressNodeFirewallNodeStateList{}
-		Eventually(func() bool {
-			err := k8sClient.List(ctx, nodeStateList, []client.ListOption{}...)
-			if err != nil {
-				fmt.Fprintf(GinkgoWriter, "Could not list IngressNodeFirewallNodeStates during this iteration\n")
-				return false
-			}
-			// Check number of items.
-			return len(nodeStateList.Items) == 0
-		})
-	})
-
-	// Test updates to node labels.
-	When("the label on worker-1 is removed", func() {
-		It("The IngressNodeFirewallNodeState object for worker-1 should be deleted", func() {
-			nodeStateList := &infv1alpha1.IngressNodeFirewallNodeStateList{}
-			By("Waiting for the expected number of IngressNodeFirewallNodeStates")
-			Eventually(func() bool {
-				err := k8sClient.List(ctx, nodeStateList, []client.ListOption{}...)
-				if err != nil {
-					fmt.Fprintf(GinkgoWriter, "Could not list IngressNodeFirewallNodeStates during this iteration\n")
-					return false
-				}
-				// Check number of items.
-				if len(nodeStateList.Items) != 2 {
-					fmt.Fprintf(GinkgoWriter, "Could not find the desired number of IngressNodeFirewallNodeStates\n")
-					return false
-				}
-				return true
-			})
-
-			By(fmt.Sprintf("Updating the label on node worker-1"))
-			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-				node := &v1.Node{}
-				key := types.NamespacedName{Name: "worker-1"}
-				Expect(k8sClient.Get(ctx, key, node)).Should(Succeed())
-				node.Labels = map[string]string{}
-				return k8sClient.Update(ctx, node)
-			})
-			Expect(err).NotTo(HaveOccurred())
-		})
-
-		By("By checking that we have a single IngressNodeFirewallNodeState object for worker-1")
-		nodeStateList := &infv1alpha1.IngressNodeFirewallNodeStateList{}
-		Eventually(func() bool {
-			worker0Found := false
-			worker1Found := false
-			err := k8sClient.List(ctx, nodeStateList, []client.ListOption{}...)
-			if err != nil {
-				fmt.Fprintf(GinkgoWriter, "Could not list IngressNodeFirewallNodeStates during this iteration\n")
-				return false
-			}
-			if len(nodeStateList.Items) != 1 {
-				fmt.Fprintf(GinkgoWriter, "Got != 1 IngressNodeFirewallNodeStates during this interation\n")
-				return false
-			}
-			for _, nodeState := range nodeStateList.Items {
-				if nodeState.Name == "worker0" {
-					worker0Found = true
-				} else if nodeState.Name == "worker1" {
-					worker1Found = true
-				}
-			}
-			return worker0Found && !worker1Found
+			By("Checking that we have no IngressNodeFirewallNodeState objects")
+			hasIngressNodeFirewallNodeStates(ctx, k8sClient, []string{})
 		})
 	})
 })
+
+// hasIngressNodeFirewallNodeStates is a helper function to reduce code duplication.
+// This function will list all IngressNodeFirewallNodeStates and it will make sure that eventually an object
+// with each of the expected names exists.
+func hasIngressNodeFirewallNodeStates(ctx context.Context, k8sClient client.Client, expectedObjectNames []string) {
+	nodeStateList := &infv1alpha1.IngressNodeFirewallNodeStateList{}
+	Eventually(func() bool {
+		// List all IngressNodeFirewallNodeStates.
+		err := k8sClient.List(ctx, nodeStateList, []client.ListOption{}...)
+		if err != nil {
+			fmt.Fprintf(GinkgoWriter, "Could not list IngressNodeFirewallNodeStates during this iteration\n")
+			return false
+		}
+		// Check number of items.
+		if len(nodeStateList.Items) != len(expectedObjectNames) {
+			fmt.Fprintf(GinkgoWriter, "Could not find the desired number of IngressNodeFirewallNodeStates. "+
+				"Found %d objects but expected to find %d objects. Object list: %v\n",
+				len(nodeStateList.Items), len(expectedObjectNames), nodeStateList.Items)
+			return false
+		}
+		// Check object names.
+		for _, expectedName := range expectedObjectNames {
+			match := false
+			for _, nodeState := range nodeStateList.Items {
+				if expectedName == nodeState.Name {
+					match = true
+					break
+				}
+			}
+			if !match {
+				fmt.Fprintf(GinkgoWriter, "Could not find expected IngressNodeFirewallNodeState %s.  Object list: %v\n",
+					expectedName, nodeStateList.Items)
+				return false
+			}
+		}
+		// If we get here, return true.
+		return true
+	}).Should(BeTrue())
+}
