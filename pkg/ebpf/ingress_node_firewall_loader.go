@@ -2,27 +2,34 @@ package nodefwloader
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"path"
+	"reflect"
+	"regexp"
 	"strings"
 	"syscall"
 
+	"github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	ingressnodefwiov1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
+	"github.com/openshift/ingress-node-firewall/pkg/interfaces"
 	"github.com/openshift/ingress-node-firewall/pkg/utils"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
+	apierrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog"
 )
 
 const (
-	xdpDeny     = 1 // XDP_DROP value
-	xdpAllow    = 2 // XDP_PASS value
-	bpfFSPath   = "/sys/fs/bpf"
-	xdpEBUSYErr = "device or resource busy"
+	xdpDeny                       = 1 // XDP_DROP value
+	xdpAllow                      = 2 // XDP_PASS value
+	bpfFSPath                     = "/sys/fs/bpf"
+	xdpIngressNodeFirewallProcess = "xdp_ingress_node_firewall_process"
+	linkSuffix                    = "_link"
 )
 
 // IngNodeFwController structure is the object hold controls for starting
@@ -39,14 +46,14 @@ type IngNodeFwController struct {
 // $BPF_CLANG and $BPF_CFLAGS are set by the Makefile.
 //go:generate bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS -type ruleType_st -type event_hdr_st -type ruleStatistics_st Bpf ../../bpf/ingress_node_firewall_kernel.c -- -I ../../bpf/headers -I/usr/include/x86_64-linux-gnu/
 
-// NewIngNodeFwController creates new IngressNodeFirewall controller object
+// NewIngNodeFwController creates new IngressNodeFirewall controller object.
 func NewIngNodeFwController() (*IngNodeFwController, error) {
 	// Allow the current process to lock memory for eBPF resources.
 	if err := rlimit.RemoveMemlock(); err != nil {
 		return nil, err
 	}
 
-	pinDir := path.Join(bpfFSPath, "xdp_ingress_node_firewall_process")
+	pinDir := path.Join(bpfFSPath, xdpIngressNodeFirewallProcess)
 	if err := os.MkdirAll(pinDir, os.ModePerm); err != nil {
 		return nil, fmt.Errorf("failed to create pinDir %s: %s", pinDir, err)
 	}
@@ -55,43 +62,312 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 	if err := LoadBpfObjects(&objs, &ebpf.CollectionOptions{Maps: ebpf.MapOptions{PinPath: pinDir}}); err != nil {
 		return nil, fmt.Errorf("loading objects: pinDir:%s, err:%s", pinDir, err)
 	}
-	return &IngNodeFwController{
+	infc := &IngNodeFwController{
 		objs:    objs,
 		pinPath: pinDir,
 		links:   make(map[string]link.Link, 0),
-	}, nil
+	}
+	// Load pinned links from /sys/fs/bpf/xdp_ingress_node_firewall_process on initialization.
+	// That way, the state in /sys/fs/bpf/xdp_ingress_node_firewall_process and the tracked list of links
+	// will be in sync.
+	if err := infc.loadPinnedLinks(); err != nil {
+		return nil, err
+	}
+
+	// Generate ingress node fw events
+	infc.ingressNodeFwEvents()
+
+	return infc, nil
 }
 
-// IngressNodeFwRulesLoader Add/Update/Delete ingress nod firewll rules to eBPF LPM MAP
-func (infc *IngNodeFwController) IngressNodeFwRulesLoader(ingFireWallConfig ingressnodefwiov1alpha1.IngressNodeFirewallRules,
-	isDelete bool, ifId uint32) error {
-	objs := infc.objs
-	info, err := objs.BpfMaps.IngressNodeFirewallTableMap.Info()
+// IngressNodeFwRulesLoader adds/updates/deletes ingress node firewall rules to the eBPF LPM MAP in an idempotent way.
+// IngressNodeFwRulesLoader executes the following actions in order:
+// i)   Get eBPF objs to create/update eBPF maps and get map info.
+// ii)  Build a map of valid ebpfKeys pointing to the ebpfRules that should be associated to them (built from
+//      ifaceIngressRules).
+// iii) Get stale keys (= keys inside the eBPF map but not inside the currently desired ruleset).
+// iv)  Purge all stale keys from the eBPF map.
+// v)   Add/update all keys. This is an idempotent action and non-existing keys are added whereas existing keys
+//      are updated.
+// vi)  Generate ingress node firewall events.
+// In the context of this method, stale keys are keys that figure inside the eBPF map but that are not generated
+// during step ii) from the provided ingressRules slice.
+func (infc *IngNodeFwController) IngressNodeFwRulesLoader(
+	ifaceIngressRules map[string][]v1alpha1.IngressNodeFirewallRules) error {
+	// Get eBPF objs to create/update eBPF maps and get map info.
+	info, err := infc.objs.BpfMaps.IngressNodeFirewallTableMap.Info()
 	if err != nil {
-		return fmt.Errorf("Cannot get map info: %v on if %d", err, ifId)
+		return fmt.Errorf("cannot get map info: %v", err)
 	}
-	klog.Infof("Ingress node firewall map Info: %+v with FD %s", info, objs.BpfMaps.IngressNodeFirewallTableMap.String())
+	klog.Infof("Ingress node firewall map Info: %+v with FD %s", info, infc.objs.BpfMaps.IngressNodeFirewallTableMap.String())
 
-	if err := infc.makeIngressFwRulesMap(ingFireWallConfig, isDelete, ifId); err != nil {
-		return fmt.Errorf("Failed to create map firewall rules: %v on if %d", err, ifId)
+	// Convert IngressNodeFirewallRules into data that can be written to the BPF map.
+	// Build a map of valid ebpfKeys pointing to the ebpfRules that should be associated to them.
+	ebpfKeyToRules := make(map[BpfLpmIpKeySt]BpfRulesValSt)
+	for interfaceName, ingressRules := range ifaceIngressRules {
+		// Look up the network interface by name.
+		ifID, err := interfaces.GetInterfaceIndex(interfaceName)
+		if err != nil {
+			return err
+		}
+
+		// Convert each provided ingressRule into a mapping of potentially multiple keys (one for each CIDR)
+		// pointing to a flattened rule that can be written to the BPF map.
+		for _, rule := range ingressRules {
+			if ebpfKeys, ebpfRules, err := infc.makeIngressFwRulesMap(rule, ifID); err == nil {
+				for _, ebpfKey := range ebpfKeys {
+					ebpfKeyToRules[ebpfKey] = ebpfRules
+				}
+			} else {
+				return fmt.Errorf("failed to create map firewall rules: %v on if %d", err, ifID)
+			}
+		}
 	}
 
-	infc.ingressNodeFwEvents()
+	// Build a slice of desired keys - it's easier to iterate over this slice later.
+	var desiredKeys []BpfLpmIpKeySt
+	for desiredKey := range ebpfKeyToRules {
+		desiredKeys = append(desiredKeys, desiredKey)
+	}
+
+	// Get stale keys (= keys inside the eBPF map but not inside the currently desired ruleset). Those keys
+	// will be dropped in the next step.
+	staleKeys, err := infc.getStaleKeys(desiredKeys)
+	if err != nil {
+		return err
+	}
+
+	// Purge all stale keys from the eBPF map.
+	if err := infc.purgeKeys(staleKeys); err != nil {
+		klog.Infof("Purge keys operation encountered issues, err: %q", err)
+	}
+
+	// Add/update all keys. This is an idempotent action and non-existing keys are added whereas existing keys
+	// are updated.
+	if err := infc.addOrUpdateRules(ebpfKeyToRules); err != nil {
+		return err
+	}
 
 	return nil
 }
 
+// addOrUpdateRules is a small method containing this limited set of functionality to facilitate unit testing of
+// this part of code.
+// FIXME: addOrUpdateRules seems to ignore interface indexes during the UpdateAny operation. Cf. the corresponding
+// unit test.
+func (infc *IngNodeFwController) addOrUpdateRules(ebpfKeyToRules map[BpfLpmIpKeySt]BpfRulesValSt) error {
+	for ebpfKey, ebpfRules := range ebpfKeyToRules {
+		log.Printf("Adding or updating ingress firewall rules for key %v", ebpfKey)
+		if err := infc.objs.BpfMaps.IngressNodeFirewallTableMap.Update(ebpfKey, ebpfRules, ebpf.UpdateAny); err != nil {
+			return fmt.Errorf("Failed Adding/Updating ingress firewall rules: %v", err)
+		}
+	}
+	return nil
+}
+
+// GetStatisticsMap returns the statistics map of the object.
 func (infc *IngNodeFwController) GetStatisticsMap() *ebpf.Map {
 	return infc.objs.IngressNodeFirewallStatisticsMap
 }
 
-// makeIngressFwRulesMap convert IngressNodeFirewallRules into eBPF format which matched what the
-// kerenl hook will be using.
-func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingressnodefwiov1alpha1.IngressNodeFirewallRules,
-	isDelete bool, ifId uint32) error {
+// IngressNodeFwAttach attaches the eBPF program to a given list of interfaces and pins them to different pinDirs.
+// For each provided interface name:
+// i)   Look up the network interface by name.
+// ii)  Attach the program to the interface.
+// iii) Pin the XDP program.
+func (infc *IngNodeFwController) IngressNodeFwAttach(ifacesName ...string) error {
+	var errors []error
+
 	objs := infc.objs
-	rules := BpfRulesValSt{}
+	for _, ifaceName := range ifacesName {
+		if _, ok := infc.links[ifaceName]; ok {
+			klog.Infof("Interface %s is already attached and managed, skipping", ifaceName)
+			continue
+		}
+		// Look up the network interface by name.
+		ifID, err := interfaces.GetInterfaceIndex(ifaceName)
+		if err != nil {
+			errors = append(errors, err)
+			continue
+		}
+
+		// Attach the program.
+		l, err := link.AttachXDP(link.XDPOptions{
+			Program:   objs.IngressNodeFirewallProcess,
+			Interface: int(ifID),
+		})
+		if err != nil {
+			errors = append(errors, fmt.Errorf("could not attach XDP program: %s", err))
+			continue
+		}
+		// Pin the XDP program.
+		lPinDir := path.Join(infc.pinPath, ifaceName+linkSuffix)
+		if err := l.Pin(lPinDir); err != nil {
+			errors = append(errors, fmt.Errorf("failed to pin link to pinDir %s: %s", lPinDir, err))
+			continue
+		}
+		infc.links[ifaceName] = l
+		log.Printf("Attached IngressNode Firewall program to iface %q (index %d)", ifaceName, ifID)
+	}
+
+	if len(errors) > 0 {
+		return apierrors.NewAggregate(errors)
+	}
+	return nil
+}
+
+// IngressNodeFwDetach detaches the eBPF program from the list of interfaces and cleans up the interfaces.
+// Additionally, it unloads all firewall rules that are associated to the interfaces.
+func (infc *IngNodeFwController) IngressNodeFwDetach(interfaceNames ...string) error {
+	var errors []error
+	// Detach from interfaces.
+	for _, interfaceName := range interfaceNames {
+		log.Printf("Detaching IngressNode Firewall program from interface %q", interfaceName)
+		if err := infc.cleanup(interfaceName); err != nil {
+			errors = append(errors, err)
+		}
+	}
+
+	if len(errors) > 0 {
+		return apierrors.NewAggregate(errors)
+	}
+
+	return nil
+}
+
+// GetBPFMapContentForTest lists all existing keys and rules inside the map. Used for unit testing.
+func (infc *IngNodeFwController) GetBPFMapContentForTest() (map[BpfLpmIpKeySt]BpfRulesValSt, error) {
+	objs := infc.objs
+
+	// Lookup all keys inside the map and find keys that are stale.
+	keysToRules := make(map[BpfLpmIpKeySt]BpfRulesValSt)
 	var key BpfLpmIpKeySt
+	var value BpfRulesValSt
+	iterator := objs.BpfMaps.IngressNodeFirewallTableMap.Iterate()
+	for iterator.Next(&key, &value) {
+		keysToRules[key] = value
+	}
+	err := iterator.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return keysToRules, nil
+}
+
+// Close closes the current objs and removes all interface pins and the ebpf table map.
+func (infc *IngNodeFwController) Close() error {
+	var errors []error
+
+	klog.Info("Removing all pins")
+	if err := infc.removeAllPins(); err != nil {
+		errors = append(errors, fmt.Errorf("Could not remove all eBPF pins, err: %q", err))
+	}
+
+	klog.Info("Removing table map")
+	if err := infc.removeTableMap(); err != nil {
+		errors = append(errors, fmt.Errorf("Could not remove eBPF table map, err: %q", err))
+	}
+
+	klog.Info("Running cleanup of eBPF objects")
+	if err := infc.cleaneBPFObjs(); err != nil {
+		errors = append(errors, fmt.Errorf("Could not clean eBPF objects, err: %q", err))
+	}
+
+	if len(errors) > 0 {
+		return apierrors.NewAggregate(errors)
+	}
+	return nil
+}
+
+// cleaneBPFObjs closes the current objs.
+func (infc *IngNodeFwController) cleaneBPFObjs() error {
+	if err := infc.objs.Close(); err != nil {
+		return fmt.Errorf("failed to close eBPF objs err: %q", err)
+	}
+	return nil
+}
+
+// removeAllPins removes all pins for XDP.
+func (infc *IngNodeFwController) removeAllPins() error {
+	files, err := ioutil.ReadDir(infc.pinPath)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		matched, err := regexp.Match(".*"+linkSuffix+"$", []byte(file.Name()))
+		if err != nil {
+			return err
+		}
+		if matched {
+			if err := os.Remove(path.Join(infc.pinPath, file.Name())); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// removeTableMap removes the ebpf table map.
+func (infc *IngNodeFwController) removeTableMap() error {
+	return os.Remove(path.Join(infc.pinPath, "ingress_node_firewall_table_map"))
+}
+
+// loadPinnedLinks loads any pinned links that reside inside the /sys mount into memory if no such memory representation
+// exists yet.
+func (infc *IngNodeFwController) loadPinnedLinks() error {
+	klog.Info("Loading interfaces from pinned dir into memory")
+	files, err := ioutil.ReadDir(infc.pinPath)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		matched, err := regexp.Match(".*"+linkSuffix+"$", []byte(file.Name()))
+		if err != nil {
+			return err
+		}
+		if matched {
+			interfaceName := strings.TrimSuffix(file.Name(), linkSuffix)
+			if _, ok := infc.links[interfaceName]; !ok {
+
+				l, err := link.LoadPinnedLink(path.Join(infc.pinPath, file.Name()), nil)
+				if err != nil {
+					return err
+				}
+				infc.links[interfaceName] = l
+			}
+		}
+	}
+
+	return nil
+}
+
+// cleanup will delete an interface's eBPF objects.
+func (infc *IngNodeFwController) cleanup(ifName string) error {
+	l, ok := infc.links[ifName]
+	if !ok {
+		return fmt.Errorf("failed to find Link object for interface %s", ifName)
+	}
+	log.Printf("Running Unpin and Close for link %v", l)
+	if err := l.Unpin(); err != nil {
+		return fmt.Errorf("failed to unpin link for %s err: %q", ifName, err)
+	}
+	if err := l.Close(); err != nil {
+		return fmt.Errorf("failed to close and detach link %s err: %q", ifName, err)
+	}
+	delete(infc.links, ifName)
+	return nil
+}
+
+// makeIngressFwRulesMap converts IngressNodeFirewallRules into eBPF format which matches what the
+// kernel hook will be using. It returns the valid keys and the rules associated to those keys, or an error in case
+// of issues. If multiple keys are returned then the rules must be attached to each of these keys.
+func (infc *IngNodeFwController) makeIngressFwRulesMap(
+	ingFirewallConfig ingressnodefwiov1alpha1.IngressNodeFirewallRules, ifID uint32) ([]BpfLpmIpKeySt, BpfRulesValSt, error) {
+	rules := BpfRulesValSt{}
+	var keys []BpfLpmIpKeySt
 
 	// Parse firewall rules
 	for _, rule := range ingFirewallConfig.FirewallProtocolRules {
@@ -103,7 +379,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 			if utils.IsRange(rule.ProtocolConfig.TCP) {
 				start, end, err := utils.GetRange(rule.ProtocolConfig.TCP)
 				if err != nil {
-					return fmt.Errorf("invalid Port range %s for protocol %v",
+					return keys, rules, fmt.Errorf("invalid Port range %s for protocol %v",
 						rule.ProtocolConfig.TCP.Ports.String(), rule.ProtocolConfig.Protocol)
 				}
 				rules.Rules[idx].DstPortStart = start
@@ -111,7 +387,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 			} else {
 				port, err := utils.GetPort(rule.ProtocolConfig.TCP)
 				if err != nil {
-					return fmt.Errorf("invalid Port %s for protocol %v",
+					return keys, rules, fmt.Errorf("invalid Port %s for protocol %v",
 						rule.ProtocolConfig.TCP.Ports.String(), rule.ProtocolConfig.Protocol)
 				}
 				rules.Rules[idx].DstPortStart = port
@@ -122,7 +398,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 			if utils.IsRange(rule.ProtocolConfig.UDP) {
 				start, end, err := utils.GetRange(rule.ProtocolConfig.UDP)
 				if err != nil {
-					return fmt.Errorf("invalid Port range %s for protocol %v",
+					return keys, rules, fmt.Errorf("invalid Port range %s for protocol %v",
 						rule.ProtocolConfig.UDP.Ports.String(), rule.ProtocolConfig.Protocol)
 				}
 				rules.Rules[idx].DstPortStart = start
@@ -130,7 +406,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 			} else {
 				port, err := utils.GetPort(rule.ProtocolConfig.UDP)
 				if err != nil {
-					return fmt.Errorf("invalid Port %s for protocol %v",
+					return keys, rules, fmt.Errorf("invalid Port %s for protocol %v",
 						rule.ProtocolConfig.UDP.Ports.String(), rule.ProtocolConfig.Protocol)
 				}
 				rules.Rules[idx].DstPortStart = port
@@ -141,7 +417,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 			if utils.IsRange(rule.ProtocolConfig.SCTP) {
 				start, end, err := utils.GetRange(rule.ProtocolConfig.SCTP)
 				if err != nil {
-					return fmt.Errorf("invalid Port range %s for protocol %v",
+					return keys, rules, fmt.Errorf("invalid Port range %s for protocol %v",
 						rule.ProtocolConfig.SCTP.Ports.String(), rule.ProtocolConfig.Protocol)
 				}
 				rules.Rules[idx].DstPortStart = start
@@ -149,7 +425,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 			} else {
 				port, err := utils.GetPort(rule.ProtocolConfig.SCTP)
 				if err != nil {
-					return fmt.Errorf("invalid Port %s for protocol %v",
+					return keys, rules, fmt.Errorf("invalid Port %s for protocol %v",
 						rule.ProtocolConfig.SCTP.Ports.String(), rule.ProtocolConfig.Protocol)
 				}
 				rules.Rules[idx].DstPortStart = port
@@ -166,7 +442,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 			rules.Rules[idx].Protocol = syscall.IPPROTO_ICMPV6
 
 		default:
-			return fmt.Errorf("Failed invalid protocol %v", rule.ProtocolConfig.Protocol)
+			return keys, rules, fmt.Errorf("Failed invalid protocol %v", rule.ProtocolConfig.Protocol)
 		}
 		switch rule.Action {
 		case ingressnodefwiov1alpha1.IngressNodeFirewallAllow:
@@ -174,105 +450,136 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(ingFirewallConfig ingress
 		case ingressnodefwiov1alpha1.IngressNodeFirewallDeny:
 			rules.Rules[idx].Action = xdpDeny
 		default:
-			return fmt.Errorf("Failed invalid action %v", rule.Action)
+			return keys, rules, fmt.Errorf("Failed invalid action %v", rule.Action)
 		}
 	}
 
-	// Parse CIDRs to construct map keys wih shared rules
+	// Parse CIDRs to construct map keys wih shared rules.
 	for _, cidr := range ingFirewallConfig.SourceCIDRs {
 		cidr := cidr
-		ip, ipNet, err := net.ParseCIDR(cidr)
+		key, err := BuildEBPFKey(ifID, cidr)
 		if err != nil {
-			return fmt.Errorf("Failed to parse SourceCIDRs: %v", err)
+			return keys, rules, err
 		}
-		if ip.To4() != nil {
-			copy(key.IpData[:], ip.To4())
-		} else {
-			copy(key.IpData[:], ip.To16())
-		}
-		pfLen, _ := ipNet.Mask.Size()
-		key.PrefixLen = uint32(pfLen)
-		key.IngressIfindex = ifId
-		// Handle Ingress firewall map operation
-		if isDelete {
-			log.Printf("Deleting ingress firewall rules for key %v", key)
-			if err := objs.BpfMaps.IngressNodeFirewallTableMap.Delete(key); err != nil {
-				return fmt.Errorf("Failed Deleting ingress firewall rules: %v", err)
-			}
-		} else {
-			log.Printf("Creating ingress firewall rules for key %v", key)
-			if err := objs.BpfMaps.IngressNodeFirewallTableMap.Update(key, rules, ebpf.UpdateAny); err != nil {
-				return fmt.Errorf("Failed Adding/Updating ingress firewall rules: %v", err)
-			}
-		}
+		keys = append(keys, key)
 	}
-	return nil
+	return keys, rules, nil
 }
 
-// IngressNodeFwAttach attach eBPF program to list interfaces and pin them to different pinDir
-func (infc *IngNodeFwController) IngressNodeFwAttach(ifacesName []string, isDelete bool) (map[string]uint32, error) {
-	var ifMap = make(map[string]uint32, 0)
+// BuildEBPFKey builds a key object from an ifID and a cidr.
+func BuildEBPFKey(ifID uint32, cidr string) (BpfLpmIpKeySt, error) {
+	var key BpfLpmIpKeySt
 
+	ip, ipNet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return key, fmt.Errorf("Failed to parse SourceCIDRs: %v", err)
+	}
+	if ip.To4() != nil {
+		copy(key.IpData[:], ip.To4())
+	} else {
+		copy(key.IpData[:], ip.To16())
+	}
+	pfLen, _ := ipNet.Mask.Size()
+	key.PrefixLen = uint32(pfLen)
+	key.IngressIfindex = ifID
+
+	return key, nil
+}
+
+// getStaleKeys goes through all existing rules and lists keys from the ebpfMap that do not match any
+// of the provided keys.
+func (infc *IngNodeFwController) getStaleKeys(desiredKeys []BpfLpmIpKeySt) ([]BpfLpmIpKeySt, error) {
 	objs := infc.objs
-	for _, ifaceName := range ifacesName {
-		ifaceName := ifaceName
-		// Look up the network interface by name.
-		iface, err := net.InterfaceByName(ifaceName)
-		if err != nil {
-			return ifMap, fmt.Errorf("lookup network iface %q: %s", ifaceName, err)
+
+	// Lookup all keys inside the map and find keys that are stale.
+	var staleKeys []BpfLpmIpKeySt
+	var key BpfLpmIpKeySt
+	var value BpfRulesValSt
+	iterator := objs.BpfMaps.IngressNodeFirewallTableMap.Iterate()
+	for iterator.Next(&key, &value) {
+		keyFound := false
+		for _, desiredKey := range desiredKeys {
+			if reflect.DeepEqual(desiredKey, key) {
+				keyFound = true
+				break
+			}
 		}
-		ifMap[ifaceName] = uint32(iface.Index)
-		if !isDelete {
-			// Attach the program.
-			l, err := link.AttachXDP(link.XDPOptions{
-				Program:   objs.IngressNodeFirewallProcess,
-				Interface: iface.Index,
+		if !keyFound {
+			staleKeys = append(staleKeys, BpfLpmIpKeySt{
+				PrefixLen:      key.PrefixLen,
+				IpData:         key.IpData,
+				IngressIfindex: key.IngressIfindex,
 			})
-			if err != nil {
-				if strings.Contains(err.Error(), xdpEBUSYErr) {
-					log.Printf("Interface %s is already attached", ifaceName)
-					return ifMap, nil
-				}
-				return ifMap, fmt.Errorf("could not attach XDP program: %s", err)
-			}
-			lPinDir := path.Join(infc.pinPath, ifaceName+"_link")
-			if err := l.Pin(lPinDir); err != nil {
-				return ifMap, fmt.Errorf("failed to pin link to pinDir %s: %s", lPinDir, err)
-			}
-			infc.links[ifaceName] = l
-			log.Printf("Attached IngressNode Firewall program to iface %q (index %d)", iface.Name, iface.Index)
-		} else {
-			log.Printf("Unattaching IngressNode Firewall program from iface %q (index %d)", iface.Name, iface.Index)
-			if err := infc.cleanup(ifaceName); err != nil {
-				return ifMap, err
-			}
 		}
 	}
-	return ifMap, nil
+	err := iterator.Err()
+	if err != nil {
+		return staleKeys, err
+	}
+
+	return staleKeys, nil
 }
 
-// cleanup will delete interface's eBPF objects.
-func (infc *IngNodeFwController) cleanup(ifName string) error {
-	l, ok := infc.links[ifName]
-	if !ok {
-		return fmt.Errorf("failed to find Link object for interface %s", ifName)
+// getStaleInterfaceKeys returns the keys for all rules that belong to stale interfaces, meaning interfaces
+// that are not attached any more.
+func (infc *IngNodeFwController) getStaleInterfaceKeys() ([]BpfLpmIpKeySt, error) {
+	objs := infc.objs
+
+	// Looup all valid interfaces IDs.
+	var validInterfaceIDs []uint32
+	for interfaceName := range infc.links {
+		ifID, err := interfaces.GetInterfaceIndex(interfaceName)
+		if err != nil {
+			return nil, err
+		}
+		validInterfaceIDs = append(validInterfaceIDs, ifID)
 	}
-	if err := l.Unpin(); err != nil {
-		return fmt.Errorf("failed to unpin link for %s err: %q", ifName, err)
+
+	// Lookup all keys inside the map and find keys that should be deleted.
+	var keysToDelete []BpfLpmIpKeySt
+	var key BpfLpmIpKeySt
+	var value BpfRulesValSt
+	iterator := objs.BpfMaps.IngressNodeFirewallTableMap.Iterate()
+	for iterator.Next(&key, &value) {
+		keyFound := false
+		for _, validID := range validInterfaceIDs {
+			if validID == key.IngressIfindex {
+				keyFound = true
+				break
+			}
+		}
+		if !keyFound {
+			keysToDelete = append(keysToDelete, BpfLpmIpKeySt{
+				PrefixLen:      key.PrefixLen,
+				IpData:         key.IpData,
+				IngressIfindex: key.IngressIfindex,
+			})
+		}
 	}
-	if err := l.Close(); err != nil {
-		return fmt.Errorf("failed to close and detach link %s err: %q", ifName, err)
+	err := iterator.Err()
+	if err != nil {
+		return nil, err
 	}
-	delete(infc.links, ifName)
-	return nil
+
+	return keysToDelete, nil
 }
 
-func (infc *IngNodeFwController) CleaneBPFObjs() error {
-	if err := infc.objs.Close(); err != nil {
-		return fmt.Errorf("failed to close eBPF objs err: %q", err)
+// purgeKeys purges the provided keys from the eBPF map. If a key deletion fails, the error is added to a list
+// of errors which will be returned at the end.
+func (infc *IngNodeFwController) purgeKeys(keys []BpfLpmIpKeySt) error {
+	var errors []error
+	objs := infc.objs
+
+	// Delete all keys that should be deleted.
+	for _, keyToDelete := range keys {
+		klog.Infof("Purging key %v", keyToDelete)
+		err := objs.BpfMaps.IngressNodeFirewallTableMap.Delete(keyToDelete)
+		if err != nil {
+			errors = append(errors, err)
+		}
 	}
-	if err := os.RemoveAll(infc.pinPath); err != nil {
-		return fmt.Errorf("failed to remove pinpath %s err: %q", infc.pinPath, err)
+	if len(errors) > 0 {
+		return apierrors.NewAggregate(errors)
 	}
 	return nil
 }
