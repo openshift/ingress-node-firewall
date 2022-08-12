@@ -10,6 +10,7 @@ import (
 	"github.com/openshift/ingress-node-firewall/pkg/failsaferules"
 	"github.com/openshift/ingress-node-firewall/pkg/utils"
 
+	"golang.org/x/sys/unix"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -75,7 +76,35 @@ func validateIngressNodeFirewall(ctx context.Context, inf *ingressnodefwv1alpha1
 			schema.GroupKind{Group: ingressnodefwv1alpha1.GroupVersion.Group, Kind: ingressnodefwv1alpha1.IngressNodeFirewall{}.Kind},
 			inf.Name, allErrs)
 	}
+	if allErrs := validateINFInterfaces(ctx, inf.Spec.Interfaces, inf.Name, kubeClient); len(allErrs) > 0 {
+		return apierrors.NewInvalid(
+			schema.GroupKind{Group: ingressnodefwv1alpha1.GroupVersion.Group, Kind: ingressnodefwv1alpha1.IngressNodeFirewall{}.Kind},
+			inf.Name, allErrs)
+	}
 	return nil
+}
+
+func validateINFInterfaces(ctx context.Context, infInterfaces []string, infName string, kubeClient client.Client) field.ErrorList {
+	var allErrs field.ErrorList
+
+	for index, inf := range infInterfaces {
+		if inf == "" {
+			allErrs = append(allErrs,
+				field.Invalid(field.NewPath("Spec").Child("interfaces").Index(index),
+					infName, fmt.Sprintf("can not use blank interfae names")))
+		}
+		if len(inf) > unix.IFNAMSIZ {
+			allErrs = append(allErrs,
+				field.Invalid(field.NewPath("Spec").Child("interfaces").Index(index),
+					infName, fmt.Sprintf("interface %q is too long", inf)))
+		}
+		if inf[0] >= '0' && inf[0] <= '9' {
+			allErrs = append(allErrs,
+				field.Invalid(field.NewPath("Spec").Child("interfaces").Index(index),
+					infName, fmt.Sprintf("interface %q can't start with a number", inf)))
+		}
+	}
+	return allErrs
 }
 
 func validateINFRules(ctx context.Context, infRules []ingressnodefwv1alpha1.IngressNodeFirewallRules, infName string, kubeClient client.Client) field.ErrorList {

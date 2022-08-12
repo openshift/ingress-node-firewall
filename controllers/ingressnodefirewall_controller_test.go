@@ -18,13 +18,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	timeout  = time.Second * 10
+	interval = time.Millisecond * 250
+)
+
 var _ = Describe("IngressNodeFirewall controller", func() {
-
-	const (
-		timeout  = time.Second * 10
-		interval = time.Millisecond * 250
-	)
-
 	ctx := context.Background()
 
 	ingressNodeFirewallName := "firewall1"
