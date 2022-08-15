@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -o errexit
 
+# create registry container unless it already exists
+reg_name='kind-registry'
+reg_port='5001'
+if [ "$(docker inspect -f '{{.State.Running}}' "${reg_name}" 2>/dev/null || true)" != 'true' ]; then
+  docker run \
+    -d --restart=always -p "127.0.0.1:${reg_port}:5000" --name "${reg_name}" \
+    registry:2
+fi
+
 DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 # desired cluster name; default is "kind"
@@ -13,6 +22,10 @@ SVC_CIDR_IPV6=${SVC_CIDR_IPV6:-fd00:10:96::/112}
 cat <<EOF | kind create cluster --image kindest/node:v1.24.0 --config=- --kubeconfig=${DIR}/kubeconfig
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
+containerdConfigPatches:
+- |-
+  [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:${reg_port}"]
+    endpoint = ["http://${reg_name}:5000"]
 networking:
     podSubnet: $NET_CIDR_IPV4,$NET_CIDR_IPV6
     serviceSubnet: $SVC_CIDR_IPV4,$SVC_CIDR_IPV6

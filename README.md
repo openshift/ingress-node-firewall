@@ -108,6 +108,11 @@ make bundle
 make create-kind-cluster
 export KUBECONFIG=$(pwd)/hack/kubeconfig
 ```
+
+Note: the `create-kind-cluster` script will also standup an additional
+local image registry, available at `localhost:5001`. You can push and
+pull images to/from this registry for a faster dev cycle.
+
 3. Install custom resource definitions
 ```sh
 make install
@@ -115,6 +120,12 @@ make install
 4. Build controller container image
 ```sh
 make docker-build IMG=<some-registry>/ingress-node-firewall-controller:tag
+```
+For a faster dev cycle consider using the local image registry
+available at `localhost:5001` when building and pushing images.
+For example, the previous build would specify:
+```sh
+make docker-build IMG=localhost:5001/ingress-node-firewall-controller:tag
 ```
 5. Load controller container image to KinD container(s)
 ```sh
@@ -155,6 +166,11 @@ make docker-build IMG=<some-registry>/ingress-node-firewall-controller:tag
 4. Push controller container image to an image registry
 ```sh
 make docker-push IMG=<some-registry>/ingress-node-firewall-controller:tag
+```
+If you're using the local container registry then the push would be:
+
+```sh
+make docker-push IMG=localhost:5001/ingress-node-firewall-controller:tag
 ```
 5. Build daemon container image
 ```sh
