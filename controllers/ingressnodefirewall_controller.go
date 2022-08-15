@@ -23,7 +23,6 @@ import (
 	"github.com/go-logr/logr"
 
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -211,7 +210,7 @@ func (r *IngressNodeFirewallReconciler) triggerReconciliation(object client.Obje
 		return []reconcile.Request{}
 	}
 
-	// We do not need to reconcile anything if there are no items of type IngressNodeFirwall.
+	// We do not need to reconcile anything if there are no items of type IngressNodeFirewall.
 	if len(ingressNodeFirewallList.Items) == 0 {
 		return []reconcile.Request{}
 	}
@@ -324,17 +323,6 @@ func (r *IngressNodeFirewallReconciler) buildNodeStates(
 				continue withNextNode
 			}
 			for _, iface := range firewallObj.Spec.Interfaces {
-				// Verify if an invalid interface name was specified.
-				// On error, report the error in the status field and continue with the next node.
-				if !isLegalInterfaceName(iface) {
-					state.Status = infv1alpha1.IngressNodeFirewallNodeStateStatus{
-						SyncStatus:       infv1alpha1.SyncError,
-						SyncErrorMessage: fmt.Sprintf("Invalid interface name %s", iface),
-					}
-					// Write back the state to the map and then continue with the next node.
-					nodeStates[node.Name] = state
-					continue withNextNode
-				}
 				// Create the rules for the node spec if they do not yet exist for this interface.
 				if _, ok := state.Spec.InterfaceIngressRules[iface]; !ok {
 					state.Spec.InterfaceIngressRules[iface] = []infv1alpha1.IngressNodeFirewallRules{}
@@ -359,13 +347,6 @@ func (r *IngressNodeFirewallReconciler) buildNodeStates(
 	}
 
 	return nodeStates, nil
-}
-
-func isLegalInterfaceName(iface string) bool {
-	if iface == "" {
-		return false
-	}
-	return true
 }
 
 // mergeRuleSet merges 2 rulesets of type []infv1alpha1.IngressNodeFirewallRules.

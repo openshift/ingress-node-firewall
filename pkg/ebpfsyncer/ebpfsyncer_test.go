@@ -13,6 +13,7 @@ import (
 	"time"
 
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
+
 	"github.com/vishvananda/netlink"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -37,7 +38,9 @@ func TestSyncInterfaceIngressRulesConnectDenyRule(t *testing.T) {
 
 	defer afterEach(t)
 	beforeEach(t)
-
+	isValidInterfaceNameAndState = func(ifName string) bool {
+		return true
+	}
 	rules := map[string][]infv1alpha1.IngressNodeFirewallRules{
 		fmt.Sprintf("%s0", interfacePrefix): {
 			{
@@ -96,7 +99,9 @@ func TestSyncInterfaceIngressRulesConnectAllowRule(t *testing.T) {
 
 	defer afterEach(t)
 	beforeEach(t)
-
+	isValidInterfaceNameAndState = func(ifName string) bool {
+		return true
+	}
 	rules := map[string][]infv1alpha1.IngressNodeFirewallRules{
 		fmt.Sprintf("%s0", interfacePrefix): {
 			{
@@ -154,7 +159,9 @@ func TestSyncInterfaceIngressRulesConnectAllowRule(t *testing.T) {
 func TestSyncInterfaceIngressRulesAttachAndDetachSingleInterface(t *testing.T) {
 	defer afterEach(t)
 	beforeEach(t)
-
+	isValidInterfaceNameAndState = func(ifName string) bool {
+		return true
+	}
 	rules := map[string][]infv1alpha1.IngressNodeFirewallRules{
 		fmt.Sprintf("%s0", interfacePrefix): {
 			{
@@ -220,7 +227,9 @@ func TestSyncInterfaceIngressRulesAttachAndDetachSingleInterface(t *testing.T) {
 func TestSyncInterfaceIngressRulesAttachAndDetach(t *testing.T) {
 	defer afterEach(t)
 	beforeEach(t)
-
+	isValidInterfaceNameAndState = func(ifName string) bool {
+		return true
+	}
 	rules := map[string][]infv1alpha1.IngressNodeFirewallRules{
 		fmt.Sprintf("%s0", interfacePrefix): {
 			{
@@ -304,7 +313,9 @@ func TestSyncInterfaceIngressRulesAttachAndDetach(t *testing.T) {
 func TestResyncInterfaceIngressRulesSingleInterface(t *testing.T) {
 	defer afterEach(t)
 	beforeEach(t)
-
+	isValidInterfaceNameAndState = func(ifName string) bool {
+		return true
+	}
 	rules := map[string][]infv1alpha1.IngressNodeFirewallRules{
 		fmt.Sprintf("%s0", interfacePrefix): {
 			{
@@ -359,7 +370,9 @@ func TestResyncInterfaceIngressRulesSingleInterface(t *testing.T) {
 func TestResyncInterfaceIngressRules(t *testing.T) {
 	defer afterEach(t)
 	beforeEach(t)
-
+	isValidInterfaceNameAndState = func(ifName string) bool {
+		return true
+	}
 	rules := map[string][]infv1alpha1.IngressNodeFirewallRules{
 		fmt.Sprintf("%s0", interfacePrefix): {
 			{

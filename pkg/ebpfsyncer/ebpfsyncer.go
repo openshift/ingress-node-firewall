@@ -6,16 +6,21 @@ import (
 	"net"
 	"sync"
 
-	"github.com/go-logr/logr"
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	nodefwloader "github.com/openshift/ingress-node-firewall/pkg/ebpf"
 	"github.com/openshift/ingress-node-firewall/pkg/failsaferules"
+	intfs "github.com/openshift/ingress-node-firewall/pkg/interfaces"
 	"github.com/openshift/ingress-node-firewall/pkg/metrics"
+
+	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-var once sync.Once
-var instance EbpfSyncer
+var (
+	once                         sync.Once
+	instance                     EbpfSyncer
+	isValidInterfaceNameAndState = intfs.IsValidInterfaceNameAndState
+)
 
 // ebpfDaemon is a single point of contact that all reconciliation requests will send their desired state of
 // interface rules to. On the other side, ebpfDaemon makes sure that rules are attached and detached from / to the
@@ -112,6 +117,9 @@ func (e *ebpfSingleton) SyncInterfaceIngressRules(
 	// Also delete the rules associated to these interfaces. See TODO below.
 	for intf := range e.managedInterfaces {
 		logger.Info("Running detach operation for interface", "intf", intf)
+		if !isValidInterfaceNameAndState(intf) {
+			return fmt.Errorf("Fail to attach ingress node Firewall rules: invalid inteface %s", intf)
+		}
 		if _, ok := ifaceIngressRules[intf]; !ok {
 			_, err := e.c.IngressNodeFwAttach([]string{intf}, true)
 			if err != nil {

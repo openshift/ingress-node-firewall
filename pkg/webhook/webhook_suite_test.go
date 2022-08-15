@@ -145,6 +145,34 @@ var _ = BeforeSuite(func() {
 
 }, 60)
 
+var _ = Describe("Interfaces", func() {
+	var inf *ingressnodefwv1alpha1.IngressNodeFirewall
+
+	BeforeEach(func() {
+		inf = getIngressNodeFirewall("interfaces-validation")
+	})
+
+	Context("ingress node firewall interfaces validation", func() {
+		It("interfaces config with valid interfaces name", func() {
+			configInterfaces(inf, []string{"eth0", "eth1"})
+			Expect(createIngressNodeFirewall(inf)).To(Succeed())
+			Expect(deleteIngressNodeFirewall(inf)).To(Succeed())
+		})
+		It("interfaces config with empty strings", func() {
+			configInterfaces(inf, []string{""})
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+		It("interfaces config with too long interface name", func() {
+			configInterfaces(inf, []string{"abcd123459$%&ABDC44555555555"})
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+		It("interfaces config with interface name starts with number", func() {
+			configInterfaces(inf, []string{"0th"})
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+	})
+})
+
 var _ = Describe("Rules", func() {
 	Context("protocol is ICMPv4", func() {
 		var inf *ingressnodefwv1alpha1.IngressNodeFirewall
@@ -617,5 +645,11 @@ func getICMPv6Rule(order uint32, protocol ingressnodefwv1alpha1.IngressNodeFirew
 			},
 		},
 		Action: action,
+	}
+}
+
+func configInterfaces(inf *ingressnodefwv1alpha1.IngressNodeFirewall, intfs []string) {
+	for _, intf := range intfs {
+		inf.Spec.Interfaces = append(inf.Spec.Interfaces, intf)
 	}
 }
