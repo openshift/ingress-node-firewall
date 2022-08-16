@@ -76,6 +76,21 @@ sudo dnf install glibc-devel glibc-devel.i686
 
 ### Running on a KinD cluster
 
+#### Creating a kind cluster with the operator installed
+
+##### In a single step
+
+1. Download latest [KinD](https://kind.sigs.k8s.io/docs/user/quick-start) stable version
+2. Install KinD and the operator and export KUBECONFIG
+```sh
+make create-and-deploy-kind-cluster
+export KUBECONFIG=$(pwd)/hack/kubeconfig
+```
+**Note:** If prompted to do so, manually edit file `config/manager/env.yaml` and set the value of environment variable
+`DAEMONSET_IMAGE`. This should only happen if `yq` cannot be found.
+
+##### Deploying kind and the operator manually
+
 1. Download latest [KinD](https://kind.sigs.k8s.io/docs/user/quick-start) stable version
 2. Install KinD and export KUBECONFIG
 ```sh
@@ -110,13 +125,24 @@ hack/set-daemon-image.sh <some-registry>/ingress-node-firewall-daemon:latest
 ```sh
 make deploy-kind IMG=<some-registry>/ingress-node-firewall-controller:latest
 ```
-7. Undeploy resources from KinD cluster
+
+#### Removing the operator from the kind cluster
+
+In order to remove the operator:
+1. Undeploy resources from KinD cluster
 ```sh
 make undeploy-kind
 ```
-8. Uninstall custom resource definitions
+2. Uninstall custom resource definitions:
 ```sh
 make uninstall
+```
+
+#### Deleting the kind cluster
+
+In order to delete the kind cluster:
+```sh
+kind delete cluster
 ```
 
 ### Running on an OCP cluster
