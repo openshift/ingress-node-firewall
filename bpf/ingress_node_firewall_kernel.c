@@ -141,7 +141,7 @@ ipv4_checkTuple(void *dataStart, void *dataEnd, __u32 ifId) {
         return SET_ACTION(UNDEF);
     }
     memset(&key, 0, sizeof(key));
-    key.prefixLen = 32;
+    key.prefixLen = 64; // ipv4 address + ifId
     key.ip_data[0] = srcAddr & 0xFF;
     key.ip_data[1] = (srcAddr >> 8) & 0xFF;
     key.ip_data[2] = (srcAddr >> 16) & 0xFF;
@@ -202,7 +202,7 @@ ipv6_checkTuple(void *dataStart, void *dataEnd, __u32 ifId) {
         return SET_ACTION(UNDEF);
     }
     memset(&key, 0, sizeof(key));
-    key.prefixLen = 128;
+    key.prefixLen = 160; // ipv6 address _ ifId
     memcpy(key.ip_data, srcAddr, 16);
     key.ingress_ifindex = ifId;
 
