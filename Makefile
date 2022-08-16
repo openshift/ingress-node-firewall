@@ -227,7 +227,7 @@ $(LOCALBIN):
 ## Tool Binaries
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
-ENVTEST ?= $(LOCALBIN)/setup-envtest
+ENVTEST ?= $(ENVTEST_ASSETS_DIR)/setup-envtest.sh
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
