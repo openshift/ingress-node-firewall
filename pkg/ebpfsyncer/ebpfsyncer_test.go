@@ -83,7 +83,7 @@ func TestSyncInterfaceIngressRulesWithHTTP(t *testing.T) {
 			},
 			targetResult: map[string]bool{
 				"192.0.2.1:12345": false,
-				"192.0.2.1:12346": false,
+				"192.0.2.1:12346": true,
 				"192.0.2.5:12345": true,
 				"192.0.2.5:12346": true,
 			},

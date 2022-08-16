@@ -31,6 +31,9 @@ nodes:
     scheduler:
         extraArgs:
             v: "5"
+- role: worker
+- role: worker
 EOF
 export KUBECONFIG=${DIR}/kubeconfig
-oc label node kind-control-plane node-role.kubernetes.io/worker=
+oc label node kind-worker node-role.kubernetes.io/worker=
+oc label node kind-worker2 node-role.kubernetes.io/worker=

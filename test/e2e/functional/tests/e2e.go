@@ -93,7 +93,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 
 		It("should run Ingress node firewall apply rules and check the actions", func() {
 			By("get nodes IP addresses with matching labels and ping their IPs")
-			nodes, err := testclient.Client.Nodes().List(context.Background(), metav1.ListOptions{LabelSelector: "node-role.kubernetes.io/worker"})
+			nodes, err := testclient.Client.Nodes().List(context.Background(), metav1.ListOptions{LabelSelector: consts.IngressNodeFirewallNodeLabel})
 			Expect(err).ToNot(HaveOccurred())
 
 			err, _ = infwutils.RunPingTest(nodes.Items)
@@ -106,7 +106,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 				},
 				Spec: ingressnodefwv1alpha1.IngressNodeFirewallSpec{
 					NodeSelector: metav1.LabelSelector{
-						MatchLabels: map[string]string{"node-role.kubernetes.io/worker": ""},
+						MatchLabels: map[string]string{consts.IngressNodeFirewallNodeLabel: ""},
 					},
 					Ingress: []ingressnodefwv1alpha1.IngressNodeFirewallRules{
 						{
@@ -182,7 +182,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			By("checking Ingress node firewall rules deny ping packets")
 			Eventually(func() bool {
 				err, cnt := infwutils.RunPingTest(nodes.Items)
-				if err != nil && cnt == len(infwutils.NodesIP(nodes.Items)) {
+				if err != nil && cnt == len(infwutils.NodesIPs(nodes.Items)) {
 					return true
 				}
 				return false
@@ -192,17 +192,22 @@ var _ = Describe("Ingress Node Firewall", func() {
 			podList, err := infwutils.GetDaemonSetPods(config.Namespace)
 			Expect(err).To(BeNil())
 			Expect(podList).ToNot(BeNil())
-			daemonPod := &podList.Items[0]
-			out, _, err := pods.ExecCommand(testclient.Client, daemonPod, "cat", consts.IngressNodeFirewallEventsLogFile)
-			Expect(err).ToNot(HaveOccurred())
-			Eventually(func() bool {
-				for _, ip := range infwutils.NodesIP(nodes.Items) {
-					if !strings.Contains(out, ip) {
+			for _, pod := range podList.Items {
+				out, _, err := pods.ExecCommand(testclient.Client, &pod, "cat", consts.IngressNodeFirewallEventsLogFile)
+				Expect(err).ToNot(HaveOccurred())
+				Eventually(func() bool {
+					ips, err := infwutils.NodeIPs(pod.Spec.NodeName)
+					if err != nil {
 						return false
 					}
-				}
-				return true
-			}, infwutils.Timeout, infwutils.Interval).Should(BeTrue())
+					for _, ip := range ips {
+						if !strings.Contains(out, ip) {
+							return false
+						}
+					}
+					return true
+				}, infwutils.Timeout, infwutils.Interval).Should(BeTrue())
+			}
 
 			By("checking Ingress node firewall rules resource is deleted")
 			Eventually(func() bool {
@@ -281,7 +286,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			Expect(podList).ToNot(BeNil())
 			daemonPod := &podList.Items[0]
 
-			nodes, err := testclient.Client.Nodes().List(context.Background(), metav1.ListOptions{LabelSelector: "node-role.kubernetes.io/worker"})
+			nodes, err := testclient.Client.Nodes().List(context.Background(), metav1.ListOptions{LabelSelector: consts.IngressNodeFirewallNodeLabel})
 			Expect(err).ToNot(HaveOccurred())
 
 			err, _ = infwutils.RunPingTest(nodes.Items)
@@ -293,7 +298,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 				},
 				Spec: ingressnodefwv1alpha1.IngressNodeFirewallSpec{
 					NodeSelector: metav1.LabelSelector{
-						MatchLabels: map[string]string{"node-role.kubernetes.io/worker": ""},
+						MatchLabels: map[string]string{consts.IngressNodeFirewallNodeLabel: ""},
 					},
 					Ingress: []ingressnodefwv1alpha1.IngressNodeFirewallRules{
 						{

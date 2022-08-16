@@ -19,4 +19,6 @@ const (
 	IngressNodeFirewallConfigCRFile = "ingress-node-firewall-config.yaml"
 	// IngressNodeFirewallEventsLogFile eBPF events logs file
 	IngressNodeFirewallEventsLogFile = "/tmp/ingress_node_firewall_events.log"
+	// IngressNodeFirewallNodeLabel used to select Nodes where ingress node firewall will be running on
+	IngressNodeFirewallNodeLabel = "node-role.kubernetes.io/worker"
 )

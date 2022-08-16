@@ -26,7 +26,7 @@ import (
 const (
 	// Timeout and Interval settings
 	Timeout       = time.Second * 40
-	DeployTimeout = time.Minute * 3
+	DeployTimeout = time.Minute * 5
 	Interval      = time.Second * 4
 )
 
@@ -78,8 +78,23 @@ func loadFromFile(obj interface{}, fileName string) error {
 	return decodeYAML(f, obj)
 }
 
-func NodesIP(nodes []v1.Node) []string {
-	res := []string{}
+func NodeIPs(nodeName string) ([]string, error) {
+	var res []string
+
+	node, err := testclient.Client.Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range node.Status.Addresses {
+		if a.Type == v1.NodeInternalIP {
+			res = append(res, a.Address)
+		}
+	}
+	return res, nil
+}
+
+func NodesIPs(nodes []v1.Node) []string {
+	var res []string
 	for _, n := range nodes {
 		for _, a := range n.Status.Addresses {
 			if a.Type == v1.NodeInternalIP {
@@ -92,7 +107,7 @@ func NodesIP(nodes []v1.Node) []string {
 
 func RunPingTest(nodes []v1.Node) (error, int) {
 	var errs []error
-	ii := NodesIP(nodes)
+	ii := NodesIPs(nodes)
 	for _, ip := range ii {
 		if _, err := exec.Command("ping", "-c", "1", ip).CombinedOutput(); err != nil {
 			errs = append(errs, err)
@@ -129,7 +144,7 @@ func GetINF(operatorNamespace string, name string) *ingressnodefwv1alpha1.Ingres
 
 func DefineWithWorkerNodeSelector(inf *ingressnodefwv1alpha1.IngressNodeFirewall) {
 	inf.Spec.NodeSelector = metav1.LabelSelector{
-		MatchLabels: map[string]string{"node-role.kubernetes.io/worker": ""},
+		MatchLabels: map[string]string{consts.IngressNodeFirewallNodeLabel: ""},
 	}
 }
 
