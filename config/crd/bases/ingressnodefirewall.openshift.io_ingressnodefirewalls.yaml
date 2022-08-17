@@ -51,7 +51,7 @@ spec:
                         properties:
                           action:
                             description: action can be Allow or Deny, default action
-                              is Deny.
+                              is Allow.
                             enum:
                             - Allow
                             - Deny

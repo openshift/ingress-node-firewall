@@ -91,7 +91,7 @@ type IngressNodeFirewallProtocolRule struct {
 	// +optional
 	ProtocolConfig IngressNodeProtocolConfig `json:"protocolConfig"`
 
-	// action can be Allow or Deny, default action is Deny.
+	// action can be Allow or Deny, default action is Allow.
 	// +optional
 	Action IngressNodeFirewallActionType `json:"action,omitempty"`
 }
