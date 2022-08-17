@@ -406,7 +406,7 @@ var _ = Describe("IngressNodeFirewall controller rules", func() {
 									ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
 										Protocol: infv1alpha1.ProtocolTypeTCP,
 										TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
-											Ports: intstr.FromInt(80),
+											Ports: intstr.FromInt(88),
 										},
 									},
 									Action: infv1alpha1.IngressNodeFirewallDeny,
@@ -438,7 +438,7 @@ var _ = Describe("IngressNodeFirewall controller rules", func() {
 									ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
 										Protocol: infv1alpha1.ProtocolTypeTCP,
 										TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
-											Ports: intstr.FromInt(80),
+											Ports: intstr.FromInt(88),
 										},
 									},
 									Action: infv1alpha1.IngressNodeFirewallDeny,

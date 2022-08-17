@@ -13,17 +13,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("Ingress nodefirewall config Controller", func() {
 	Context("syncIngressNodeFwConfig", func() {
-
-		AfterEach(func() {
-			err := cleanTestNamespace()
-			Expect(err).ToNot(HaveOccurred())
-		})
-
 		It("Should create manifests with images and namespace overriden", func() {
 
 			config := &ingressnodefwv1alpha1.IngressNodeFirewallConfig{
@@ -123,12 +116,3 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 		})
 	})
 })
-
-func cleanTestNamespace() error {
-	err := k8sClient.DeleteAllOf(context.Background(), &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}, client.InNamespace(IngressNodeFwConfigTestNameSpace))
-	if err != nil {
-		return err
-	}
-	err = k8sClient.DeleteAllOf(context.Background(), &appsv1.DaemonSet{}, client.InNamespace(IngressNodeFwConfigTestNameSpace))
-	return err
-}
