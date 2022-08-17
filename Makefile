@@ -209,7 +209,8 @@ uninstall-cert-manager: ## Uninstall cert manager from the target kubernetes clu
 .PHONY: deploy-samples
 deploy-samples:  ## Deploy samples
 	@echo "==== Label kind node to match nodeSelector"
-	kubectl label node kind-control-plane do-node-ingress-firewall="true" --overwrite=true
+	kubectl label node kind-worker do-node-ingress-firewall="true" --overwrite=true
+	kubectl label node kind-worker2 do-node-ingress-firewall="true" --overwrite=true
 	$(KUSTOMIZE) build config/samples | kubectl apply -f -
 
 .PHONY: undeploy-samples

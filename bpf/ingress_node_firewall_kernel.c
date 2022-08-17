@@ -183,8 +183,6 @@ ipv4_checkTuple(void *dataStart, void *dataEnd, __u32 ifId) {
             }
         }
 		bpf_printk("Packet didn't match any rule proto %d port %d", proto, bpf_ntohs(dstPort));
-        // we matched CIDR but we have no rules matching so drop
-        return SET_ACTIONRULE_RESPONSE(DENY, 0);
     }
     return SET_ACTION(UNDEF);
 }
@@ -240,8 +238,6 @@ ipv6_checkTuple(void *dataStart, void *dataEnd, __u32 ifId) {
             }
         }
 		bpf_printk("Packet didn't match any rule proto %d port %d", proto, bpf_ntohs(dstPort));
-        // we matched CIDR but we have no rules matching so drop
-        return SET_ACTIONRULE_RESPONSE(DENY, 0);
     }
     return SET_ACTION(UNDEF);
 }

@@ -9,13 +9,11 @@ import (
 	"github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	nodefwloader "github.com/openshift/ingress-node-firewall/pkg/ebpf"
-	"github.com/openshift/ingress-node-firewall/pkg/failsaferules"
 	intfs "github.com/openshift/ingress-node-firewall/pkg/interfaces"
 	intutil "github.com/openshift/ingress-node-firewall/pkg/interfaces"
 	"github.com/openshift/ingress-node-firewall/pkg/metrics"
 
 	"github.com/go-logr/logr"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/util/retry"
 )
 
@@ -106,11 +104,6 @@ func (e *ebpfSingleton) SyncInterfaceIngressRules(
 		return err
 	}
 
-	// Attach failsafe rules to the entire ruleset.
-	if err := e.attachFailsafeRules(ifaceIngressRules); err != nil {
-		return err
-	}
-
 	// Load IngressNodeFirewall Rules (this is idempotent and will add new rules and purge rules that shouldn't exist).
 	if err := e.loadIngressNodeFirewallRules(ifaceIngressRules); err != nil {
 		return err
@@ -133,19 +126,6 @@ func (e *ebpfSingleton) createNewManager() error {
 		e.log.Info("Creating a new eBPF firewall node controller")
 		if e.c, err = nodefwloader.NewIngNodeFwController(); err != nil {
 			return fmt.Errorf("Failed to create nodefw controller instance, err: %q", err)
-		}
-	}
-	return nil
-}
-
-// attachFailsafeRules attaches failsafe rules to the provided set of IngressNodeFirewallRules. It modifies the provided
-// map in place.
-func (e *ebpfSingleton) attachFailsafeRules(ifaceIngressRules map[string][]v1alpha1.IngressNodeFirewallRules) error {
-	for _, ingressRules := range ifaceIngressRules {
-		for i := range ingressRules {
-			if err := addFailSaferules(&ingressRules[i].FirewallProtocolRules); err != nil {
-				return fmt.Errorf("Fail to attach fail safe rules, rule: %v, err: %q", ingressRules[i], err)
-			}
 		}
 	}
 	return nil
@@ -242,41 +222,6 @@ func (e *ebpfSingleton) detachUnmanagedInterfaces(ifaceIngressRules map[string][
 			}
 			delete(e.managedInterfaces, intf)
 		}
-	}
-	return nil
-}
-
-// addFailSaferules appends failSafe rules to user configured one
-func addFailSaferules(rules *[]infv1alpha1.IngressNodeFirewallProtocolRule) error {
-	if rules == nil {
-		return fmt.Errorf("invalid rules")
-	}
-	fsRuleIndex := failsaferules.MAX_INGRESS_RULES
-	// Add TCP failsafe rules
-	tcpFailSafeRules := failsaferules.GetTCP()
-	for _, rule := range tcpFailSafeRules {
-		rule := rule
-		fsRule := infv1alpha1.IngressNodeFirewallProtocolRule{}
-		fsRule.ProtocolConfig.TCP = new(infv1alpha1.IngressNodeFirewallProtoRule)
-		fsRule.Order = uint32(fsRuleIndex)
-		fsRuleIndex += 1
-		fsRule.ProtocolConfig.Protocol = infv1alpha1.ProtocolTypeTCP
-		(*fsRule.ProtocolConfig.TCP).Ports = intstr.FromInt(int(rule.GetPort()))
-		fsRule.Action = infv1alpha1.IngressNodeFirewallAllow
-		*rules = append(*rules, fsRule)
-	}
-	// Add UDP failsafe rules
-	udpFailSafeRules := failsaferules.GetUDP()
-	for _, rule := range udpFailSafeRules {
-		rule := rule
-		fsRule := infv1alpha1.IngressNodeFirewallProtocolRule{}
-		fsRule.ProtocolConfig.UDP = new(infv1alpha1.IngressNodeFirewallProtoRule)
-		fsRule.Order = uint32(fsRuleIndex)
-		fsRuleIndex += 1
-		fsRule.ProtocolConfig.Protocol = infv1alpha1.ProtocolTypeUDP
-		(*fsRule.ProtocolConfig.UDP).Ports = intstr.FromInt(int(rule.GetPort()))
-		fsRule.Action = infv1alpha1.IngressNodeFirewallAllow
-		*rules = append(*rules, fsRule)
 	}
 	return nil
 }

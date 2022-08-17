@@ -1,8 +1,6 @@
 package failsaferules
 
-const eBPFMaxIngressRules = 100
-
-var MAX_INGRESS_RULES = eBPFMaxIngressRules - len(tcp) - len(udp)
+var MAX_INGRESS_RULES = 100
 
 type TransportProtoFailSafeRule struct {
 	serviceName string
@@ -25,6 +23,18 @@ var tcp = []TransportProtoFailSafeRule{
 	{
 		"SSH",
 		22,
+	},
+	{
+		"Kubelet",
+		10250,
+	},
+	{
+		"kube-scheduler",
+		10259,
+	},
+	{
+		"kube-controller-manager",
+		10257,
 	},
 }
 
