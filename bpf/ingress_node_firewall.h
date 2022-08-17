@@ -75,8 +75,8 @@ const struct ruleType_st *unused2 __attribute__((unused));
 // the more specific CIDR.
 struct lpm_ip_key_st {
     __u32 prefixLen;
-    __u8 ip_data[16];
     __u32 ingress_ifindex;
+    __u8 ip_data[16];
 } __attribute__((packed));
 
 struct rulesVal_st {

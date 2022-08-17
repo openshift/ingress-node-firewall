@@ -318,7 +318,7 @@ func hasIngressNodeFirewallNodeStates(ctx context.Context, k8sClient client.Clie
 		// Check number of items.
 		if len(nodeStateList.Items) != len(expectedObjectNames) {
 			fmt.Fprintf(GinkgoWriter, "Could not find the desired number of IngressNodeFirewallNodeStates. "+
-				"Found %d objects but expected to find %d objects. Object list: %v\n",
+				"Found %d objects but expected to find %d objects. Object list: %+v\n",
 				len(nodeStateList.Items), len(expectedObjectNames), nodeStateList.Items)
 			return false
 		}

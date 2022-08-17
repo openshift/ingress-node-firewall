@@ -13,10 +13,8 @@ func TestAddOrUpdateRules(t *testing.T) {
 	// after the below if index issue (see FIXME below) is fixed. The ebpfsyncer tests test the same code just from
 	// a higher level.
 	t.Skip()
-
 	beforeEach(t)
 	defer afterEach(t)
-
 	// Get eBPF keys for and rules for tc0.
 	key0a, _ := BuildEBPFKey(100, "10.0.0.0/8")
 	key0b, _ := BuildEBPFKey(100, "192.0.2.0/24")
@@ -40,21 +38,18 @@ func TestAddOrUpdateRules(t *testing.T) {
 		},
 	}
 	// Get eBPF keys for and rules for tc2.
-	// FIXME: THIS TEST CASE IS CURRENTLY BROKEN. WHEN DIFFERENT IFINDEXES ARE PROVIDED, THE GOLANG USER SPACE TOOL
-	// OVERWRITES THE LAST MAP ENTRY. IT'S AS IF IT WAS IGNORING THE IFINDEX ALTOGETHER AND ON UPDATE IT JUST CONSIDERS
-	// THE OTHER KEY VALUES.
-	/*
-		key2a, _ := BuildEBPFKey(100, "10.0.0.0/8")
-		key2b, _ := BuildEBPFKey(101, "10.0.0.0/8")
-		rule2 := BpfRulesValSt{
-			Rules: [100]BpfRuleTypeSt{
-				{
-					RuleId: 10,
-					Action: 1,
-				},
+
+	key2a, _ := BuildEBPFKey(100, "10.0.0.0/8")
+	key2b, _ := BuildEBPFKey(101, "10.0.0.0/8")
+	rule2 := BpfRulesValSt{
+		Rules: [100]BpfRuleTypeSt{
+			{
+				RuleId: 10,
+				Action: 1,
 			},
-		}
-	*/
+		},
+	}
+
 	tcs := []struct {
 		inputRules map[BpfLpmIpKeySt]BpfRulesValSt
 	}{
@@ -70,14 +65,12 @@ func TestAddOrUpdateRules(t *testing.T) {
 				key1b: rule1,
 			},
 		},
-		/*
-			{
-				inputRules: map[BpfLpmIpKeySt]BpfRulesValSt{
-					key2a: rule2,
-					key2b: rule2,
-				},
+		{
+			inputRules: map[BpfLpmIpKeySt]BpfRulesValSt{
+				key2a: rule2,
+				key2b: rule2,
 			},
-		*/
+		},
 	}
 
 	for i, tc := range tcs {

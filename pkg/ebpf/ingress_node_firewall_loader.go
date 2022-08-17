@@ -30,6 +30,7 @@ const (
 	bpfFSPath                     = "/sys/fs/bpf"
 	xdpIngressNodeFirewallProcess = "xdp_ingress_node_firewall_process"
 	linkSuffix                    = "_link"
+	ifIndexKeyLength              = 32 // Interface Index key length in bits
 )
 
 // IngNodeFwController structure is the object hold controls for starting
@@ -480,7 +481,7 @@ func BuildEBPFKey(ifID uint32, cidr string) (BpfLpmIpKeySt, error) {
 		copy(key.IpData[:], ip.To16())
 	}
 	pfLen, _ := ipNet.Mask.Size()
-	key.PrefixLen = uint32(pfLen)
+	key.PrefixLen = uint32(pfLen) + ifIndexKeyLength
 	key.IngressIfindex = ifID
 
 	return key, nil

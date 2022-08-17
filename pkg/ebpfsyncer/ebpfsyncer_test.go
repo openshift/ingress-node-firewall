@@ -183,77 +183,71 @@ func TestSyncInterfaceIngressRulesWithHTTP(t *testing.T) {
 				"192.0.2.1:12345": true,
 			},
 		},
-		/*
-								// TC5
-								{
-									rules: map[string][]infv1alpha1.IngressNodeFirewallRules{
-										fmt.Sprintf("%s0", interfacePrefix): {
-											{
-												SourceCIDRs: []string{"192.0.2.0/24"},
-												FirewallProtocolRules: []infv1alpha1.IngressNodeFirewallProtocolRule{
-													{
-														Order: 10,
-														ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
-															Protocol: infv1alpha1.ProtocolTypeTCP,
-															TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
-																Ports: intstr.FromString(testPort1),
-															},
-														},
-														Action: infv1alpha1.IngressNodeFirewallDeny,
-													},
-													{
-														Order: 20,
-														ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
-															Protocol: infv1alpha1.ProtocolTypeTCP,
-															TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
-																Ports: intstr.FromString(testPort2),
-															},
-														},
-														Action: infv1alpha1.IngressNodeFirewallAllow,
-													},
-												},
-											},
-										},
-						                // FIXME: THIS TEST CASE IS CURRENTLY BROKEN. WHEN DIFFERENT IFINDEXES ARE PROVIDED, THE GOLANG USER SPACE TOOL
-			                			// OVERWRITES THE LAST MAP ENTRY. IT'S AS IF IT WAS IGNORING THE IFINDEX ALTOGETHER AND ON UPDATE IT JUST CONSIDERS
-			                			// THE OTHER KEY VALUES. SEE ingress_node_firewall_loader_test.go FOR A SIMILAR TEST.
-						/*
-										fmt.Sprintf("%s1", interfacePrefix): {
-											{
-												SourceCIDRs: []string{"192.0.2.0/24"},
-												FirewallProtocolRules: []infv1alpha1.IngressNodeFirewallProtocolRule{
-													{
-														Order: 10,
-														ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
-															Protocol: infv1alpha1.ProtocolTypeTCP,
-															TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
-																Ports: intstr.FromString(testPort1),
-															},
-														},
-														Action: infv1alpha1.IngressNodeFirewallAllow,
-													},
-													{
-														Order: 20,
-														ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
-															Protocol: infv1alpha1.ProtocolTypeTCP,
-															TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
-																Ports: intstr.FromString(testPort2),
-															},
-														},
-														Action: infv1alpha1.IngressNodeFirewallDeny,
-													},
-												},
-											},
-										},
-									},
-									targetResult: map[string]bool{
-										"192.0.2.1:12345": false,
-										"192.0.2.1:12346": true,
-										"192.0.2.5:12345": true,
-										"192.0.2.5:12346": false,
+		// TC5
+		{
+			rules: map[string][]infv1alpha1.IngressNodeFirewallRules{
+				fmt.Sprintf("%s0", interfacePrefix): {
+					{
+						SourceCIDRs: []string{"192.0.2.0/24"},
+						FirewallProtocolRules: []infv1alpha1.IngressNodeFirewallProtocolRule{
+							{
+								Order: 10,
+								ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
+									Protocol: infv1alpha1.ProtocolTypeTCP,
+									TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
+										Ports: intstr.FromString(testPort1),
 									},
 								},
-		*/
+								Action: infv1alpha1.IngressNodeFirewallDeny,
+							},
+							{
+								Order: 20,
+								ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
+									Protocol: infv1alpha1.ProtocolTypeTCP,
+									TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
+										Ports: intstr.FromString(testPort2),
+									},
+								},
+								Action: infv1alpha1.IngressNodeFirewallAllow,
+							},
+						},
+					},
+				},
+				fmt.Sprintf("%s1", interfacePrefix): {
+					{
+						SourceCIDRs: []string{"192.0.2.0/24"},
+						FirewallProtocolRules: []infv1alpha1.IngressNodeFirewallProtocolRule{
+							{
+								Order: 10,
+								ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
+									Protocol: infv1alpha1.ProtocolTypeTCP,
+									TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
+										Ports: intstr.FromString(testPort1),
+									},
+								},
+								Action: infv1alpha1.IngressNodeFirewallAllow,
+							},
+							{
+								Order: 20,
+								ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
+									Protocol: infv1alpha1.ProtocolTypeTCP,
+									TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
+										Ports: intstr.FromString(testPort2),
+									},
+								},
+								Action: infv1alpha1.IngressNodeFirewallDeny,
+							},
+						},
+					},
+				},
+			},
+			targetResult: map[string]bool{
+				"192.0.2.1:12345": false,
+				"192.0.2.1:12346": true,
+				"192.0.2.5:12345": true,
+				"192.0.2.5:12346": false,
+			},
+		},
 		// TC6 - delete object.
 		{
 			isDelete: true,
@@ -896,71 +890,67 @@ func TestVerifyBPFKeysAfterInterfaceIngressRulesUpdate(t *testing.T) {
 			rules:        map[string][]infv1alpha1.IngressNodeFirewallRules{},
 		},
 		// TC6 - the same CIDR on 2 different interfaces.
-		/*
-			{
-				expectedKeys: []nodefwloader.BpfLpmIpKeySt{
-					ebpfKeyIf0TypeA, ebpfKeyIf1TypeA,
-				},
-				rules: map[string][]infv1alpha1.IngressNodeFirewallRules{
-					fmt.Sprintf("%s0", interfacePrefix): {
-						{
-							SourceCIDRs: []string{"10.0.0.0/8"},
-							FirewallProtocolRules: []infv1alpha1.IngressNodeFirewallProtocolRule{
-								{
-									Order: 10,
-									ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
-										Protocol: infv1alpha1.ProtocolTypeTCP,
-										TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
-											Ports: intstr.FromString(testPort1),
-										},
+		{
+			expectedKeys: []nodefwloader.BpfLpmIpKeySt{
+				ebpfKeyIf0TypeA, ebpfKeyIf1TypeA,
+			},
+			rules: map[string][]infv1alpha1.IngressNodeFirewallRules{
+				fmt.Sprintf("%s0", interfacePrefix): {
+					{
+						SourceCIDRs: []string{"10.0.0.0/8"},
+						FirewallProtocolRules: []infv1alpha1.IngressNodeFirewallProtocolRule{
+							{
+								Order: 10,
+								ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
+									Protocol: infv1alpha1.ProtocolTypeTCP,
+									TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
+										Ports: intstr.FromString(testPort1),
 									},
-									Action: infv1alpha1.IngressNodeFirewallDeny,
 								},
-								{
-									Order: 20,
-									ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
-										Protocol: infv1alpha1.ProtocolTypeTCP,
-										TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
-											Ports: intstr.FromString(testPort2),
-										},
-									},
-									Action: infv1alpha1.IngressNodeFirewallAllow,
-								},
+								Action: infv1alpha1.IngressNodeFirewallDeny,
 							},
-						},
-					},
-					// FIXME: THIS TEST CASE IS CURRENTLY BROKEN. WHEN DIFFERENT IFINDEXES ARE PROVIDED, THE GOLANG USER SPACE TOOL
-					// OVERWRITES THE LAST MAP ENTRY. IT'S AS IF IT WAS IGNORING THE IFINDEX ALTOGETHER AND ON UPDATE IT JUST CONSIDERS
-					// THE OTHER KEY VALUES.
-					fmt.Sprintf("%s1", interfacePrefix): {
-						{
-							SourceCIDRs: []string{"10.0.0.0/8"},
-							FirewallProtocolRules: []infv1alpha1.IngressNodeFirewallProtocolRule{
-								{
-									Order: 10,
-									ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
-										Protocol: infv1alpha1.ProtocolTypeTCP,
-										TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
-											Ports: intstr.FromString(testPort1),
-										},
+							{
+								Order: 20,
+								ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
+									Protocol: infv1alpha1.ProtocolTypeTCP,
+									TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
+										Ports: intstr.FromString(testPort2),
 									},
-									Action: infv1alpha1.IngressNodeFirewallAllow,
 								},
-								{
-									Order: 20,
-									ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
-										Protocol: infv1alpha1.ProtocolTypeTCP,
-										TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
-											Ports: intstr.FromString(testPort2),
-										},
-									},
-									Action: infv1alpha1.IngressNodeFirewallDeny,
-								},
+								Action: infv1alpha1.IngressNodeFirewallAllow,
 							},
 						},
 					},
 				},
-			},*/
+				fmt.Sprintf("%s1", interfacePrefix): {
+					{
+						SourceCIDRs: []string{"10.0.0.0/8"},
+						FirewallProtocolRules: []infv1alpha1.IngressNodeFirewallProtocolRule{
+							{
+								Order: 10,
+								ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
+									Protocol: infv1alpha1.ProtocolTypeTCP,
+									TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
+										Ports: intstr.FromString(testPort1),
+									},
+								},
+								Action: infv1alpha1.IngressNodeFirewallAllow,
+							},
+							{
+								Order: 20,
+								ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
+									Protocol: infv1alpha1.ProtocolTypeTCP,
+									TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
+										Ports: intstr.FromString(testPort2),
+									},
+								},
+								Action: infv1alpha1.IngressNodeFirewallDeny,
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	ctx := context.Background()
