@@ -99,6 +99,9 @@ var _ = Describe("Ingress Node Firewall", func() {
 			err, _ = infwutils.RunPingTest(nodes.Items)
 			Expect(err).ToNot(HaveOccurred())
 
+			v4CIDR, v6CIDR, err := infwutils.GetRuleCIDR(nodes.Items)
+			Expect(err).ToNot(HaveOccurred())
+
 			By("creating ingress node firewall rules")
 			rules := &ingressnodefwv1alpha1.IngressNodeFirewall{
 				ObjectMeta: metav1.ObjectMeta{
@@ -110,7 +113,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 					},
 					Ingress: []ingressnodefwv1alpha1.IngressNodeFirewallRules{
 						{
-							SourceCIDRs: []string{"172.16.0.0/12"},
+							SourceCIDRs: []string{v4CIDR},
 							FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 								{
 									Order: 10,
@@ -135,7 +138,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 							},
 						},
 						{
-							SourceCIDRs: []string{"fc00:f853:ccd:e793::0/64"},
+							SourceCIDRs: []string{v6CIDR},
 							FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 								{
 									Order: 10,
@@ -292,6 +295,9 @@ var _ = Describe("Ingress Node Firewall", func() {
 			err, _ = infwutils.RunPingTest(nodes.Items)
 			Expect(err).ToNot(HaveOccurred())
 
+			v4CIDR, _, err := infwutils.GetRuleCIDR(nodes.Items)
+			Expect(err).ToNot(HaveOccurred())
+
 			rules := &ingressnodefwv1alpha1.IngressNodeFirewall{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "rules1",
@@ -302,7 +308,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 					},
 					Ingress: []ingressnodefwv1alpha1.IngressNodeFirewallRules{
 						{
-							SourceCIDRs: []string{"172.0.0.0/8"},
+							SourceCIDRs: []string{v4CIDR},
 							FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 								{
 									Order: 1,
