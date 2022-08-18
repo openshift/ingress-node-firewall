@@ -20,15 +20,15 @@ import (
 	"context"
 	"log"
 	"os"
+	"path/filepath"
 	"testing"
 
 	//+kubebuilder:scaffold:imports
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 
-	"path/filepath"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -138,9 +138,22 @@ var _ = BeforeSuite(func() {
 }, 60)
 
 var _ = AfterSuite(func() {
+	By("deleting the test namespace")
+	if err := cleanTestNamespace(); err != nil {
+		log.Printf("failed to shut down testEnv err %v", err)
+	}
 	By("tearing down the test environment")
 	ManifestPath = IngressNodeFirewallManifestPath
 	if err := testEnv.Stop(); err != nil {
 		log.Printf("failed to shut down testEnv err %v", err)
 	}
 })
+
+func cleanTestNamespace() error {
+	err := k8sClient.DeleteAllOf(context.Background(), &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}, client.InNamespace(IngressNodeFwConfigTestNameSpace))
+	if err != nil {
+		return err
+	}
+	err = k8sClient.DeleteAllOf(context.Background(), &appsv1.DaemonSet{}, client.InNamespace(IngressNodeFwConfigTestNameSpace))
+	return err
+}
