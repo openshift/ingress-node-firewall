@@ -22,6 +22,7 @@ import (
 
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/controllers"
+	"github.com/openshift/ingress-node-firewall/pkg/platform"
 	"github.com/openshift/ingress-node-firewall/pkg/version"
 	"github.com/openshift/ingress-node-firewall/pkg/webhook"
 
@@ -123,11 +124,19 @@ func main() {
 			os.Exit(1)
 		}
 	}
+
+	cfg := ctrl.GetConfigOrDie()
+	platformInfo, err := platform.GetPlatformInfo(cfg)
+	if err != nil {
+		setupLog.Error(err, "unable to get platform name")
+		os.Exit(1)
+	}
 	if err = (&controllers.IngressNodeFirewallConfigReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		Log:       ctrl.Log.WithName("controllers").WithName("IngressNodeFirewallConfig"),
-		Namespace: nameSpace,
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		Log:          ctrl.Log.WithName("controllers").WithName("IngressNodeFirewallConfig"),
+		Namespace:    nameSpace,
+		PlatformInfo: platformInfo,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "IngressNodeFirewallConfig")
 		os.Exit(1)

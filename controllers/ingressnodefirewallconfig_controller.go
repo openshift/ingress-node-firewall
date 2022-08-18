@@ -22,6 +22,7 @@ import (
 
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/pkg/apply"
+	"github.com/openshift/ingress-node-firewall/pkg/platform"
 	"github.com/openshift/ingress-node-firewall/pkg/render"
 
 	"github.com/go-logr/logr"
@@ -44,9 +45,10 @@ var ManifestPath = IngressNodeFirewallManifestPath
 // IngressNodeFirewallConfigReconciler reconciles a IngressNodeFirewallConfig object
 type IngressNodeFirewallConfigReconciler struct {
 	client.Client
-	Scheme    *runtime.Scheme
-	Log       logr.Logger
-	Namespace string
+	Scheme       *runtime.Scheme
+	Log          logr.Logger
+	Namespace    string
+	PlatformInfo platform.PlatformInfo
 }
 
 // +kubebuilder:rbac:groups=apps,namespace=ingress-node-firewall-system,resources=daemonsets,verbs=get;list;watch;create;update;patch;delete
@@ -107,6 +109,7 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 	data.Data["Image"] = os.Getenv("DAEMONSET_IMAGE")
 	data.Data["NameSpace"] = r.Namespace
 	data.Data["RBACProxyImage"] = os.Getenv("KUBE_RBAC_PROXY_IMAGE")
+	data.Data["IsOpenShift"] = r.PlatformInfo.IsOpenShift()
 
 	objs, err := render.RenderDir(ManifestPath, &data)
 	if err != nil {
