@@ -47,7 +47,7 @@ type IngressNodeFirewallNodeStateSyncStatus string
 var (
 	// SyncError indicates that the last synchronization attempt failed.
 	SyncError IngressNodeFirewallNodeStateSyncStatus = "Error"
-	// SyncError indicates that the last synchronization attempt was a success.
+	// SyncOK indicates that the last synchronization attempt was a success.
 	SyncOK IngressNodeFirewallNodeStateSyncStatus = "Synchronized"
 )
 

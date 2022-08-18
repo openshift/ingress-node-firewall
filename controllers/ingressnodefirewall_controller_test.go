@@ -88,7 +88,9 @@ var _ = Describe("IngressNodeFirewall controller", func() {
 				Ingress:    rules,
 				Interfaces: interfaces,
 			},
-			Status: infv1alpha1.IngressNodeFirewallStatus{},
+			Status: infv1alpha1.IngressNodeFirewallStatus{
+				SyncStatus: infv1alpha1.FirewallRulesSyncOK,
+			},
 		}
 
 		Expect(k8sClient.Create(ctx, &ingressNodeFirewall)).Should(Succeed())

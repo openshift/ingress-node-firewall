@@ -255,6 +255,9 @@ spec:
             type: object
           status:
             description: IngressNodeFirewallStatus defines the observed state of IngressNodeFirewall.
+            properties:
+              syncStatus:
+                type: string
             type: object
         type: object
     served: true

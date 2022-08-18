@@ -262,6 +262,7 @@ func (r *IngressNodeFirewallReconciler) buildNodeStates(
 	// If any issue with processing is found along the way, set the node's SyncStatus to SyncError and skip the node
 	// in any further iteration.
 	for _, firewallObj := range infList.Items {
+		firewallObj := firewallObj
 		listOpts := []client.ListOption{
 			client.MatchingLabels(firewallObj.Spec.NodeSelector.MatchLabels),
 		}
@@ -343,6 +344,17 @@ func (r *IngressNodeFirewallReconciler) buildNodeStates(
 			}
 			// Write back the state to the map.
 			nodeStates[node.Name] = state
+		}
+
+		firewallObj.Status.SyncStatus = infv1alpha1.FirewallRulesSyncOK
+		for _, node := range nodeList.Items {
+			if nodeStates[node.Name].Status.SyncStatus == infv1alpha1.SyncError {
+				firewallObj.Status.SyncStatus = infv1alpha1.FirewallRulesSyncError
+				break
+			}
+		}
+		if err := r.Status().Update(ctx, &firewallObj); err != nil {
+			return nil, fmt.Errorf("failed to update ingress node firewall obj status %q", err)
 		}
 	}
 
