@@ -35,6 +35,8 @@ type IngressNodeFirewallConfigSpec struct {
 
 // IngressNodeFirewallConfigStatus defines the observed state of IngressNodeFirewallConfig.
 type IngressNodeFirewallConfigStatus struct {
+	// Conditions show the current state of the Ingress Node Firewall Config resource
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true
