@@ -65,6 +65,20 @@ spec:
             - name: bpf-maps
               mountPath: /sys/fs/bpf
               mountPropagation: Bidirectional
+            - name: syslog-socket
+              mountPath: /var/run
+        - name: events
+          image: '{{.Image}}'
+          command: ["/usr/bin/syslog"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - name: syslog-socket
+              mountPath: /var/run
         - name: kube-rbac-proxy
           image: '{{.RBACProxyImage}}'
           command:
@@ -124,4 +138,6 @@ spec:
           secret:
             secretName: ingress-node-firewall-daemon-metrics-certs
             optional: true
+        - name: syslog-socket
+          path: /var/run
       serviceAccountName: ingress-node-firewall-daemon

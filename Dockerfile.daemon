@@ -6,4 +6,5 @@ RUN ./hack/build-daemon.sh
 
 FROM quay.io/centos/centos:stream8
 COPY --from=builder /go/src/github.com/openshift/ingress-node-firewall/bin/daemon /usr/bin/
+COPY --from=builder /go/src/github.com/openshift/ingress-node-firewall/bin/syslog /usr/bin/
 CMD ["/usr/bin/daemon"]
