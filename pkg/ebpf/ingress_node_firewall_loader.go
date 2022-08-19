@@ -76,7 +76,9 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 	}
 
 	// Generate ingress node fw events
-	infc.ingressNodeFwEvents()
+	if err := infc.ingressNodeFwEvents(); err != nil {
+		return nil, err
+	}
 
 	return infc, nil
 }

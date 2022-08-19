@@ -19,7 +19,7 @@ import (
 )
 
 // ingressNodeFwEvents watch for eBPF events generated during XDP packet processing
-func (infc *IngNodeFwController) ingressNodeFwEvents() {
+func (infc *IngNodeFwController) ingressNodeFwEvents() error {
 	objs := infc.objs
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
@@ -28,18 +28,15 @@ func (infc *IngNodeFwController) ingressNodeFwEvents() {
 	// described in the eBPF C program.
 	rd, err := perf.NewReader(objs.IngressNodeFirewallEventsMap, os.Getpagesize())
 	if err != nil {
-		log.Printf("Failed creating perf event reader: %q", err)
-		return
+		return fmt.Errorf("Failed creating perf event reader: %q", err)
 	}
 	logFile, ok := os.LookupEnv("EVENT_LOGGING_FILE")
 	if !ok {
-		log.Printf("EVENT_LOGGING_FILE env variable must be set")
-		return
+		return fmt.Errorf("EVENT_LOGGING_FILE env variable must be set")
 	}
 	file, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		log.Printf("Cannot open events logging file at path %q: %v", logFile, err)
-		return
 	}
 	eventsLogger := log.New(file, "", log.LstdFlags)
 
@@ -144,6 +141,8 @@ func (infc *IngNodeFwController) ingressNodeFwEvents() {
 			}
 		}
 	}()
+
+	return nil
 }
 
 func convertXdpActionToString(action uint8) string {
