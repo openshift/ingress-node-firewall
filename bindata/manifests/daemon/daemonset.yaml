@@ -21,11 +21,25 @@ spec:
       nodeSelector:
         kubernetes.io/os: linux
       priorityClassName: "system-node-critical"
+      initContainers:
+        - name: mount-bpffs
+          image: '{{.Image}}'
+          command: ['mount', 'bpffs', '/sys/fs/bpf', '-t', 'bpf']
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            capabilities:
+              add:
+                - CAP_BPF
+                - CAP_NET_ADMIN
+          terminationMessagePolicy: FallbackToLogsOnError
+          volumeMounts:
+            - name: bpf-maps
+              mountPath: /sys/fs/bpf
+              mountPropagation: Bidirectional
       containers:
         - name: daemon
           image: '{{.Image}}'
-          command: ['/bin/sh', '-c', 'mount bpffs /sys/fs/bpf -t bpf && /usr/bin/daemon']
-          #- command: ['/bin/sh', '-c', 'mount bpffs /sys/fs/bpf -t bpf && strace -fe trace=bpf /usr/bin/daemon']
           env:
             - name: NODE_NAME
               valueFrom:
