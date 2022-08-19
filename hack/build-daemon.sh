@@ -25,3 +25,4 @@ mkdir -p ${BIN_PATH}
 
 # Build the binary.
 CGO_ENABLED=${CGO_ENABLED} GOOS=${GOOS} GOARCH=${GOARCH} go build ${GOFLAGS} -ldflags "${LDFLAGS} -s -w" -o ${BIN_PATH}/daemon cmd/daemon/daemon.go
+CGO_ENABLED=${CGO_ENABLED} GOOS=${GOOS} GOARCH=${GOARCH} go build ${GOFLAGS} -ldflags "${LDFLAGS} -s -w" -o ${BIN_PATH}/syslog cmd/syslog/syslog.go
