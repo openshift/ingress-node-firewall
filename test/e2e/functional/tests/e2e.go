@@ -498,7 +498,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			inf := infwutils.GetINF(OperatorNameSpace, "e2e-webhook-valid-icmpv6")
 			infwutils.DefineWithWorkerNodeSelector(inf)
 			infwutils.DefineWithInterface(inf, "eth0")
-			infwutils.DefineDenyICMPV6Rule(inf, "1.1.1.1/32")
+			infwutils.DefineDenyICMPV6Rule(inf, "1:1:1::1/64")
 			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
 			cleanNodeFirewallRule(inf)
 		})
