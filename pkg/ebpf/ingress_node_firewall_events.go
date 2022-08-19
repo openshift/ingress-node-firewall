@@ -33,14 +33,6 @@ func (infc *IngNodeFwController) ingressNodeFwEvents() error {
 	if err != nil {
 		return fmt.Errorf("Failed creating perf event reader: %q", err)
 	}
-	logFile, ok := os.LookupEnv("EVENT_LOGGING_FILE")
-	if !ok {
-		return fmt.Errorf("EVENT_LOGGING_FILE env variable must be set")
-	}
-	file, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		log.Printf("Cannot open events logging file at path %q: %v", logFile, err)
-	}
 
 	var eventsLogger *syslog.Writer
 
@@ -62,10 +54,6 @@ func (infc *IngNodeFwController) ingressNodeFwEvents() error {
 
 		if err := rd.Close(); err != nil {
 			log.Printf("Closing perf event reader: %q", err)
-			return
-		}
-		if err := file.Close(); err != nil {
-			log.Printf("Failed to close events log file")
 			return
 		}
 	}()
