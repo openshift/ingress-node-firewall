@@ -3,7 +3,6 @@
 set -eux
 
 REPO=github.com/openshift/ingress-node-firewall
-WHAT=daemon
 BIN_PATH=bin
 
 GOFLAGS=${GOFLAGS:-"-mod=vendor"}
@@ -25,4 +24,4 @@ cdup="$(git rev-parse --show-cdup)" && test -n "$cdup" && cd "$cdup"
 mkdir -p ${BIN_PATH}
 
 # Build the binary.
-CGO_ENABLED=${CGO_ENABLED} GOOS=${GOOS} GOARCH=${GOARCH} go build ${GOFLAGS} -ldflags "${LDFLAGS} -s -w" -o ${BIN_PATH}/${WHAT} cmd/${WHAT}.go
+CGO_ENABLED=${CGO_ENABLED} GOOS=${GOOS} GOARCH=${GOARCH} go build ${GOFLAGS} -ldflags "${LDFLAGS} -s -w" -o ${BIN_PATH}/daemon cmd/daemon/daemon.go
