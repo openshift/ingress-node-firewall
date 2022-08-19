@@ -16,10 +16,10 @@ require (
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a
 	k8s.io/api v0.24.4
-	k8s.io/apiextensions-apiserver v0.24.3
+	k8s.io/apiextensions-apiserver v0.24.4
 	k8s.io/apimachinery v0.24.4
 	k8s.io/client-go v0.24.4
-	k8s.io/component-base v0.24.3
+	k8s.io/component-base v0.24.4
 	k8s.io/klog v1.0.0
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	sigs.k8s.io/controller-runtime v0.12.3
