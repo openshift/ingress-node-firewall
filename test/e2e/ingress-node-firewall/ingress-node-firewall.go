@@ -1,6 +1,7 @@
 package ingressnodefirewall
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -242,4 +243,20 @@ func DefineDenyICMPV6Rule(inf *ingressnodefwv1alpha1.IngressNodeFirewall, source
 			},
 		},
 	})
+}
+
+// GetPodLogs returns the logs from container, or an error if the logs
+// could not be fetched.
+func GetPodLogs(clientset *testclient.ClientSet, pod *v1.Pod, container string) (string, error) {
+	req := clientset.Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{Container: container})
+	logStream, err := req.Stream(context.Background())
+	if err != nil {
+		return "", err
+	}
+	defer logStream.Close()
+	buf := new(bytes.Buffer)
+	if _, err := io.Copy(buf, logStream); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }

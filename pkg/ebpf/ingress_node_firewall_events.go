@@ -7,15 +7,18 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/syslog"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf/perf"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 // ingressNodeFwEvents watch for eBPF events generated during XDP packet processing
@@ -38,7 +41,18 @@ func (infc *IngNodeFwController) ingressNodeFwEvents() error {
 	if err != nil {
 		log.Printf("Cannot open events logging file at path %q: %v", logFile, err)
 	}
-	eventsLogger := log.New(file, "", log.LstdFlags)
+
+	var eventsLogger *syslog.Writer
+
+	if err := wait.PollImmediate(time.Second, 30*time.Second, func() (done bool, err error) {
+		if eventsLogger, err = syslog.New(syslog.LOG_INFO|syslog.LOG_DAEMON, "daemon"); err != nil {
+			log.Printf("failed to connect to syslog: %v; Retrying...", err)
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		return fmt.Errorf("failed to connect to syslog: %v", err)
+	}
 
 	go func() {
 		// Wait for a signal and close the perf reader,
@@ -101,43 +115,43 @@ func (infc *IngNodeFwController) ingressNodeFwEvents() error {
 				log.Printf("lookup network iface %d: %s", eventHdr.IfId, err)
 				continue
 			}
-			eventsLogger.Printf("\truleId %d action %s len %d if %s\n",
-				eventHdr.RuleId, convertXdpActionToString(eventHdr.Action), eventHdr.PktLength, iface.Name)
+			eventsLogger.Info(fmt.Sprintf("ruleId %d action %s len %d if %s\n",
+				eventHdr.RuleId, convertXdpActionToString(eventHdr.Action), eventHdr.PktLength, iface.Name))
 			decodePacket := gopacket.NewPacket(packet, layers.LayerTypeEthernet, gopacket.Default)
 			// check for IPv4
 			if ip4Layer := decodePacket.Layer(layers.LayerTypeIPv4); ip4Layer != nil {
 				ip, _ := ip4Layer.(*layers.IPv4)
-				eventsLogger.Printf("\tipv4 src addr %s dst addr %s\n", ip.SrcIP.String(), ip.DstIP.String())
+				eventsLogger.Info(fmt.Sprintf("\tipv4 src addr %s dst addr %s\n", ip.SrcIP.String(), ip.DstIP.String()))
 			}
 			// check for IPv6
 			if ip6Layer := decodePacket.Layer(layers.LayerTypeIPv6); ip6Layer != nil {
 				ip, _ := ip6Layer.(*layers.IPv6)
-				eventsLogger.Printf("\tipv6 src addr %s dst addr %s\n", ip.SrcIP.String(), ip.DstIP.String())
+				eventsLogger.Info(fmt.Sprintf("\tipv6 src addr %s dst addr %s\n", ip.SrcIP.String(), ip.DstIP.String()))
 			}
 			// check for TCP
 			if tcpLayer := decodePacket.Layer(layers.LayerTypeTCP); tcpLayer != nil {
 				tcp, _ := tcpLayer.(*layers.TCP)
-				eventsLogger.Printf("\ttcp srcPort %d dstPort %d\n", tcp.SrcPort, tcp.DstPort)
+				eventsLogger.Info(fmt.Sprintf("\ttcp srcPort %d dstPort %d\n", tcp.SrcPort, tcp.DstPort))
 			}
 			// check for UDP
 			if udpLayer := decodePacket.Layer(layers.LayerTypeUDP); udpLayer != nil {
 				udp, _ := udpLayer.(*layers.UDP)
-				eventsLogger.Printf("\tudp srcPort %d dstPort %d\n", udp.SrcPort, udp.DstPort)
+				eventsLogger.Info(fmt.Sprintf("\tudp srcPort %d dstPort %d\n", udp.SrcPort, udp.DstPort))
 			}
 			// check fo SCTP
 			if sctpLayer := decodePacket.Layer(layers.LayerTypeSCTP); sctpLayer != nil {
 				sctp, _ := sctpLayer.(*layers.SCTP)
-				eventsLogger.Printf("\tsctp srcPort %d dstPort %d\n", sctp.SrcPort, sctp.DstPort)
+				eventsLogger.Info(fmt.Sprintf("\tsctp srcPort %d dstPort %d\n", sctp.SrcPort, sctp.DstPort))
 			}
 			// check for ICMPv4
 			if icmpv4Layer := decodePacket.Layer(layers.LayerTypeICMPv4); icmpv4Layer != nil {
 				icmp, _ := icmpv4Layer.(*layers.ICMPv4)
-				eventsLogger.Printf("\ticmpv4 type %d code %d\n", icmp.TypeCode.Type(), icmp.TypeCode.Code())
+				eventsLogger.Info(fmt.Sprintf("\ticmpv4 type %d code %d\n", icmp.TypeCode.Type(), icmp.TypeCode.Code()))
 			}
 			// check for ICMPV6
 			if icmpv6Layer := decodePacket.Layer(layers.LayerTypeICMPv6); icmpv6Layer != nil {
 				icmp, _ := icmpv6Layer.(*layers.ICMPv6)
-				eventsLogger.Printf("\ticmpv6 type %d code %d\n", icmp.TypeCode.Type(), icmp.TypeCode.Code())
+				eventsLogger.Info(fmt.Sprintf("\ticmpv6 type %d code %d\n", icmp.TypeCode.Type(), icmp.TypeCode.Code()))
 			}
 		}
 	}()
