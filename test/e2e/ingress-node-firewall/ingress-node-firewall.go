@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"time"
@@ -104,6 +105,29 @@ func NodesIPs(nodes []v1.Node) []string {
 		}
 	}
 	return res
+}
+
+func GetRuleCIDR(nodes []v1.Node) (string, string, error) {
+	var v4CIDR, v6CIDR string
+	v4CIDRLen := 12
+	v6CIDRLen := 64
+	ips := NodesIPs(nodes)
+	for _, ip := range ips {
+		addr := net.ParseIP(ip)
+		if addr.To4() != nil {
+			v4Mask := net.CIDRMask(v4CIDRLen, 32)
+			v4CIDR = fmt.Sprintf("%s/%d", addr.Mask(v4Mask), v4CIDRLen)
+		} else if addr.To16() != nil {
+			v6Mask := net.CIDRMask(v6CIDRLen, 128)
+			v6CIDR = fmt.Sprintf("%s/%d", addr.Mask(v6Mask), v6CIDRLen)
+		} else {
+			return "", "", fmt.Errorf("invalid ip address family %s", ip)
+		}
+		if v4CIDR != "" && v6CIDR != "" {
+			break
+		}
+	}
+	return v4CIDR, v6CIDR, nil
 }
 
 func RunPingTest(nodes []v1.Node) (error, int) {
