@@ -10,6 +10,7 @@ import (
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/pkg/failsaferules"
 	infmetrics "github.com/openshift/ingress-node-firewall/pkg/metrics"
+	"github.com/openshift/ingress-node-firewall/pkg/platform"
 	"github.com/openshift/ingress-node-firewall/test/consts"
 	testclient "github.com/openshift/ingress-node-firewall/test/e2e/client"
 	infwutils "github.com/openshift/ingress-node-firewall/test/e2e/ingress-node-firewall"
@@ -24,18 +25,32 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/component-base/metrics/testutil"
+	ctrl "sigs.k8s.io/controller-runtime"
 	goclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var OperatorNameSpace = consts.DefaultOperatorNameSpace
+var TestIsOpenShift = false
 
 func init() {
+	if len(os.Getenv("IS_OPENSHIFT")) != 0 {
+		TestIsOpenShift = true
+	}
 	if ns := os.Getenv("OO_INSTALL_NAMESPACE"); len(ns) != 0 {
 		OperatorNameSpace = ns
 	}
 }
 
 var _ = Describe("Ingress Node Firewall", func() {
+	Context("Platform Check", func() {
+		It("should be either Kubernetes or OpenShift platform", func() {
+			cfg := ctrl.GetConfigOrDie()
+			platformInfo, err := platform.GetPlatformInfo(cfg)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(platformInfo.IsOpenShift()).Should(Equal(TestIsOpenShift))
+		})
+	})
+
 	Context("IngressNodeFirewall deploy", func() {
 		var config *ingressnodefwv1alpha1.IngressNodeFirewallConfig
 		var configCRExisted bool

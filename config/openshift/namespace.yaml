@@ -10,5 +10,5 @@ metadata:
     openshift.io/node-selector: ""
     openshift.io/description: "Openshift ingress node firewall components"
     workload.openshift.io/allowed: "management"
-  name: system
+  name: openshift-ingress-node-firewall
 
