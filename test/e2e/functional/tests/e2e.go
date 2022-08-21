@@ -11,6 +11,7 @@ import (
 	"github.com/openshift/ingress-node-firewall/pkg/failsaferules"
 	infmetrics "github.com/openshift/ingress-node-firewall/pkg/metrics"
 	"github.com/openshift/ingress-node-firewall/pkg/platform"
+	"github.com/openshift/ingress-node-firewall/pkg/status"
 	"github.com/openshift/ingress-node-firewall/test/consts"
 	testclient "github.com/openshift/ingress-node-firewall/test/e2e/client"
 	infwutils "github.com/openshift/ingress-node-firewall/test/e2e/ingress-node-firewall"
@@ -103,6 +104,32 @@ var _ = Describe("Ingress Node Firewall", func() {
 				for _, pod := range pods.Items {
 					Expect(pod.Status.Phase).To(Equal(corev1.PodRunning))
 				}
+			})
+			By("checking Ingress Node Firewall Config CR status is set", func() {
+				Eventually(func() bool {
+					err := testclient.Client.Get(context.Background(), goclient.ObjectKey{Namespace: config.Namespace, Name: config.Name}, config)
+					Expect(err).ToNot(HaveOccurred())
+					if config.Status.Conditions == nil {
+						return false
+					}
+					for _, condition := range config.Status.Conditions {
+						switch condition.Type {
+						case status.ConditionAvailable:
+							if condition.Status == metav1.ConditionFalse {
+								return false
+							}
+						case status.ConditionProgressing:
+							if condition.Status == metav1.ConditionTrue {
+								return false
+							}
+						case status.ConditionDegraded:
+							if condition.Status == metav1.ConditionTrue {
+								return false
+							}
+						}
+					}
+					return true
+				}, 5*time.Minute, 5*time.Second).Should(BeTrue())
 			})
 		})
 
@@ -471,7 +498,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			inf := infwutils.GetINF(OperatorNameSpace, "e2e-webhook-valid-icmpv6")
 			infwutils.DefineWithWorkerNodeSelector(inf)
 			infwutils.DefineWithInterface(inf, "eth0")
-			infwutils.DefineDenyICMPV6Rule(inf, "1.1.1.1/32")
+			infwutils.DefineDenyICMPV6Rule(inf, "1:1:1::1/64")
 			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
 			cleanNodeFirewallRule(inf)
 		})

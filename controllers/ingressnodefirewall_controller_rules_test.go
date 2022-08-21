@@ -787,7 +787,9 @@ var _ = Describe("IngressNodeFirewall controller rules", func() {
 						TypeMeta:   metav1.TypeMeta{},
 						ObjectMeta: metav1.ObjectMeta{Name: objectName},
 						Spec:       spec,
-						Status:     infv1alpha1.IngressNodeFirewallStatus{},
+						Status: infv1alpha1.IngressNodeFirewallStatus{
+							SyncStatus: infv1alpha1.FirewallRulesSyncOK,
+						},
 					}
 					Expect(k8sClient.Create(ctx, &ingressNodeFirewall)).Should(Succeed())
 				}

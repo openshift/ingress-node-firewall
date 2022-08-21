@@ -153,8 +153,18 @@ type IngressNodeFirewallSpec struct {
 	Interfaces []string `json:"interfaces,omitempty"`
 }
 
+type IngressNodeFirewallSyncStatus string
+
+var (
+	// FirewallRulesSyncError indicates that one or more NodeState synchronization failed.
+	FirewallRulesSyncError IngressNodeFirewallSyncStatus = "Error"
+	// FirewallRulesSyncOK indicates that the last synchronization attempt to all nodes with matching label was a success.
+	FirewallRulesSyncOK IngressNodeFirewallSyncStatus = "Synchronized"
+)
+
 // IngressNodeFirewallStatus defines the observed state of IngressNodeFirewall.
 type IngressNodeFirewallStatus struct {
+	SyncStatus IngressNodeFirewallSyncStatus `json:"syncStatus,omitempty"`
 }
 
 //+kubebuilder:object:root=true

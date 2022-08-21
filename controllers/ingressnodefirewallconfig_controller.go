@@ -19,11 +19,13 @@ package controllers
 import (
 	"context"
 	"os"
+	"time"
 
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/pkg/apply"
 	"github.com/openshift/ingress-node-firewall/pkg/platform"
 	"github.com/openshift/ingress-node-firewall/pkg/render"
+	"github.com/openshift/ingress-node-firewall/pkg/status"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -67,6 +69,8 @@ type IngressNodeFirewallConfigReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
 func (r *IngressNodeFirewallConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	errorMsg, wrappedErrMsg, condition := "", "", ""
+	var ctrResult = ctrl.Result{}
 	logger := r.Log.WithValues("ingress node firewall config", req.NamespacedName)
 	req.Namespace = r.Namespace
 	instance := &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
@@ -87,10 +91,29 @@ func (r *IngressNodeFirewallConfigReconciler) Reconcile(ctx context.Context, req
 		return ctrl.Result{}, nil // Return success to avoid requeue
 	}
 
-	if err := r.syncIngressNodeFwConfigResources(ctx, instance); err != nil {
-		return ctrl.Result{}, err
+	if err = r.syncIngressNodeFwConfigResources(ctx, instance); err != nil {
+		condition = status.ConditionDegraded
+	} else {
+		err = status.IsIngressNodeFirewallConfigAvailable(ctx, r.Client, req.NamespacedName.Namespace)
+		if err != nil {
+			if _, ok := err.(status.IngressNodeFirewallConfigResourcesNotReadyError); ok {
+				ctrResult = ctrl.Result{RequeueAfter: 5 * time.Second}
+			}
+			condition = status.ConditionProgressing
+		} else {
+			condition = status.ConditionAvailable
+		}
 	}
-	return ctrl.Result{}, nil
+
+	if err != nil {
+		if errors.Unwrap(err) != nil {
+			wrappedErrMsg = errors.Unwrap(err).Error()
+		}
+	}
+	if err = status.Update(context.TODO(), r.Client, instance, condition, errorMsg, wrappedErrMsg); err != nil {
+		logger.Error(err, "Failed to update ingress node firewall config status", "Desired status", status.ConditionAvailable)
+	}
+	return ctrResult, err
 }
 
 // SetupWithManager sets up the controller with the Manager.
