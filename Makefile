@@ -283,7 +283,7 @@ bundle-index-build: opm  ## Build the bundle index image.
 .PHONY: build-and-push-bundle-images
 build-and-push-bundle-images: docker-build docker-push  ## Generate and push bundle image and bundle index image.
 	$(MAKE) bundle
-	$(MAKE) build-bundle
+	$(MAKE) bundle-build
 	$(MAKE) docker-push IMG=$(BUNDLE_IMG)
 	$(MAKE) bundle-index-build
 	$(MAKE) docker-push IMG=$(BUNDLE_INDEX_IMG)
