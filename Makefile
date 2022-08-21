@@ -59,6 +59,9 @@ DAEMON_IMG ?= quay.io/$(IMAGE_ORG)/ingress-node-firewall-daemon
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.24.1
 
+# Default namespace
+NAMESPACE ?= ingress-node-firewall-system
+
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -287,6 +290,13 @@ build-and-push-bundle-images: docker-build docker-push  ## Generate and push bun
 	$(MAKE) docker-push IMG=$(BUNDLE_IMG)
 	$(MAKE) bundle-index-build
 	$(MAKE) docker-push IMG=$(BUNDLE_INDEX_IMG)
+
+.PHONY: deploy-with-olm
+deploy-with-olm: ## deploys the operator with OLM instead of manifests
+	sed -i 's#quay.io/openshift/ingress-nodefw/ingress-node-firewall-index:.*#$(BUNDLE_INDEX_IMG)#g' config/olm-install/install-resources.yaml
+	sed -i 's#ingress-node-firewall-system#$(NAMESPACE)#g' config/olm-install/install-resources.yaml
+	$(KUSTOMIZE) build config/olm-install | kubectl apply -f -
+	VERSION=$(CSV_VERSION) NAMESPACE=$(NAMESPACE) hack/wait-for-csv.sh
 
 .PHONY: opm
 OPM = ./bin/opm
