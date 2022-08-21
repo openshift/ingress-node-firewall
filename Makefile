@@ -41,7 +41,7 @@ IMAGE_TAG_BASE ?= quay.io/$(IMAGE_ORG)/ingress-nodefw/ingress-node-firewall
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 # Default bundle index image tag
-BUNDLE_INDEX_IMG ?= $(BUNDLE_IMG)-index:v$(VERSION)
+BUNDLE_INDEX_IMG ?= $(IMAGE_TAG_BASE)-index:v$(VERSION)
 # BUNDLE_GEN_FLAGS are the flags passed to the operator-sdk generate bundle command
 BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
 
