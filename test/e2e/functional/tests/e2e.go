@@ -244,7 +244,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			Expect(err).To(BeNil())
 			Expect(podList).ToNot(BeNil())
 			for _, pod := range podList.Items {
-				out, err := infwutils.GetPodLogs(testclient.Client, &pod, "events")
+				out, err := pods.GetPodLogs(testclient.Client, &pod, "events")
 				Expect(err).ToNot(HaveOccurred())
 				Eventually(func() bool {
 					ips, err := infwutils.NodeIPs(pod.Spec.NodeName)
