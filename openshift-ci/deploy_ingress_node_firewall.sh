@@ -23,6 +23,8 @@ find . -type f -name "*clusterserviceversion*.yaml" -exec sed -i 's/quay.io\/mma
 
 cd -
 
+oc label ns openshift-marketplace --overwrite pod-security.kubernetes.io/enforce=privileged
+
 secret=$(oc -n openshift-marketplace get sa builder -oyaml | grep imagePullSecrets -A 1 | grep -o "builder-.*")
 
 buildindexpod="apiVersion: v1
@@ -105,6 +107,8 @@ else
 fi
 
 ./wait_for_csv.sh
+
+oc label ns openshift-marketplace --overwrite pod-security.kubernetes.io/enforce=baseline
 
 oc apply -f - <<EOF
 apiVersion: ingressnodefirewall.openshift.io/v1alpha1
