@@ -30,8 +30,11 @@ import (
 	goclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var OperatorNameSpace = consts.DefaultOperatorNameSpace
-var TestIsOpenShift = false
+var (
+	OperatorNameSpace = consts.DefaultOperatorNameSpace
+	TestIsOpenShift   = false
+	TestInterface     = "eth0"
+)
 
 func init() {
 	if len(os.Getenv("IS_OPENSHIFT")) != 0 {
@@ -39,6 +42,9 @@ func init() {
 	}
 	if ns := os.Getenv("OO_INSTALL_NAMESPACE"); len(ns) != 0 {
 		OperatorNameSpace = ns
+	}
+	if intf := os.Getenv("NODE_INTERFACE"); len(intf) != 0 {
+		TestInterface = intf
 	}
 }
 
@@ -196,7 +202,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						},
 					},
 					Interfaces: []string{
-						"eth0",
+						TestInterface,
 					},
 				},
 			}
@@ -238,7 +244,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			Expect(err).To(BeNil())
 			Expect(podList).ToNot(BeNil())
 			for _, pod := range podList.Items {
-				out, err := infwutils.GetPodLogs(testclient.Client, &pod, "events")
+				out, err := pods.GetPodLogs(testclient.Client, &pod, "events")
 				Expect(err).ToNot(HaveOccurred())
 				Eventually(func() bool {
 					ips, err := infwutils.NodeIPs(pod.Spec.NodeName)
@@ -366,7 +372,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						},
 					},
 					Interfaces: []string{
-						"eth0",
+						TestInterface,
 					},
 				},
 			}
@@ -470,7 +476,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 		It("should allow valid ingressnodefirewall TCP rule", func() {
 			inf := infwutils.GetINF(OperatorNameSpace, "e2e-webhook-valid-tcp")
 			infwutils.DefineWithWorkerNodeSelector(inf)
-			infwutils.DefineWithInterface(inf, "eth0")
+			infwutils.DefineWithInterface(inf, TestInterface)
 			infwutils.DefineDenyTCPRule(inf, "1.1.1.1/32", 40000)
 			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
 			cleanNodeFirewallRule(inf)
@@ -479,7 +485,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 		It("should allow valid ingressnodefirewall UDP rule", func() {
 			inf := infwutils.GetINF(OperatorNameSpace, "e2e-webhook-valid-udp")
 			infwutils.DefineWithWorkerNodeSelector(inf)
-			infwutils.DefineWithInterface(inf, "eth0")
+			infwutils.DefineWithInterface(inf, TestInterface)
 			infwutils.DefineDenyUDPRule(inf, "1.1.1.1/32", 40000)
 			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
 			cleanNodeFirewallRule(inf)
@@ -488,7 +494,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 		It("should allow valid ingressnodefirewall ICMPV4 rule", func() {
 			inf := infwutils.GetINF(OperatorNameSpace, "e2e-webhook-valid-icmpv4")
 			infwutils.DefineWithWorkerNodeSelector(inf)
-			infwutils.DefineWithInterface(inf, "eth0")
+			infwutils.DefineWithInterface(inf, TestInterface)
 			infwutils.DefineDenyICMPV4Rule(inf, "1.1.1.1/32")
 			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
 			cleanNodeFirewallRule(inf)
@@ -497,7 +503,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 		It("should allow valid ingressnodefirewall ICMPV6 rule", func() {
 			inf := infwutils.GetINF(OperatorNameSpace, "e2e-webhook-valid-icmpv6")
 			infwutils.DefineWithWorkerNodeSelector(inf)
-			infwutils.DefineWithInterface(inf, "eth0")
+			infwutils.DefineWithInterface(inf, TestInterface)
 			infwutils.DefineDenyICMPV6Rule(inf, "1:1:1::1/64")
 			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
 			cleanNodeFirewallRule(inf)
@@ -506,7 +512,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 		It("should allow valid ingressnodefirewall SCTP rule", func() {
 			inf := infwutils.GetINF(OperatorNameSpace, "e2e-webhook-valid-sctp")
 			infwutils.DefineWithWorkerNodeSelector(inf)
-			infwutils.DefineWithInterface(inf, "eth0")
+			infwutils.DefineWithInterface(inf, TestInterface)
 			infwutils.DefineDenySCTPRule(inf, "1.1.1.1/32", 40000)
 			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
 			cleanNodeFirewallRule(inf)
@@ -516,7 +522,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			for _, tcpFailSafeRule := range failsaferules.GetTCP() {
 				inf := infwutils.GetINF(OperatorNameSpace, fmt.Sprintf("e2e-webhook-block-conflict-%s-tcp", tcpFailSafeRule.GetServiceName()))
 				infwutils.DefineWithWorkerNodeSelector(inf)
-				infwutils.DefineWithInterface(inf, "eth0")
+				infwutils.DefineWithInterface(inf, TestInterface)
 				infwutils.DefineDenyTCPRule(inf, "1.1.1.1/32", tcpFailSafeRule.GetPort())
 				Expect(testclient.Client.Create(context.Background(), inf)).ToNot(Succeed())
 				cleanNodeFirewallRule(inf)
@@ -524,7 +530,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			for _, udpFailSafeRule := range failsaferules.GetUDP() {
 				inf := infwutils.GetINF(OperatorNameSpace, fmt.Sprintf("e2e-webhook-block-conflict-%s-udp", udpFailSafeRule.GetServiceName()))
 				infwutils.DefineWithWorkerNodeSelector(inf)
-				infwutils.DefineWithInterface(inf, "eth0")
+				infwutils.DefineWithInterface(inf, TestInterface)
 				infwutils.DefineDenyUDPRule(inf, "1.1.1.1/32", udpFailSafeRule.GetPort())
 				Expect(testclient.Client.Create(context.Background(), inf)).ToNot(Succeed())
 				cleanNodeFirewallRule(inf)
