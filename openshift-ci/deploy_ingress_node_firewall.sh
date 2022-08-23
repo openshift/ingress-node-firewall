@@ -126,8 +126,10 @@ spec:
     effect: "NoExecute"
 EOF
 
-ATTEMPTS=0
 ds_ready=false
+iterations=0
+sleep_time=10
+max_iterations=72 # results in 12 minutes timeout
 until $ds_ready
 do
   desired_ds_num=$(oc get ds -n $NAMESPACE ingress-node-firewall-daemon -o jsonpath="{.status.desiredNumberScheduled}")
@@ -137,9 +139,9 @@ do
     ds_ready=true
   else    
     echo "still waiting for daemonset"
-    sleep 10
-    (( ATTEMPTS++ ))
-    if [ $ATTEMPTS -eq 30 ]; then
+    sleep $sleep_time
+    iterations=$((iterations+1))
+    if [ $iterations -eq $max_iterations ]; then
       echo "failed waiting for daemonset"
       exit 1
     fi
