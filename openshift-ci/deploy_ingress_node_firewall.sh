@@ -67,8 +67,8 @@ until [[ $success -eq 1 ]] || [[ $iterations -eq $max_iterations ]]
 do
   run_status=$(oc -n openshift-marketplace get pod buildindex -o json | jq '.status.phase' | tr -d '"')
   if [ "$run_status" == "Running" ]; then
-        success=1
-        break
+    success=1
+    break
   fi
   iterations=$((iterations+1))
   sleep $sleep_time
@@ -89,12 +89,12 @@ until [[ $success -eq 1 ]] || [[ $iterations -eq $max_iterations ]]
 do
   run_status=$(oc -n openshift-marketplace get pod | grep ingress-node-firewall-operator-index | awk '{print $3}')
   if [ "$run_status" == "Running" ]; then
-        success=1
-        break
+    success=1
+    break
   elif [[ "$run_status" == *"Image"*  ]]; then
-      echo "pod in bad status try to recreate the image again status: $run_status"
-      pod_name=$(oc -n openshift-marketplace get pod | grep ingress-node-firewall-operator-index | awk '{print $1}')
-      oc -n openshift-marketplace delete po $pod_name
+    echo "pod in bad status try to recreate the image again status: $run_status"
+    pod_name=$(oc -n openshift-marketplace get pod | grep ingress-node-firewall-operator-index | awk '{print $1}')
+    oc -n openshift-marketplace delete po $pod_name
   fi
   iterations=$((iterations+1))
   sleep $sleep_time
