@@ -1,5 +1,8 @@
 #!/usr/bin/bash
 
+set -eu
+set -o pipefail
+
 ingress_node_firewall_dir="$(dirname "$(readlink -f "$0")")"
 source "${ingress_node_firewall_dir}"/common.sh
 
