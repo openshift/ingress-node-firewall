@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
-ingress_node_firewall_dir="$(dirname $(readlink -f $0))"
-source ${ingress_node_firewall_dir}/common.sh
+ingress_node_firewall_dir="$(dirname "$(readlink -f "$0")")"
+source "${ingress_node_firewall_dir}"/common.sh
 
 INGRESS_NODE_FIREWALL_IMAGE_BASE=${INGRESS_NODE_FIREWALL_IMAGE_BASE:-$(echo "${OPENSHIFT_RELEASE_IMAGE}" | sed -e 's/release/stable/g' | sed -e 's/@.*$//g')}
 INGRESS_NODE_FIREWALL_IMAGE_TAG=${INGRESS_NODE_FIREWALL_IMAGE_TAG:-"ingress-node-firewall"}
@@ -94,7 +94,7 @@ do
   elif [[ "$run_status" == *"Image"*  ]]; then
     echo "pod in bad status try to recreate the image again status: $run_status"
     pod_name=$(oc -n openshift-marketplace get pod | grep ingress-node-firewall-operator-index | awk '{print $1}')
-    oc -n openshift-marketplace delete po $pod_name
+    oc -n openshift-marketplace delete po "$pod_name"
   fi
   iterations=$((iterations+1))
   sleep $sleep_time
@@ -132,8 +132,8 @@ sleep_time=10
 max_iterations=72 # results in 12 minutes timeout
 until $ds_ready
 do
-  desired_ds_num=$(oc get ds -n $NAMESPACE ingress-node-firewall-daemon -o jsonpath="{.status.desiredNumberScheduled}")
-  ready_ds_num=$(oc get ds -n $NAMESPACE ingress-node-firewall-daemon -o jsonpath="{.status.numberReady}")
+  desired_ds_num=$(oc get ds -n "$NAMESPACE" ingress-node-firewall-daemon -o jsonpath="{.status.desiredNumberScheduled}")
+  ready_ds_num=$(oc get ds -n "$NAMESPACE" ingress-node-firewall-daemon -o jsonpath="{.status.numberReady}")
   if [[ ${desired_ds_num} > 1 ]] && [[ ${ready_ds_num} == ${desired_ds_num} ]]; then
     echo "daemonset ready"
     ds_ready=true
@@ -141,7 +141,7 @@ do
     echo "still waiting for daemonset"
     sleep $sleep_time
     iterations=$((iterations+1))
-    if [ $iterations -eq $max_iterations ]; then
+    if [ "$iterations" -eq "$max_iterations" ]; then
       echo "failed waiting for daemonset"
       exit 1
     fi
