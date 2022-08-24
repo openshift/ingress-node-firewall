@@ -104,7 +104,10 @@ var _ = Describe("IngressNodeFirewallNodeState controller", func() {
 		It(fmt.Sprintf("eBPF rule reconciliation for node %s should be triggered", daemonReconcilerNodeName), func() {
 			By("Checking that the reconciler was called")
 			Eventually(func() bool {
-				return len(ingressNodeFirewallRules) == 2
+				m.Lock()
+				l := len(ingressNodeFirewallRules)
+				m.Unlock()
+				return l == 2
 			}, timeout, interval).Should(BeTrue())
 		})
 	})

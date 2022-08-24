@@ -29,7 +29,7 @@ type (
 	uint32Set map[uint32]empty
 )
 
-//+kubebuilder:webhook:path=/validate-ingressnodefirewall-openshift-io-v1alpha1-ingressnodefirewall,mutating=false,failurePolicy=fail,sideEffects=None,groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewalls,verbs=create;update,versions=v1alpha1,name=vingressnodefirewall.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/validate-ingressnodefirewall-openshift-io-v1alpha1-ingressnodefirewall,mutating=false,failurePolicy=fail,sideEffects=None,groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewalls,verbs=create;update,versions=v1alpha1,name=vingressnodefirewall.kb.io,admissionReviewVersions=v1
 var _ webhook.CustomValidator = &IngressNodeFirewallWebhook{ingressnodefwv1alpha1.IngressNodeFirewall{}}
 
 var (
