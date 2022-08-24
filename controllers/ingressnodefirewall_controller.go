@@ -378,7 +378,7 @@ func mergeRuleSet(a, b []infv1alpha1.IngressNodeFirewallRules) ([]infv1alpha1.In
 			// Now, go over each existing rule in the already merged slice.
 			for i, ruleA := range a {
 				if len(ruleA.SourceCIDRs) != 1 {
-					return nil, fmt.Errorf(
+					return []infv1alpha1.IngressNodeFirewallRules{}, fmt.Errorf(
 						"cannot merge into ruleset A with invalid SourceCIDRs: '%v'", ruleA.SourceCIDRs)
 				}
 				// If the CIDR already exists in A, then merge it in and continue with the next CIDR.
@@ -386,7 +386,7 @@ func mergeRuleSet(a, b []infv1alpha1.IngressNodeFirewallRules) ([]infv1alpha1.In
 					a[i].FirewallProtocolRules, err = mergeFirewallProtocolRules(
 						ruleA.FirewallProtocolRules, ruleB.FirewallProtocolRules)
 					if err != nil {
-						return nil, err
+						return []infv1alpha1.IngressNodeFirewallRules{}, err
 					}
 					continue withNextSourceCIDR
 				}
