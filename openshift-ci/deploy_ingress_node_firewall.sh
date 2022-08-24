@@ -137,7 +137,7 @@ until $ds_ready
 do
   desired_ds_num=$(oc get ds -n "$NAMESPACE" ingress-node-firewall-daemon -o jsonpath="{.status.desiredNumberScheduled}")
   ready_ds_num=$(oc get ds -n "$NAMESPACE" ingress-node-firewall-daemon -o jsonpath="{.status.numberReady}")
-  if [[ ${desired_ds_num} > 1 ]] && [[ ${ready_ds_num} == ${desired_ds_num} ]]; then
+  if [ "${desired_ds_num}" -gt 1 ] && [ "${ready_ds_num}" -eq "${desired_ds_num}" ]; then
     echo "daemonset ready"
     ds_ready=true
   else    
