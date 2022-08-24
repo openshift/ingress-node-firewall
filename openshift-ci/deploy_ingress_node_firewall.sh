@@ -17,14 +17,14 @@ rm -rf ingress-node-firewall-operator-deploy/bundle
 cp ../bundle.Dockerfile ingress-node-firewall-operator-deploy 
 cp -r ../bundle/ ingress-node-firewall-operator-deploy/bundle 
 
-cd ingress-node-firewall-operator-deploy
+cd ingress-node-firewall-operator-deploy || exit
 
 ESCAPED_OPERATOR_IMAGE=$(printf '%s\n' "${INGRESS_NODE_FIREWALL_IMAGE_BASE}:${INGRESS_NODE_FIREWALL_IMAGE_TAG}" | sed -e 's/[]\/$*.^[]/\\&/g');
 find . -type f -name "*clusterserviceversion*.yaml" -exec sed -i 's/quay.io\/mmahmoud\/controller:.*$/'"$ESCAPED_OPERATOR_IMAGE"'/g' {} +
 ESCAPED_DAEMON_IMAGE=$(printf '%s\n' "${INGRESS_NODE_FIREWALL_IMAGE_BASE}:${INGRESS_NODE_FIREWALL_DAEMON_IMAGE_TAG}" | sed -e 's/[]\/$*.^[]/\\&/g');
 find . -type f -name "*clusterserviceversion*.yaml" -exec sed -i 's/quay.io\/mmahmoud\/ingress-node-firewall-daemon:.*$/'"$ESCAPED_DAEMON_IMAGE"'/g' {} +
 
-cd -
+cd - || exit
 
 oc label ns openshift-marketplace --overwrite pod-security.kubernetes.io/enforce=privileged
 
