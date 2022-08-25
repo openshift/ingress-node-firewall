@@ -144,6 +144,7 @@ make uninstall
 
 ## Running on an OCP cluster
 1. Create OCP cluster
+### Deploy from manifests
 2. Install custom resource definitions
 ```sh
 make install
@@ -171,6 +172,23 @@ make docker-push-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-daemom:
 make undeploy
 ```
 10. Uninstall custom resource definitions
+```sh
+make uninstall
+```
+### Deploy with OLM
+2. Build and push bundle and index images to an image registry
+```sh
+make build-and-push-bundle-images IMG=<some-registry>/ingress-node-firewall-controller:latest DAEMON_IMG=<some-registry>/ingress-node-firewall-daemom:latest IMAGE_TAG_BASE=<some-registry>/ingress-nodefw/ingress-node-firewall
+```
+3. Deploy with OLM
+```sh
+make deploy-with-olm NAMESPACE=openshift-ingress-node-firewall IMAGE_TAG_BASE=<some-registry>/ingress-nodefw/ingress-node-firewall
+```
+4. Undeploy resources from OCP cluster
+```sh
+oc delete ns openshift-ingress-node-firewall
+```
+5. Uninstall custom resource definitions
 ```sh
 make uninstall
 ```
