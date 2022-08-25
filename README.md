@@ -114,24 +114,24 @@ make install
 ```
 4. Build controller container image
 ```sh
-make docker-build IMG=<some-registry>/ingress-node-firewall-controller:tag
+make docker-build IMG=<some-registry>/ingress-node-firewall-controller:latest
 ```
 5. Load controller container image to KinD container(s)
 ```sh
-kind load docker-image <some-registry>/ingress-node-firewall-controller:tag
+kind load docker-image <some-registry>/ingress-node-firewall-controller:latest
 ```
 6. Build daemon container image
 ```sh
-make docker-build-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-daemon:tag
+make docker-build-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-daemon:latest
 ```
 7. Load daemon container image to KinD container(s)
 ```sh
-kind load docker-image <some-registry>/ingress-node-firewall-daemon:tag
+kind load docker-image <some-registry>/ingress-node-firewall-daemon:latest
 ```
 8. Manually edit "config/manager/env.yaml" and add the daemon image to value of environment variable "DAEMONSET_IMAGE"
 9. Deploy resources to KinD cluster
 ```sh
-make deploy-kind IMG=<some-registry>/ingress-node-firewall-controller:tag
+make deploy-kind IMG=<some-registry>/ingress-node-firewall-controller:latest
 ```
 7. Undeploy resources from KinD cluster
 ```sh
@@ -150,22 +150,22 @@ make install
 ```
 3. Build controller container image
 ```sh
-make docker-build IMG=<some-registry>/ingress-node-firewall-controller:tag
+make docker-build IMG=<some-registry>/ingress-node-firewall-controller:latest
 ```
 4. Push controller container image to an image registry
 ```sh
-make docker-push IMG=<some-registry>/ingress-node-firewall-controller:tag
+make docker-push IMG=<some-registry>/ingress-node-firewall-controller:latest
 ```
 5. Build daemon container image
 ```sh
-make docker-build-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-controller:tag
+make docker-build-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-daemom:latest
 ```
 6. Push controller container image to an image registry
 ```sh
-make docker-push-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-controller:tag
+make docker-push-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-daemom:latest
 ```
 7. Manually edit "config/manager/env.yaml" and add the daemon image name to value of environment variable "DAEMONSET_IMAGE"
-8. make deploy IMG=<some-registry>/ingress-node-firewall-controller:tag
+8. make deploy IMG=<some-registry>/ingress-node-firewall-controller:latest
 9. Undeploy resources from OCP cluster
 ```sh
 make undeploy
