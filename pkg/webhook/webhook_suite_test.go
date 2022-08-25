@@ -649,7 +649,5 @@ func getICMPv6Rule(order uint32, protocol ingressnodefwv1alpha1.IngressNodeFirew
 }
 
 func configInterfaces(inf *ingressnodefwv1alpha1.IngressNodeFirewall, intfs []string) {
-	for _, intf := range intfs {
-		inf.Spec.Interfaces = append(inf.Spec.Interfaces, intf)
-	}
+	inf.Spec.Interfaces = append(inf.Spec.Interfaces, intfs...)
 }

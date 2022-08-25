@@ -317,7 +317,7 @@ func (r *IngressNodeFirewallReconciler) buildNodeStates(
 			if len(firewallObj.Spec.Interfaces) == 0 {
 				state.Status = infv1alpha1.IngressNodeFirewallNodeStateStatus{
 					SyncStatus:       infv1alpha1.SyncError,
-					SyncErrorMessage: fmt.Sprintf("Invalid interface name - cannot provide an empty list"),
+					SyncErrorMessage: "Invalid interface name - cannot provide an empty list",
 				}
 				// Write back the state to the map and then continue with the next node.
 				nodeStates[node.Name] = state
