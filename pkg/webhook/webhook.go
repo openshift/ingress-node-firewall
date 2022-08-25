@@ -91,7 +91,7 @@ func validateINFInterfaces(ctx context.Context, infInterfaces []string, infName 
 		if inf == "" {
 			allErrs = append(allErrs,
 				field.Invalid(field.NewPath("Spec").Child("interfaces").Index(index),
-					infName, fmt.Sprintf("can not use blank interfae names")))
+					infName, "can not use blank interfae names"))
 		}
 		if len(inf) > unix.IFNAMSIZ {
 			allErrs = append(allErrs,
@@ -137,7 +137,7 @@ func validatesourceCIDRs(allErrs field.ErrorList, sourceCIDRs []string, infRules
 	if len(sourceCIDRs) == 0 {
 		allErrs = append(allErrs,
 			field.Invalid(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("sourceCIDRs"),
-				infName, fmt.Sprintf("must be at least one sourceCIDRs")))
+				infName, "must be at least one sourceCIDRs"))
 	} else {
 		for sourceCIDRSIndex, sourceCIDR := range sourceCIDRs {
 			if isValid, reason := validateSourceCIDR(sourceCIDR); !isValid {
@@ -298,10 +298,8 @@ func orderIsUnique(rules []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule
 	for _, rule := range rules {
 		orderSet[rule.Order] = empty{}
 	}
-	if len(orderSet) != len(rules) {
-		return false
-	}
-	return true
+
+	return len(orderSet) == len(rules)
 }
 
 func withinRange(i, lowerBound, upperBound uint16) bool {

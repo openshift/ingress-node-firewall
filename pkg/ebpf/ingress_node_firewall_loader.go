@@ -298,12 +298,12 @@ func (infc *IngNodeFwController) removeAllPins() error {
 		return err
 	}
 
+	re, err := regexp.Compile(".*" + linkSuffix + "$")
+	if err != nil {
+		return err
+	}
 	for _, file := range files {
-		matched, err := regexp.Match(".*"+linkSuffix+"$", []byte(file.Name()))
-		if err != nil {
-			return err
-		}
-		if matched {
+		if re.Match([]byte(file.Name())) {
 			if err := os.Remove(path.Join(infc.pinPath, file.Name())); err != nil {
 				return err
 			}
@@ -326,15 +326,15 @@ func (infc *IngNodeFwController) loadPinnedLinks() error {
 		return err
 	}
 
+	re, err := regexp.Compile(".*" + linkSuffix + "$")
+	if err != nil {
+		return err
+	}
+
 	for _, file := range files {
-		matched, err := regexp.Match(".*"+linkSuffix+"$", []byte(file.Name()))
-		if err != nil {
-			return err
-		}
-		if matched {
+		if re.Match([]byte(file.Name())) {
 			interfaceName := strings.TrimSuffix(file.Name(), linkSuffix)
 			if _, ok := infc.links[interfaceName]; !ok {
-
 				l, err := link.LoadPinnedLink(path.Join(infc.pinPath, file.Name()), nil)
 				if err != nil {
 					return err
@@ -525,6 +525,7 @@ func (infc *IngNodeFwController) getStaleKeys(desiredKeys []BpfLpmIpKeySt) ([]Bp
 
 // getStaleInterfaceKeys returns the keys for all rules that belong to stale interfaces, meaning interfaces
 // that are not attached any more.
+//nolint:golint,unused
 func (infc *IngNodeFwController) getStaleInterfaceKeys() ([]BpfLpmIpKeySt, error) {
 	objs := infc.objs
 

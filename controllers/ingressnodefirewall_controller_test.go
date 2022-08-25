@@ -246,7 +246,7 @@ var _ = Describe("IngressNodeFirewall controller", func() {
 				By("Waiting for the expected list of IngressNodeFirewallNodeStates")
 				hasIngressNodeFirewallNodeStates(ctx, k8sClient, []string{"worker-0", "worker-1"})
 
-				By(fmt.Sprintf("Updating the label on node worker-1"))
+				By("Updating the label on node worker-1")
 				err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 					node := &v1.Node{}
 					key := types.NamespacedName{Name: "worker-1"}
@@ -266,7 +266,7 @@ var _ = Describe("IngressNodeFirewall controller", func() {
 				By("Waiting for the expected list of IngressNodeFirewallNodeStates")
 				hasIngressNodeFirewallNodeStates(ctx, k8sClient, []string{"worker-0", "worker-1"})
 
-				By(fmt.Sprintf("Updating the label on node worker-1"))
+				By("Updating the label on node worker-1")
 				err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 					node := &v1.Node{}
 					key := types.NamespacedName{Name: "control-plane-0"}

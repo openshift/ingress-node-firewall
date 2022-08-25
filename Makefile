@@ -75,6 +75,16 @@ endif
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
+# CONTAINER_RUNNABLE determines if the tests can be run inside a container. It checks to see if
+# podman/docker is installed on the system.
+PODMAN ?= $(shell podman -v > /dev/null 2>&1; echo $$?)
+ifeq ($(PODMAN), 0)
+CONTAINER_RUNTIME=podman
+else
+CONTAINER_RUNTIME=docker
+endif
+CONTAINER_RUNNABLE ?= $(shell $(CONTAINER_RUNTIME) -v > /dev/null 2>&1; echo $$?)
+
 .PHONY: all
 all: build
 
@@ -333,9 +343,13 @@ generate-daemon-manifest: ## Generate DaemonSet manifest.
 	@echo "==== Generating DaemonSet manifest"
 	hack/generate-daemon-manifest.sh
 
+.PHONY: lint
 lint: ## Run golangci-lint against code.
-	@echo "Running golangci-lint"
-	hack/lint.sh
+ifeq ($(CONTAINER_RUNNABLE), 0)
+	@GOPATH=${GOPATH} ./hack/lint.sh $(CONTAINER_RUNTIME)
+else
+	echo "linter can only be run within a container since it needs a specific golangci-lint version"
+endif
 
 .PHONY: vendors
 vendors: ## Updating vendors.

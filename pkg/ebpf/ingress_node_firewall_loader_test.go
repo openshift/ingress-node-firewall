@@ -100,6 +100,7 @@ func TestAddOrUpdateRules(t *testing.T) {
 	}
 }
 
+//nolint:golint,unused
 func beforeEach(t *testing.T) {
 	// First, check if the user is root; skip otherwise.
 	t.Log("Checking if this test runs with sufficiently high privileges")
@@ -114,10 +115,12 @@ func beforeEach(t *testing.T) {
 	cleanup(t)
 }
 
+//nolint:golint,unused
 func afterEach(t *testing.T) {
 	cleanup(t)
 }
 
+//nolint:golint,unused
 func cleanup(t *testing.T) {
 	t.Log("Deleting all XDP pins")
 	err := os.RemoveAll("/sys/fs/bpf/xdp_ingress_node_firewall_process")
