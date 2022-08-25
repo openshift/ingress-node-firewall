@@ -106,6 +106,7 @@ func (r *IngressNodeFirewallConfigReconciler) Reconcile(ctx context.Context, req
 	}
 
 	if err != nil {
+		errorMsg = err.Error()
 		if errors.Unwrap(err) != nil {
 			wrappedErrMsg = errors.Unwrap(err).Error()
 		}

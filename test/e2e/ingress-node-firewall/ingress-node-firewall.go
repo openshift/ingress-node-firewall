@@ -106,7 +106,7 @@ func NodesIPs(nodes []v1.Node) []string {
 	return res
 }
 
-func GetRuleCIDR(nodes []v1.Node) (string, string, error) {
+func GetRuleCIDR(isSingleStack bool, nodes []v1.Node) (string, string, error) {
 	var v4CIDR, v6CIDR string
 	v4CIDRLen := 12
 	v6CIDRLen := 64
@@ -121,6 +121,9 @@ func GetRuleCIDR(nodes []v1.Node) (string, string, error) {
 			v6CIDR = fmt.Sprintf("%s/%d", addr.Mask(v6Mask), v6CIDRLen)
 		} else {
 			return "", "", fmt.Errorf("invalid ip address family %s", ip)
+		}
+		if isSingleStack && (v4CIDR != "" || v6CIDR != "") {
+			break
 		}
 		if v4CIDR != "" && v6CIDR != "" {
 			break

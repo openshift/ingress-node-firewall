@@ -34,6 +34,7 @@ var (
 	OperatorNameSpace = consts.DefaultOperatorNameSpace
 	TestIsOpenShift   = false
 	TestInterface     = "eth0"
+	TestIsSingleStack = false
 )
 
 func init() {
@@ -45,6 +46,9 @@ func init() {
 	}
 	if intf := os.Getenv("NODE_INTERFACE"); len(intf) != 0 {
 		TestInterface = intf
+	}
+	if len(os.Getenv("IS_SINGLESTACK")) != 0 {
+		TestIsSingleStack = true
 	}
 }
 
@@ -141,70 +145,147 @@ var _ = Describe("Ingress Node Firewall", func() {
 
 		It("should run Ingress node firewall apply rules and check the actions", func() {
 			By("get nodes IP addresses with matching labels and ping their IPs")
+			var rules *ingressnodefwv1alpha1.IngressNodeFirewall
 			nodes, err := testclient.Client.Nodes().List(context.Background(), metav1.ListOptions{LabelSelector: consts.IngressNodeFirewallNodeLabel})
 			Expect(err).ToNot(HaveOccurred())
 
 			err, _ = infwutils.RunPingTest(nodes.Items)
 			Expect(err).ToNot(HaveOccurred())
 
-			v4CIDR, v6CIDR, err := infwutils.GetRuleCIDR(nodes.Items)
+			v4CIDR, v6CIDR, err := infwutils.GetRuleCIDR(TestIsSingleStack, nodes.Items)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("creating ingress node firewall rules")
-			rules := &ingressnodefwv1alpha1.IngressNodeFirewall{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "rules1",
-				},
-				Spec: ingressnodefwv1alpha1.IngressNodeFirewallSpec{
-					NodeSelector: metav1.LabelSelector{
-						MatchLabels: map[string]string{consts.IngressNodeFirewallNodeLabel: ""},
+			if !TestIsSingleStack && v4CIDR != "" && v6CIDR != "" {
+				rules = &ingressnodefwv1alpha1.IngressNodeFirewall{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "rules1",
 					},
-					Ingress: []ingressnodefwv1alpha1.IngressNodeFirewallRules{
-						{
-							SourceCIDRs: []string{v4CIDR},
-							FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
-								{
-									Order: 10,
-									ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
-										Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP,
-										ICMP: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
-											ICMPType: 8,
+					Spec: ingressnodefwv1alpha1.IngressNodeFirewallSpec{
+						NodeSelector: metav1.LabelSelector{
+							MatchLabels: map[string]string{consts.IngressNodeFirewallNodeLabel: ""},
+						},
+						Ingress: []ingressnodefwv1alpha1.IngressNodeFirewallRules{
+							{
+								SourceCIDRs: []string{v4CIDR},
+								FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+									{
+										Order: 10,
+										ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+											Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP,
+											ICMP: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
+												ICMPType: 8,
+											},
 										},
+										Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
 									},
-									Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+									{
+										Order: 20,
+										ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+											Protocol: ingressnodefwv1alpha1.ProtocolTypeTCP,
+											TCP: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
+												Ports: intstr.FromString("800-900"),
+											},
+										},
+										Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+									},
 								},
-								{
-									Order: 20,
-									ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
-										Protocol: ingressnodefwv1alpha1.ProtocolTypeTCP,
-										TCP: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
-											Ports: intstr.FromString("800-900"),
+							},
+							{
+								SourceCIDRs: []string{v6CIDR},
+								FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+									{
+										Order: 10,
+										ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+											Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP6,
+											ICMPv6: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
+												ICMPType: 128,
+											},
 										},
+										Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
 									},
-									Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
 								},
 							},
 						},
-						{
-							SourceCIDRs: []string{v6CIDR},
-							FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
-								{
-									Order: 10,
-									ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
-										Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP6,
-										ICMPv6: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
-											ICMPType: 128,
-										},
-									},
-									Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
-								},
-							},
+						Interfaces: []string{
+							TestInterface,
 						},
 					},
-					Interfaces: []string{
-						TestInterface,
-					},
-				},
+				}
+			} else {
+				if v4CIDR != "" {
+					rules = &ingressnodefwv1alpha1.IngressNodeFirewall{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "rules1",
+						},
+						Spec: ingressnodefwv1alpha1.IngressNodeFirewallSpec{
+							NodeSelector: metav1.LabelSelector{
+								MatchLabels: map[string]string{consts.IngressNodeFirewallNodeLabel: ""},
+							},
+							Ingress: []ingressnodefwv1alpha1.IngressNodeFirewallRules{
+								{
+									SourceCIDRs: []string{v4CIDR},
+									FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+										{
+											Order: 10,
+											ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+												Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP,
+												ICMP: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
+													ICMPType: 8,
+												},
+											},
+											Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+										},
+										{
+											Order: 20,
+											ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+												Protocol: ingressnodefwv1alpha1.ProtocolTypeTCP,
+												TCP: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
+													Ports: intstr.FromString("800-900"),
+												},
+											},
+											Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+										},
+									},
+								},
+							},
+							Interfaces: []string{
+								TestInterface,
+							},
+						},
+					}
+				} else if v6CIDR != "" {
+					rules = &ingressnodefwv1alpha1.IngressNodeFirewall{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "rules1",
+						},
+						Spec: ingressnodefwv1alpha1.IngressNodeFirewallSpec{
+							NodeSelector: metav1.LabelSelector{
+								MatchLabels: map[string]string{consts.IngressNodeFirewallNodeLabel: ""},
+							},
+							Ingress: []ingressnodefwv1alpha1.IngressNodeFirewallRules{
+								{
+									SourceCIDRs: []string{v6CIDR},
+									FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+										{
+											Order: 10,
+											ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+												Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP6,
+												ICMPv6: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
+													ICMPType: 128,
+												},
+											},
+											Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+										},
+									},
+								},
+							},
+							Interfaces: []string{
+								TestInterface,
+							},
+						},
+					}
+				}
 			}
 			Eventually(func() error {
 				err := testclient.Client.Create(context.Background(), rules)
@@ -343,7 +424,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			err, _ = infwutils.RunPingTest(nodes.Items)
 			Expect(err).ToNot(HaveOccurred())
 
-			v4CIDR, _, err := infwutils.GetRuleCIDR(nodes.Items)
+			v4CIDR, _, err := infwutils.GetRuleCIDR(TestIsSingleStack, nodes.Items)
 			Expect(err).ToNot(HaveOccurred())
 
 			rules := &ingressnodefwv1alpha1.IngressNodeFirewall{
