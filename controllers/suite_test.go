@@ -143,7 +143,6 @@ var _ = AfterSuite(func() {
 		log.Printf("failed to shut down testEnv err %v", err)
 	}
 	By("tearing down the test environment")
-	ManifestPath = IngressNodeFirewallManifestPath
 	if err := testEnv.Stop(); err != nil {
 		log.Printf("failed to shut down testEnv err %v", err)
 	}
