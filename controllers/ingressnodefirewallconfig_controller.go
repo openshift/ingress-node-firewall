@@ -93,6 +93,7 @@ func (r *IngressNodeFirewallConfigReconciler) Reconcile(ctx context.Context, req
 
 	if err = r.syncIngressNodeFwConfigResources(ctx, instance); err != nil {
 		condition = status.ConditionDegraded
+		err = errors.Wrapf(err, "FailedToSyncIngressNodeFirewallConfigResources")
 	} else {
 		err = status.IsIngressNodeFirewallConfigAvailable(ctx, r.Client, req.NamespacedName.Namespace)
 		if err != nil {
