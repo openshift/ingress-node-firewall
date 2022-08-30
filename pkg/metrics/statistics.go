@@ -166,7 +166,7 @@ func updateMetrics(stopCh <-chan struct{}, statsMap *ebpf.Map, period time.Durat
 	}
 }
 
-//addUInt64 performs op and checks for overflow. Returns value, and true for success.
+// addUInt64 performs op and checks for overflow. Returns value, and true for success.
 func addUInt64Float64(a uint64, b float64) (float64, bool) {
 	c := float64(a) + b
 	if a == 0 || b == 0 {

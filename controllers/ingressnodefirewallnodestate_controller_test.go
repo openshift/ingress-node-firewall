@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
@@ -16,13 +17,16 @@ import (
 )
 
 var ingressNodeFirewallRules map[string][]infv1alpha1.IngressNodeFirewallRules
+var m sync.Mutex
 
 // ebpfSingletonMock implements ebpfDaemon.
 type ebpfSingletonMock struct{}
 
 func (e *ebpfSingletonMock) SyncInterfaceIngressRules(
 	ifaceIngressRules map[string][]infv1alpha1.IngressNodeFirewallRules, isDelete bool) error {
+	m.Lock()
 	ingressNodeFirewallRules = ifaceIngressRules
+	m.Unlock()
 	return nil
 }
 
@@ -104,7 +108,10 @@ var _ = Describe("IngressNodeFirewallNodeState controller", func() {
 		It(fmt.Sprintf("eBPF rule reconciliation for node %s should be triggered", daemonReconcilerNodeName), func() {
 			By("Checking that the reconciler was called")
 			Eventually(func() bool {
-				return len(ingressNodeFirewallRules) == 2
+				m.Lock()
+				l := len(ingressNodeFirewallRules)
+				m.Unlock()
+				return l == 2
 			}, timeout, interval).Should(BeTrue())
 		})
 	})

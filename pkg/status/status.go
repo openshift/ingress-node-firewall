@@ -42,13 +42,12 @@ const (
 // Update updates ingress node firewall config object status field.
 func Update(ctx context.Context, client k8sclient.Client, infcfg *ingressnodefwv1alpha1.IngressNodeFirewallConfig, condition string, reason string, message string) error {
 	conditions := getConditions(condition, reason, message)
-	if equality.Semantic.DeepEqual(conditions, infcfg.Status.Conditions) {
-		return nil
-	}
-	infcfg.Status.Conditions = conditions
-
-	if err := client.Status().Update(ctx, infcfg); err != nil {
-		return errors.Wrapf(err, "could not update status for object %+v", infcfg)
+	cfg := infcfg.DeepCopy()
+	if !equality.Semantic.DeepEqual(conditions, cfg.Status.Conditions) {
+		cfg.Status.Conditions = conditions
+		if err := client.Status().Update(ctx, cfg); err != nil {
+			return errors.Wrapf(err, "could not update status for object %+v", cfg)
+		}
 	}
 	return nil
 }

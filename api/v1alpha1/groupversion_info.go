@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 // Package v1alpha1 contains API Schema definitions for the ingress-nodefw v1alpha1 API group
-//+kubebuilder:object:generate=true
-//+groupName=ingressnodefirewall.openshift.io
+// +kubebuilder:object:generate=true
+// +groupName=ingressnodefirewall.openshift.io
 package v1alpha1
 
 import (

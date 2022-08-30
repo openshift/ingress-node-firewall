@@ -127,6 +127,10 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(ENVTEST_ASSETS_DIR)/bin" go test ./... -coverprofile cover.out
 
+.PHONY: test-race
+test-race: manifests generate fmt vet envtest ## Run tests and check for race conditions.
+	KUBEBUILDER_ASSETS="$(ENVTEST_ASSETS_DIR)/bin" go test -race ./...
+
 .PHONY: create-kind-cluster 
 create-kind-cluster: ## Create a kind cluster.
 	hack/kind-cluster.sh

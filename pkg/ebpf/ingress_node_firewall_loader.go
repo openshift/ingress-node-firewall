@@ -87,11 +87,15 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 // IngressNodeFwRulesLoader executes the following actions in order:
 // i)   Get eBPF objs to create/update eBPF maps and get map info.
 // ii)  Build a map of valid ebpfKeys pointing to the ebpfRules that should be associated to them (built from
-//      ifaceIngressRules).
+//
+//	ifaceIngressRules).
+//
 // iii) Get stale keys (= keys inside the eBPF map but not inside the currently desired ruleset).
 // iv)  Purge all stale keys from the eBPF map.
 // v)   Add/update all keys. This is an idempotent action and non-existing keys are added whereas existing keys
-//      are updated.
+//
+//	are updated.
+//
 // vi)  Generate ingress node firewall events.
 // In the context of this method, stale keys are keys that figure inside the eBPF map but that are not generated
 // during step ii) from the provided ingressRules slice.
@@ -525,6 +529,7 @@ func (infc *IngNodeFwController) getStaleKeys(desiredKeys []BpfLpmIpKeySt) ([]Bp
 
 // getStaleInterfaceKeys returns the keys for all rules that belong to stale interfaces, meaning interfaces
 // that are not attached any more.
+//
 //nolint:golint,unused
 func (infc *IngNodeFwController) getStaleInterfaceKeys() ([]BpfLpmIpKeySt, error) {
 	objs := infc.objs

@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/go-logr/logr"
 
@@ -76,7 +77,7 @@ func (r *IngressNodeFirewallReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{}, err
 	}
 	r.Log.Info("Building the desired node state specs", "req.Name", req.Name)
-	desiredNodeStates, err := r.buildNodeStates(ctx, ingressNodeFirewallList)
+	desiredNodeStates, err := r.buildNodeStates(ctx, ingressNodeFirewallList.DeepCopy())
 	if err != nil {
 		r.Log.Error(err, "Failed to build IngressNodeFirewallNodeState")
 		return ctrl.Result{}, err
@@ -200,10 +201,9 @@ func (r *IngressNodeFirewallReconciler) Reconcile(ctx context.Context, req ctrl.
 // triggerReconciliation triggers reconciliation for the first ingressnodefwv1alpha1.IngressNodeFirewall object that it
 // can find. Triggering reconciliation for a single object suffices because the IngressNodeFirewall reconciler will list
 // and reconcile all dependant resources with each reconciliation.
-// TODO: Limit reconciliation requests -> only reconcile if object.GetLabels() matches an IngressNodeFirewall with a
-// matching label.
 func (r *IngressNodeFirewallReconciler) triggerReconciliation(object client.Object) []reconcile.Request {
 	ingressNodeFirewallList := infv1alpha1.IngressNodeFirewallList{}
+	reconcileReq := make([]reconcile.Request, 0)
 	listOpts := []client.ListOption{}
 	if err := r.List(context.TODO(), &ingressNodeFirewallList, listOpts...); err != nil {
 		r.Log.Error(err, "Failed to list IngressNodeFirewall objects")
@@ -215,16 +215,19 @@ func (r *IngressNodeFirewallReconciler) triggerReconciliation(object client.Obje
 		return []reconcile.Request{}
 	}
 
-	// Reconcile only for a single item.
-	nodeState := ingressNodeFirewallList.Items[0]
-	return []reconcile.Request{
-		{
-			NamespacedName: types.NamespacedName{
-				Name:      nodeState.Name,
-				Namespace: nodeState.Namespace,
-			},
-		},
+	for _, fwobj := range ingressNodeFirewallList.Items {
+		if reflect.DeepEqual(fwobj.Spec.NodeSelector.MatchLabels, object.GetLabels()) {
+			nodeState := fwobj
+			req := reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      nodeState.Name,
+					Namespace: nodeState.Namespace,
+				},
+			}
+			reconcileReq = append(reconcileReq, req)
+		}
 	}
+	return reconcileReq
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -261,8 +264,8 @@ func (r *IngressNodeFirewallReconciler) buildNodeStates(
 	// InterfaceIngressRules[<interface name>] if necessary.
 	// If any issue with processing is found along the way, set the node's SyncStatus to SyncError and skip the node
 	// in any further iteration.
-	for _, firewallObj := range infList.Items {
-		firewallObj := firewallObj
+	for _, obj := range infList.Items {
+		firewallObj := obj.DeepCopy()
 		listOpts := []client.ListOption{
 			client.MatchingLabels(firewallObj.Spec.NodeSelector.MatchLabels),
 		}
@@ -353,8 +356,8 @@ func (r *IngressNodeFirewallReconciler) buildNodeStates(
 				break
 			}
 		}
-		if err := r.Status().Update(ctx, &firewallObj); err != nil {
-			return nil, fmt.Errorf("failed to update ingress node firewall obj status %q", err)
+		if err := r.Status().Update(ctx, firewallObj); err != nil {
+			r.Log.Error(err, "failed to update ingress node firewall obj status", "firewall obj", firewallObj.Name)
 		}
 	}
 
