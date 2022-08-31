@@ -1,10 +1,10 @@
-FROM registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.18-openshift-4.12 AS builder
+FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.18-openshift-4.12 AS builder
 
 WORKDIR /go/src/github.com/openshift/ingress-node-firewall
 COPY . .
 RUN ./hack/build-daemon.sh
 
-FROM registry.ci.openshift.org/ocp/builder:rhel-8-base-openshift-4.12
+FROM registry.ci.openshift.org/ocp/builder:rhel-9-base-openshift-4.12
 COPY --from=builder /go/src/github.com/openshift/ingress-node-firewall/bin/daemon /usr/bin/
 COPY --from=builder /go/src/github.com/openshift/ingress-node-firewall/bin/syslog /usr/bin/
 CMD ["/usr/bin/daemon"]
