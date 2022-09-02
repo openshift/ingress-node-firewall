@@ -338,10 +338,11 @@ func validateAgainstExistingINFs(allErrs field.ErrorList, infList *ingressnodefw
 	return allErrs
 }
 
-func isOrderOverlapping(rulesA []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule, rulesB []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule) bool {
-	for _, ruleA := range rulesA {
-		for _, ruleB := range rulesB {
-			if ruleA.Order == ruleB.Order {
+func isOrderOverlapping(oldRules, newRules []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule) bool {
+	for oldIdx, oldRule := range oldRules {
+		for newIdx, newRule := range newRules {
+			// make sure rules index is different otherwise could be an update to existing rule.
+			if oldRule.Order == newRule.Order && oldIdx != newIdx {
 				return true
 			}
 		}
