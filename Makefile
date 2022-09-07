@@ -173,9 +173,17 @@ run: manifests generate fmt vet ## Run a controller from your host.
 docker-build: ## Build docker image with the manager.
 	docker build -t ${IMG} .
 
+.PHONY: podman-build
+podman-build: ## Build podman image with the manager.
+	podman build -t ${IMG} .
+
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
+
+.PHONY: podman-push
+podman-push: ## Push podman image with the manager.
+	podman push ${IMG}
 
 ##@ Deployment
 
@@ -284,9 +292,17 @@ bundle: operator-sdk manifests kustomize ## Generate bundle manifests and metada
 bundle-build: ## Build the bundle image.
 	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
+.PHONY: podman-bundle-build
+podman-bundle-build: ## Build the bundle image with podman.
+	podman build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
 	$(MAKE) docker-push IMG=$(BUNDLE_IMG)
+
+.PHONY: podman-bundle-push
+podman-bundle-push: ## Push the bundle image with podman.
+	$(MAKE) podman-push IMG=$(BUNDLE_IMG)
 
 .PHONY: deploy-olm
 deploy-olm: operator-sdk ## deploy OLM on the cluster.
@@ -297,6 +313,10 @@ deploy-olm: operator-sdk ## deploy OLM on the cluster.
 bundle-index-build: opm  ## Build the bundle index image.
 	$(OPM) index add --bundles $(BUNDLE_IMG) --tag $(BUNDLE_INDEX_IMG) -c docker
 
+.PHONY: podman-bundle-index-build
+podman-bundle-index-build: opm  ## Build the bundle index image with podman.
+	$(OPM) index add --bundles $(BUNDLE_IMG) --tag $(BUNDLE_INDEX_IMG) -c podman
+
 .PHONY: build-and-push-bundle-images
 build-and-push-bundle-images: docker-build docker-push  ## Generate and push bundle image and bundle index image.
 	$(MAKE) bundle
@@ -304,6 +324,14 @@ build-and-push-bundle-images: docker-build docker-push  ## Generate and push bun
 	$(MAKE) docker-push IMG=$(BUNDLE_IMG)
 	$(MAKE) bundle-index-build
 	$(MAKE) docker-push IMG=$(BUNDLE_INDEX_IMG)
+
+.PHONY: podman-build-and-push-bundle-images
+podman-build-and-push-bundle-images: podman-build podman-push  ## Generate and push bundle image and bundle index image with podman.
+	$(MAKE) bundle
+	$(MAKE) podman-bundle-build
+	$(MAKE) podman-push IMG=$(BUNDLE_IMG)
+	$(MAKE) podman-bundle-index-build
+	$(MAKE) podman-push IMG=$(BUNDLE_INDEX_IMG)
 
 .PHONY: deploy-with-olm
 deploy-with-olm: ## deploys the operator with OLM instead of manifests
