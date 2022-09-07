@@ -1,0 +1,464 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: |-
+      [
+        {
+          "apiVersion": "ingressnodefirewall.openshift.io/v1alpha1",
+          "kind": "IngressNodeFirewall",
+          "metadata": {
+            "name": "ingressnodefirewall-demo2"
+          },
+          "spec": {
+            "ingress": [
+              {
+                "rules": [
+                  {
+                    "action": "Deny",
+                    "order": 10,
+                    "protocolConfig": {
+                      "icmp": {
+                        "icmpType": 8
+                      },
+                      "protocol": "ICMP"
+                    }
+                  },
+                  {
+                    "action": "Deny",
+                    "order": 20,
+                    "protocolConfig": {
+                      "protocol": "TCP",
+                      "tcp": {
+                        "ports": "8000-9000"
+                      }
+                    }
+                  }
+                ],
+                "sourceCIDRs": [
+                  "172.16.0.0/12"
+                ]
+              },
+              {
+                "rules": [
+                  {
+                    "action": "Deny",
+                    "order": 10,
+                    "protocolConfig": {
+                      "icmpv6": {
+                        "icmpType": 128
+                      },
+                      "protocol": "ICMPv6"
+                    }
+                  }
+                ],
+                "sourceCIDRs": [
+                  "fc00:f853:ccd:e793::0/64"
+                ]
+              }
+            ],
+            "interfaces": [
+              "eth0"
+            ],
+            "nodeSelector": {
+              "matchLabels": {
+                "do-node-ingress-firewall": "true"
+              }
+            }
+          }
+        },
+        {
+          "apiVersion": "ingressnodefirewall.openshift.io/v1alpha1",
+          "kind": "IngressNodeFirewallConfig",
+          "metadata": {
+            "name": "ingressnodefirewallconfig",
+            "namespace": "ingress-node-firewall-system"
+          },
+          "spec": {
+            "nodeSelector": {
+              "node-role.kubernetes.io/worker": ""
+            },
+            "tolerations": [
+              {
+                "effect": "NoExecute",
+                "key": "Example",
+                "operator": "Exists"
+              }
+            ]
+          }
+        }
+      ]
+    capabilities: Basic Install
+    operators.operatorframework.io/builder: operator-sdk-v1.22.0
+    operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
+  name: ingress-node-firewall.v0.0.1
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - kind: IngressNodeFirewallConfig
+      name: ingressnodefirewallconfigs.ingressnodefirewall.openshift.io
+      version: v1alpha1
+    - kind: IngressNodeFirewallNodeState
+      name: ingressnodefirewallnodestates.ingressnodefirewall.openshift.io
+      version: v1alpha1
+    - kind: IngressNodeFirewall
+      name: ingressnodefirewalls.ingressnodefirewall.openshift.io
+      version: v1alpha1
+  description: Ingress node firewall operator
+  displayName: ingress-node-firewall-operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      clusterPermissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - nodes
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - apps
+          resources:
+          - daemonsets
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - ingressnodefirewall.openshift.io
+          resources:
+          - ingressnodefirewallconfigs
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - ingressnodefirewall.openshift.io
+          resources:
+          - ingressnodefirewallconfigs/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - ingressnodefirewall.openshift.io
+          resources:
+          - ingressnodefirewallconfigs/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - ingressnodefirewall.openshift.io
+          resources:
+          - ingressnodefirewallnodestates
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - ingressnodefirewall.openshift.io
+          resources:
+          - ingressnodefirewalls
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - ingressnodefirewall.openshift.io
+          resources:
+          - ingressnodefirewalls/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - ingressnodefirewall.openshift.io
+          resources:
+          - ingressnodefirewalls/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - authentication.k8s.io
+          resources:
+          - tokenreviews
+          verbs:
+          - create
+        - apiGroups:
+          - authorization.k8s.io
+          resources:
+          - subjectaccessreviews
+          verbs:
+          - create
+        serviceAccountName: ingress-node-firewall-controller-manager
+      deployments:
+      - label:
+          control-plane: controller-manager
+        name: ingress-node-firewall-controller-manager
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              control-plane: controller-manager
+          strategy: {}
+          template:
+            metadata:
+              annotations:
+                kubectl.kubernetes.io/default-container: manager
+              labels:
+                control-plane: controller-manager
+            spec:
+              containers:
+              - args:
+                - --health-probe-bind-address=:8081
+                - --metrics-bind-address=127.0.0.1:39300
+                - --leader-elect
+                - --enable-webhook
+                command:
+                - /manager
+                env:
+                - name: DAEMONSET_IMAGE
+                  value: quay.io/mmahmoud/ingress-node-firewall-daemon:latest
+                - name: DAEMONSET_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: KUBE_RBAC_PROXY_IMAGE
+                  value: quay.io/openshift/origin-kube-rbac-proxy:latest
+                image: quay.io/mmahmoud/controller:latest
+                livenessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 8081
+                  initialDelaySeconds: 15
+                  periodSeconds: 20
+                name: manager
+                ports:
+                - containerPort: 9443
+                  name: webhook-server
+                  protocol: TCP
+                readinessProbe:
+                  httpGet:
+                    path: /readyz
+                    port: 8081
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                resources:
+                  limits:
+                    cpu: 500m
+                    memory: 128Mi
+                  requests:
+                    cpu: 10m
+                    memory: 64Mi
+                volumeMounts:
+                - mountPath: /tmp/k8s-webhook-server/serving-certs
+                  name: cert
+                  readOnly: true
+              - command:
+                - /bin/bash
+                - -c
+                - |
+                  #!/bin/bash
+                  set -euo pipefail
+                  TLS_PK=/etc/pki/tls/metrics-certs/tls.key
+                  TLS_CERT=/etc/pki/tls/metrics-certs/tls.crt
+                  # As the secret mount is optional we must wait for the files to be present.
+                  # If it isn't created there is probably an issue so we want to crashloop.
+                  TS=$(date +%s)
+                  WARN_TS=$(( ${TS} + $(( 20 * 60)) ))
+                  HAS_LOGGED_INFO=0
+                  log_missing_certs(){
+                      CUR_TS=$(date +%s)
+                      if [[ "${CUR_TS}" -gt "${WARN_TS}"  ]]; then
+                        echo $(date -Iseconds) WARN: ingress-node-firewall-controller-manager-metrics-certs not mounted after 20 minutes.
+                      elif [[ "${HAS_LOGGED_INFO}" -eq 0 ]] ; then
+                        echo $(date -Iseconds) INFO: ingress-node-firewall-controller-manager-metrics-certs not mounted. Waiting 20 minutes.
+                        HAS_LOGGED_INFO=1
+                      fi
+                  }
+                  while [[ ! -f "${TLS_PK}" ||  ! -f "${TLS_CERT}" ]] ; do
+                    log_missing_certs
+                    sleep 5
+                  done
+                  echo $(date -Iseconds) INFO: ingress-node-firewall-controller-manager-metrics-certs mounted, starting kube-rbac-proxy
+                  exec /usr/bin/kube-rbac-proxy \
+                    --logtostderr \
+                    --secure-listen-address=:9300 \
+                    --tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256 \
+                    --upstream=http://127.0.0.1:39300 / \
+                    --tls-private-key-file=${TLS_PK} \
+                    --tls-cert-file=${TLS_CERT}
+                image: quay.io/openshift/origin-kube-rbac-proxy:latest
+                name: kube-rbac-proxy
+                ports:
+                - containerPort: 9300
+                  name: https
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 20Mi
+                terminationMessagePolicy: FallbackToLogsOnError
+                volumeMounts:
+                - mountPath: /etc/pki/tls/metrics-certs
+                  name: ingress-node-firewall-controller-manager-metrics-certs
+                  readOnly: true
+              securityContext:
+                runAsNonRoot: false
+              serviceAccountName: ingress-node-firewall-controller-manager
+              terminationGracePeriodSeconds: 10
+              volumes:
+              - name: cert
+                secret:
+                  defaultMode: 420
+                  secretName: webhook-server-cert
+              - name: ingress-node-firewall-controller-manager-metrics-certs
+                secret:
+                  optional: true
+                  secretName: ingress-node-firewall-controller-manager-metrics-certs
+      permissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        - apiGroups:
+          - coordination.k8s.io
+          resources:
+          - leases
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        - apiGroups:
+          - ""
+          resources:
+          - events
+          verbs:
+          - create
+          - patch
+        - apiGroups:
+          - apps
+          resources:
+          - daemonsets
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - ingressnodefirewall.openshift.io
+          resources:
+          - ingressnodefirewallnodestates
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - ingressnodefirewall.openshift.io
+          resources:
+          - ingressnodefirewallnodestates/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - ingressnodefirewall.openshift.io
+          resources:
+          - ingressnodefirewallnodestates/status
+          verbs:
+          - get
+          - patch
+          - update
+        serviceAccountName: ingress-node-firewall-controller-manager
+    strategy: deployment
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - ingressnodefirewall
+  links:
+  - name: Ingress Node Firewall
+    url: https://ingress-node-firewall.domain
+  maintainers:
+  - email: mmahmoud@redhat.com
+    name: msherif1234
+  maturity: alpha
+  provider:
+    name: RedHat
+  version: 0.0.1
+  webhookdefinitions:
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    conversionCRDs:
+    - ingressnodefirewalls.ingressnodefirewall.openshift.io
+    deploymentName: ingress-node-firewall-controller-manager
+    generateName: cingressnodefirewalls.kb.io
+    sideEffects: None
+    targetPort: 9443
+    type: ConversionWebhook
+    webhookPath: /convert
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: ingress-node-firewall-controller-manager
+    failurePolicy: Fail
+    generateName: vingressnodefirewall.kb.io
+    rules:
+    - apiGroups:
+      - ingressnodefirewall.openshift.io
+      apiVersions:
+      - v1alpha1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - ingressnodefirewalls
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-ingressnodefirewall-openshift-io-v1alpha1-ingressnodefirewall
