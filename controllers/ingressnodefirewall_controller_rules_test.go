@@ -794,14 +794,14 @@ var _ = Describe("IngressNodeFirewall controller rules", func() {
 					Expect(k8sClient.Create(ctx, &ingressNodeFirewall)).Should(Succeed())
 				}
 
-				By("Waiting for the expected list of IngressNodeFirewallNodeStates")
-				hasIngressNodeFirewallNodeStates(ctx, k8sClient, []string{worker0Name})
-
 				// Define the NodeState object that will hold the state and the lookup key.
 				infns := &infv1alpha1.IngressNodeFirewallNodeState{}
 				key := types.NamespacedName{Namespace: IngressNodeFwConfigTestNameSpace, Name: worker0Name}
 
 				if tc.statusError == "" {
+					By("Waiting for the expected list of IngressNodeFirewallNodeStates")
+					hasIngressNodeFirewallNodeStates(ctx, k8sClient, []string{worker0Name})
+
 					Eventually(func() bool {
 						By("Making sure that the resource displays a successful synchronization status")
 						// Refresh the resource.

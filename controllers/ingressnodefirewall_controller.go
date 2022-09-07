@@ -103,54 +103,55 @@ func (r *IngressNodeFirewallReconciler) Reconcile(ctx context.Context, req ctrl.
 			continue
 		}
 
+		nodeState := ingressNodeFirewallCurrentNodeState.DeepCopy()
 		// If the node name was found ...
 		// a) compare the specs or owner reference. If the specs or owner reference are different, update the current spec.
-		if !equality.Semantic.DeepEqual(ingressNodeFirewallCurrentNodeState.Spec, desiredNodeState.Spec) ||
-			!equality.Semantic.DeepEqual(ingressNodeFirewallCurrentNodeState.OwnerReferences, desiredNodeState.OwnerReferences) {
+		if !equality.Semantic.DeepEqual(nodeState.Spec, desiredNodeState.Spec) ||
+			!equality.Semantic.DeepEqual(nodeState.OwnerReferences, desiredNodeState.OwnerReferences) {
 			// Otherwise, if the Spec and/or Status does not match, update the current node state.
 			// Also, remove the object from the nodeStateDesiredSpecs so that we can later iterate over the items
 			// that must still be created.
 			r.Log.Info("Existing object found but it has a different Spec or OwnerReferences, triggering update",
 				"req.Name", req.Name,
-				"ingressNodeFirewallCurrentNodeState.Name", ingressNodeFirewallCurrentNodeState.Name)
+				"ingressNodeFirewallCurrentNodeState.Name", nodeState.Name)
 			// i) Update the Spec.
-			ingressNodeFirewallCurrentNodeState.Spec = desiredNodeState.Spec
-			ingressNodeFirewallCurrentNodeState.OwnerReferences = desiredNodeState.OwnerReferences
-			err = r.Update(ctx, &ingressNodeFirewallCurrentNodeState)
+			nodeState.Spec = desiredNodeState.Spec
+			nodeState.OwnerReferences = desiredNodeState.OwnerReferences
+			err = r.Update(ctx, nodeState)
 			if err != nil {
 				r.Log.Error(err, "Failed to update IngressNodeFirewallNodeState",
 					"req.Name", req.Name,
-					"ingressNodeFirewallNodeState.Namespace", ingressNodeFirewallCurrentNodeState.Namespace,
-					"ingressNodeFirewallNodeState.Name", ingressNodeFirewallCurrentNodeState.Name)
+					"ingressNodeFirewallNodeState.Namespace", nodeState.Namespace,
+					"ingressNodeFirewallNodeState.Name", nodeState.Name)
 				return ctrl.Result{}, err
 			}
 			// Report success via a log message.
 			r.Log.Info("Updated object Spec",
 				"req.Name", req.Name,
-				"ingressNodeFirewallNodeState.Namespace", ingressNodeFirewallCurrentNodeState.Namespace,
-				"ingressNodeFirewallNodeState.Name", ingressNodeFirewallCurrentNodeState.Name)
+				"ingressNodeFirewallNodeState.Namespace", nodeState.Namespace,
+				"ingressNodeFirewallNodeState.Name", nodeState.Name)
 		}
 		// b) compare the status. If the status is different, update it.
-		if !equality.Semantic.DeepEqual(ingressNodeFirewallCurrentNodeState.Status, desiredNodeState.Status) {
+		if !equality.Semantic.DeepEqual(nodeState.Status, desiredNodeState.Status) {
 			// ii) Update the resource's status field. Unfortunately, we cannot do this at the same time as the
 			// Spec update, so this has to go into a second step.
 			r.Log.Info("Existing object found but it has a different Status, triggering Status update",
 				"req.Name", req.Name,
-				"ingressNodeFirewallCurrentNodeState.Name", ingressNodeFirewallCurrentNodeState.Name)
-			ingressNodeFirewallCurrentNodeState.Status = desiredNodeState.Status
-			err = r.Status().Update(ctx, &ingressNodeFirewallCurrentNodeState)
+				"ingressNodeFirewallCurrentNodeState.Name", nodeState.Name)
+			nodeState.Status = desiredNodeState.Status
+			err = r.Status().Update(ctx, nodeState)
 			if err != nil {
 				r.Log.Error(err, "Failed to update IngressNodeFirewallNodeState status",
 					"req.Name", req.Name,
-					"ingressNodeFirewallNodeState.Namespace", ingressNodeFirewallCurrentNodeState.Namespace,
-					"ingressNodeFirewallNodeState.Name", ingressNodeFirewallCurrentNodeState.Name)
+					"ingressNodeFirewallNodeState.Namespace", nodeState.Namespace,
+					"ingressNodeFirewallNodeState.Name", nodeState.Name)
 				return ctrl.Result{}, err
 			}
 			// Report success via a log message.
 			r.Log.Info("Updated object Status",
 				"req.Name", req.Name,
-				"ingressNodeFirewallNodeState.Namespace", ingressNodeFirewallCurrentNodeState.Namespace,
-				"ingressNodeFirewallNodeState.Name", ingressNodeFirewallCurrentNodeState.Name)
+				"ingressNodeFirewallNodeState.Namespace", nodeState.Namespace,
+				"ingressNodeFirewallNodeState.Name", nodeState.Name)
 		}
 		// Also, remove the object from the nodeStateDesiredSpecs so that we can later iterate over the items
 		// that must still be created.
