@@ -112,7 +112,7 @@ func (m *Statistics) StopPoll() {
 func updateMetrics(stopCh <-chan struct{}, statsMap *ebpf.Map, period time.Duration) {
 	log.Println("Starting node metrics updater. Metrics will be polled periodically and presented as prometheus metrics")
 	ticker := time.NewTicker(period)
-	var allowCount, allowBytesCount, denyCount, denyBytesCount, result float64
+	var allowCount, allowBytesCount, denyCount, denyBytesCount, result uint64
 	var ruleStats []nodefwloader.BpfRuleStatisticsSt
 	var ok bool
 	var err error
@@ -130,35 +130,35 @@ func updateMetrics(stopCh <-chan struct{}, statsMap *ebpf.Map, period time.Durat
 				}
 
 				for _, stat := range ruleStats {
-					if result, ok = addUInt64Float64(stat.AllowStats.Packets, allowCount); !ok {
+					if result, ok = addUInt64(stat.AllowStats.Packets, allowCount); !ok {
 						log.Println("Overflow occurred during addition of allow packet statistic")
 					} else {
 						allowCount = result
 					}
 
-					if result, ok = addUInt64Float64(stat.AllowStats.Bytes, allowBytesCount); !ok {
+					if result, ok = addUInt64(stat.AllowStats.Bytes, allowBytesCount); !ok {
 						log.Println("Overflow occurred during addition of allow byte statistic")
 					} else {
 						allowBytesCount = result
 					}
 
-					if result, ok = addUInt64Float64(stat.DenyStats.Packets, denyCount); !ok {
+					if result, ok = addUInt64(stat.DenyStats.Packets, denyCount); !ok {
 						log.Println("Overflow occurred during addition of deny packet statistic")
 					} else {
 						denyCount = result
 					}
 
-					if result, ok = addUInt64Float64(stat.DenyStats.Bytes, denyBytesCount); !ok {
+					if result, ok = addUInt64(stat.DenyStats.Bytes, denyBytesCount); !ok {
 						log.Println("Overflow occurred during addition of deny byte statistic")
 					} else {
 						denyBytesCount = result
 					}
 				}
 			}
-			metricAllowCount.Set(allowCount)
-			metricAllowBytesCount.Set(allowBytesCount)
-			metricDenyCount.Set(denyCount)
-			metricDenyBytesCount.Set(denyBytesCount)
+			metricAllowCount.Set(float64(allowCount))
+			metricAllowBytesCount.Set(float64(allowBytesCount))
+			metricDenyCount.Set(float64(denyCount))
+			metricDenyBytesCount.Set(float64(denyBytesCount))
 		case <-stopCh:
 			log.Println("Stopped node metric updates")
 			return
@@ -167,12 +167,12 @@ func updateMetrics(stopCh <-chan struct{}, statsMap *ebpf.Map, period time.Durat
 }
 
 // addUInt64 performs op and checks for overflow. Returns value, and true for success.
-func addUInt64Float64(a uint64, b float64) (float64, bool) {
-	c := float64(a) + b
+func addUInt64(a, b uint64) (uint64, bool) {
+	c := a + b
 	if a == 0 || b == 0 {
 		return c, true
 	}
-	if c > float64(a) && c > b {
+	if c > a && c > b {
 		return c, true
 	}
 	// overflow
