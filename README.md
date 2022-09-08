@@ -1,41 +1,11 @@
 # ingress-node-firewall
-This is Ingress node Firewall Operator, implementing [Operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/) for deploying Ingress node firewall daemon on kubernetes cluster.
+This is the Ingress node Firewall Operator, implementing [Operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/) for deploying Ingress node firewall daemon on kubernetes cluster.
 It uses [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/)
 which provides a reconcile function responsible for synchronizing resources untile the desired state is reached on the cluster
 
-## Prerequisites
-Need to install the following packages:
-
-operator-sdk 1.22.0
-
-controller-gen v0.9.0+
-
-For fedora, you will need the following packages
-```sh
-sudo dnf install glibc-devel glibc-devel.i686
-```
-
-## Building the DaemonSet image
-
-This operator depends on the DaemonSet image. You can build this image and push it to your registry with:
-```
-make podman-build-daemon DAEMON_IMG=<registry>/<image>:<tag>
-make podman-push-daemon DAEMON_IMG=<registry>/<image>:<tag>
-```
-> If you are using docker, replace `podman-build-daemon` with `docker-build-daemon` and `podman-push-daemon` with `docker-push-daemon`.
-
-## Running the operator locally
-
-First, export your kubernetes credentials. Then, you can run this cluster locally with the following command:
-```
-export DAEMONSET_IMAGE=<registry>/<image>:<tag>
-export DAEMONSET_NAMESPACE=ingress-node-firewall-system
-make install run
-```
-
 ## Usage
 
-Once the Ingress Node Firewall Operator is installed, you have to create a `IngressNodeFirewallConfig` custom resource to deploy the Operator's DaemonSet.
+Once the Ingress Node Firewall Operator is installed, you have to create an `IngressNodeFirewallConfig` custom resource to deploy the Operator's DaemonSet.
 The `IngressNodeFirewallConfig` custom resource needs to be created inside the `ingress-node-firewall-system` namespace and be named `ingressnodefirewallconfig`. Only one `IngressNodeFirewallConfig` resource can exist in a cluster.
 The operator will consume this resource and create ingress node firewall daemonset `daemon` which runs on all nodes that match the `nodeSelector`.
 
@@ -89,19 +59,23 @@ And in order to uninstall them:
 make undeploy-samples
 ```
 
-## Running test
+## Deploying the operator
 
-to run ingress-node-firewall-operator unit tests (no cluster required), execute the following :
-```shell
-make test
-```
-## Generating operator bundle
+### Prerequisites
 
-In order to generate an operator bundle, run the following:
-```shell
-make bundle
+You need to install the following packages:
+
+operator-sdk 1.22.0
+
+controller-gen v0.9.0+
+
+For fedora, you will need the following packages
+```sh
+sudo dnf install glibc-devel glibc-devel.i686
 ```
-## Running on a KinD cluster
+
+### Running on a KinD cluster
+
 1. Download latest [KinD](https://kind.sigs.k8s.io/docs/user/quick-start) stable version
 2. Install KinD and export KUBECONFIG
 ```sh
@@ -128,7 +102,10 @@ make docker-build-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-daemon
 ```sh
 kind load docker-image <some-registry>/ingress-node-firewall-daemon:latest
 ```
-8. Manually edit "config/manager/env.yaml" and add the daemon image to value of environment variable "DAEMONSET_IMAGE"
+8. Set the daemon image name
+```sh
+hack/set-daemon-image.sh <some-registry>/ingress-node-firewall-daemon:latest
+```
 9. Deploy resources to KinD cluster
 ```sh
 make deploy-kind IMG=<some-registry>/ingress-node-firewall-controller:latest
@@ -142,68 +119,118 @@ make undeploy-kind
 make uninstall
 ```
 
-## Running on an OCP cluster
+### Running on an OCP cluster
+
+In order to run this operator on OpenShift, one can either deploy from manifests or from the OLM.
+In both cases, follow the [Common steps](README.md#common-steps) first and then follow either [Deploy from manifests](README.md#deploy-from-manifests) or [Deploy with OLM](README.md#deploy-with-olm).
+
+#### Common steps
+
 1. Create OCP cluster
-### Deploy from manifests
-2. Install custom resource definitions
+2. Build controller container image
+```sh
+make docker-build IMG=<some-registry>/ingress-node-firewall-controller:latest
+# or make podman-build IMG=<some-registry>/ingress-node-firewall-controller:latest
+```
+3. Push controller container image to an image registry
+```sh
+make docker-push IMG=<some-registry>/ingress-node-firewall-controller:latest
+# or make podman-push IMG=<some-registry>/ingress-node-firewall-controller:latest
+```
+4. Build daemon container image
+```sh
+make docker-build-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-daemon:latest
+# or make podman-build-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-daemon:latest
+```
+5. Push controller container image to an image registry
+```sh
+make docker-push-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-daemon:latest
+# or make podman-push-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-daemon:latest
+```
+6. Set the daemon image name
+```sh
+hack/set-daemon-image.sh <some-registry>/ingress-node-firewall-daemon:latest
+```
+
+#### Deploy from manifests
+
+7. Install custom resource definitions
 ```sh
 make install
 ```
-3. Build controller container image
+8. Deploy resources to OpenShift cluster
 ```sh
-make docker-build IMG=<some-registry>/ingress-node-firewall-controller:latest
+make deploy IMG=<some-registry>/ingress-node-firewall-controller:latest
 ```
-4. Push controller container image to an image registry
-```sh
-make docker-push IMG=<some-registry>/ingress-node-firewall-controller:latest
-```
-5. Build daemon container image
-```sh
-make docker-build-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-daemom:latest
-```
-6. Push controller container image to an image registry
-```sh
-make docker-push-daemon DAEMON_IMG=<some-registry>/ingress-node-firewall-daemom:latest
-```
-7. Manually edit "config/manager/env.yaml" and add the daemon image name to value of environment variable "DAEMONSET_IMAGE"
-8. make deploy IMG=<some-registry>/ingress-node-firewall-controller:latest
-9. Undeploy resources from OCP cluster
+
+##### To uninstall
+
+Undeploy resources from OCP cluster
 ```sh
 make undeploy
 ```
-10. Uninstall custom resource definitions
+Uninstall custom resource definitions
 ```sh
 make uninstall
 ```
-### Deploy with OLM
-2. Build and push bundle and index images to an image registry
+
+#### Deploy with OLM
+
+7. Build and push bundle and index images to an image registry. 
 ```sh
-make build-and-push-bundle-images IMG=<some-registry>/ingress-node-firewall-controller:latest DAEMON_IMG=<some-registry>/ingress-node-firewall-daemom:latest IMAGE_TAG_BASE=<some-registry>/ingress-nodefw/ingress-node-firewall
+make build-and-push-bundle-images \
+  IMG=<some-registry>/ingress-node-firewall-controller:latest \
+  BUNDLE_IMG=<some-registry>/ingress-node-firewall-bundle:latest \
+  BUNDLE_INDEX_IMG=<some-registry>/ingress-node-firewall-index:latest
+# or make podman-build-and-push-bundle-images \
+#      IMG=<some-registry>/ingress-node-firewall-controller:latest \
+#      BUNDLE_IMG=<some-registry>/ingress-node-firewall-bundle:latest \
+#      BUNDLE_INDEX_IMG=<some-registry>/ingress-node-firewall-index:latest
 ```
-3. Deploy with OLM
+
+8. Deploy with OLM
 ```sh
-make deploy-with-olm NAMESPACE=openshift-ingress-node-firewall IMAGE_TAG_BASE=<some-registry>/ingress-nodefw/ingress-node-firewall
+make deploy-with-olm \
+  NAMESPACE=openshift-ingress-node-firewall \
+  BUNDLE_INDEX_IMG=<some-registry>/ingress-node-firewall-index:latest
 ```
-4. Undeploy resources from OCP cluster
+
+##### To uninstall
+
+Undeploy resources from OCP cluster
 ```sh
 oc delete ns openshift-ingress-node-firewall
 ```
-5. Uninstall custom resource definitions
+Uninstall custom resource definitions
 ```sh
 make uninstall
 ```
 
-## Disable webhook
-Remove manager binary flag `--enable-webhook` from the containers command in file config/manager/manager.yaml
+## Testing
 
-## Running E2E test
-1. Bring up KinD cluster and deploy ingress node firewall operator from the steps outlined previous
+### Running test
+
+To run ingress-node-firewall-operator unit tests (no cluster required), execute the following:
+```shell
+make test
+```
+> NOTE: Some tests (e.g. `ebpfsyncer_test.go`) will only be triggered if `make test` is run as the root user. 
+
+To test for race conditions, run:
+```sh
+make test-race
+```
+
+### Running E2E test
+
+1. Bring up KinD cluster and deploy ingress node firewall operator from the steps outlined previously.
 2. Run full E2E test
 ```shell
 make test-e2e
 ```
 
 ## Statistics
+
 Statistics are generated by the BPF program when a packet is allowed or denied outputting the total packets allowed and
 denied plus also the number of bytes handled. This statistics are captured in user space by the node daemons and exposed
 as prometheus format metrics which are then scraped by prometheus on OCP. We do not deploy Prometheus with our KinD setup scripts
@@ -223,3 +250,49 @@ Within OCP, you may use the OCP console to access the promql console to search f
 - ingressnodefirewall_node_packet_allow_bytes
 - ingressnodefirewall_node_packet_deny_total
 - ingressnodefirewall_node_packet_deny_bytes
+
+## Useful commands and tricks
+
+### Generating operator bundle
+
+In order to generate an operator bundle, run the following:
+```shell
+make bundle
+make manifests
+```
+
+### Building the DaemonSet image
+
+This operator depends on the DaemonSet image. You can build this image and push it to your registry with:
+```
+make docker-build-daemon DAEMON_IMG=<registry>/<image>:<tag>
+# or make podman-build-daemon DAEMON_IMG=<registry>/<image>:<tag>
+make docker-push-daemon DAEMON_IMG=<registry>/<image>:<tag>
+# or make podman-push-daemon DAEMON_IMG=<registry>/<image>:<tag>
+```
+
+### Running the operator locally
+
+> NOTE: Running the operator like this shall be used for development purposes only.
+> It may be helpful when making changes to and testing the main controller.
+> However, there may be obstacles getting this to work with the DaemonSet.
+> See [Running on a KinD cluster](README.md#running-on-a-kind-cluster) and
+> [Running on an OCP cluster](README.md#running-on-an-ocp-cluster) for more reliable instructions.
+
+1. Export your kubernetes credentials
+2. Create the project and service account
+```sh
+oc new-project ingress-node-firewall-system
+oc create sa ingress-node-firewall-daemon
+oc adm policy add-scc-to-user privileged -z ingress-node-firewall-daemon
+```
+
+3. Run this operator locally with the following commands:
+```sh
+export DAEMONSET_IMAGE=<registry>/<image>:<tag>
+export DAEMONSET_NAMESPACE=ingress-node-firewall-system
+export KUBE_RBAC_PROXY_IMAGE=quay.io/openshift/origin-kube-rbac-proxy:latest
+make install run
+```
+
+4. Create `IngressNodeFirewallConfig` CR.
