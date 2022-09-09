@@ -54,8 +54,8 @@ ifeq ($(USE_IMAGE_DIGESTS), true)
 endif
 
 # Image URL to use all building/pushing image targets
-IMG ?= quay.io/$(IMAGE_ORG)/controller
-DAEMON_IMG ?= quay.io/$(IMAGE_ORG)/ingress-node-firewall-daemon
+IMG ?= quay.io/openshift/origin-ingress-node-firewall:latest
+DAEMON_IMG ?= quay.io/openshift/origin-ingress-node-firewall-daemon:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.24.1
 
