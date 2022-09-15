@@ -320,11 +320,12 @@ func validateAgainstExistingINFs(allErrs field.ErrorList, infList *ingressnodefw
 	newRules []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule, newINFRulesIndex int, newINFName string) field.ErrorList {
 
 	for _, existingINF := range infList.Items {
+		existingINFName := existingINF.Name
 		for _, existingRules := range existingINF.Spec.Ingress {
 			for _, existingSourceCIDR := range existingRules.SourceCIDRs {
 				for _, newSourceCIDR := range newSourceCIDRs {
 					if strings.TrimSpace(newSourceCIDR) == strings.TrimSpace(existingSourceCIDR) {
-						if isOrderOverlapping(existingRules.FirewallProtocolRules, newRules) {
+						if existingINFName != newINFName && isOrderOverlapping(existingRules.FirewallProtocolRules, newRules) {
 							allErrs = append(allErrs,
 								field.Invalid(field.NewPath("spec").Child("ingress").Index(newINFRulesIndex).Key("rules"),
 									newINFName, fmt.Sprintf("order is not unique for sourceCIDR %q and conflicts with "+
@@ -339,10 +340,9 @@ func validateAgainstExistingINFs(allErrs field.ErrorList, infList *ingressnodefw
 }
 
 func isOrderOverlapping(oldRules, newRules []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule) bool {
-	for oldIdx, oldRule := range oldRules {
-		for newIdx, newRule := range newRules {
-			// make sure rules index is different otherwise could be an update to existing rule.
-			if oldRule.Order == newRule.Order && oldIdx != newIdx {
+	for _, oldRule := range oldRules {
+		for _, newRule := range newRules {
+			if oldRule.Order == newRule.Order {
 				return true
 			}
 		}
