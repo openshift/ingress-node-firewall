@@ -82,6 +82,11 @@ oc exec -n openshift-marketplace buildindex /tmp/ingress-node-firewall-operator-
 
 oc apply -f ingress-node-firewall-operator-deploy/install-resources.yaml
 
+oc label namespace "$NAMESPACE" --overwrite \
+  pod-security.kubernetes.io/enforce=privileged \
+  pod-security.kubernetes.io/enforce-version=v1.24 \
+  pod-security.kubernetes.io/audit=privileged
+
 # there is a race in the creation of the pod and the service account that prevents
 # the index image to be pulled. Here we check if the pod is not running and we kill it. 
 success=0
