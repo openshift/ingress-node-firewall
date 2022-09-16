@@ -1,6 +1,7 @@
 package nodefwloader
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -11,14 +12,15 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
+	"unsafe"
 
 	"github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	ingressnodefwiov1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/pkg/interfaces"
+	libxdploader "github.com/openshift/ingress-node-firewall/pkg/libxdploader"
 	"github.com/openshift/ingress-node-firewall/pkg/utils"
 
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
 	apierrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog"
@@ -29,9 +31,25 @@ const (
 	xdpAllow                      = 2 // XDP_PASS value
 	bpfFSPath                     = "/sys/fs/bpf"
 	xdpIngressNodeFirewallProcess = "xdp_ingress_node_firewall_process"
-	linkSuffix                    = "_link"
+	progSuffix                    = "_prog"
 	ifIndexKeyLength              = 32 // Interface Index key length in bits
 )
+
+var nativeEndian binary.ByteOrder
+
+func init() {
+	buf := [2]byte{}
+	*(*uint16)(unsafe.Pointer(&buf[0])) = uint16(0xABCD)
+
+	switch buf {
+	case [2]byte{0xCD, 0xAB}:
+		nativeEndian = binary.LittleEndian
+	case [2]byte{0xAB, 0xCD}:
+		nativeEndian = binary.BigEndian
+	default:
+		klog.Fatalf("Could not determine native endianness.")
+	}
+}
 
 // IngNodeFwController structure is the object hold controls for starting
 // ingress node firewall resource
@@ -39,7 +57,7 @@ type IngNodeFwController struct {
 	// eBPF objs to create/update eBPF maps
 	objs BpfObjects
 	// eBPF interfaces attachment objects
-	links map[string]link.Link
+	progs map[string]libxdploader.XdpProgram
 	// eBPF pingPath
 	pinPath string
 }
@@ -66,12 +84,12 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 	infc := &IngNodeFwController{
 		objs:    objs,
 		pinPath: pinDir,
-		links:   make(map[string]link.Link, 0),
+		progs:   make(map[string]libxdploader.XdpProgram, 0),
 	}
-	// Load pinned links from /sys/fs/bpf/xdp_ingress_node_firewall_process on initialization.
-	// That way, the state in /sys/fs/bpf/xdp_ingress_node_firewall_process and the tracked list of links
+	// Load pinned programs from /sys/fs/bpf/xdp_ingress_node_firewall_process on initialization.
+	// That way, the state in /sys/fs/bpf/xdp_ingress_node_firewall_process and the tracked list of programs
 	// will be in sync.
-	if err := infc.loadPinnedLinks(); err != nil {
+	if err := infc.loadPinnedProgs(); err != nil {
 		return nil, err
 	}
 
@@ -184,10 +202,8 @@ func (infc *IngNodeFwController) GetStatisticsMap() *ebpf.Map {
 // iii) Pin the XDP program.
 func (infc *IngNodeFwController) IngressNodeFwAttach(ifacesName ...string) error {
 	var errors []error
-
-	objs := infc.objs
 	for _, ifaceName := range ifacesName {
-		if _, ok := infc.links[ifaceName]; ok {
+		if _, ok := infc.progs[ifaceName]; ok {
 			klog.Infof("Interface %s is already attached and managed, skipping", ifaceName)
 			continue
 		}
@@ -199,22 +215,21 @@ func (infc *IngNodeFwController) IngressNodeFwAttach(ifacesName ...string) error
 		}
 
 		// Attach the program.
-		l, err := link.AttachXDP(link.XDPOptions{
-			Program:   objs.IngressNodeFirewallProcess,
-			Interface: int(ifID),
-		})
-		if err != nil {
-			errors = append(errors, fmt.Errorf("could not attach XDP program: %s", err))
+		xdpProgramName := "../ebpf/bpf_bpfel.o"
+		if nativeEndian == binary.BigEndian {
+			xdpProgramName = "../ebpf/bpf_bpfeb.o"
+		}
+		xdpProgram := libxdploader.LoadXdpProgram(xdpProgramName, infc.pinPath)
+		if xdpProgram == nil {
+			errors = append(errors, fmt.Errorf("failed to load XDP program %v", xdpProgram))
 			continue
 		}
-		// Pin the XDP program.
-		lPinDir := path.Join(infc.pinPath, ifaceName+linkSuffix)
-		if err := l.Pin(lPinDir); err != nil {
-			errors = append(errors, fmt.Errorf("failed to pin link to pinDir %s: %s", lPinDir, err))
+		if rc := libxdploader.XdpAttachProgram(xdpProgram, int(ifID)); rc != 0 {
+			errors = append(errors, fmt.Errorf("could not attach XDP program %v: %d", xdpProgram, rc))
 			continue
 		}
-		infc.links[ifaceName] = l
-		log.Printf("Attached IngressNode Firewall program to iface %q (index %d)", ifaceName, ifID)
+		log.Printf("Attached IngressNode Firewall program %v to iface %q (index %d)", xdpProgram, ifaceName, ifID)
+		infc.progs[ifaceName] = xdpProgram
 	}
 
 	if len(errors) > 0 {
@@ -232,9 +247,13 @@ func (infc *IngNodeFwController) IngressNodeFwDetach(interfaceNames ...string) e
 		log.Printf("Detaching IngressNode Firewall program from interface %q", interfaceName)
 		if err := infc.cleanup(interfaceName); err != nil {
 			errors = append(errors, err)
+		} else {
+			pinDir := path.Join(infc.pinPath, interfaceName+progSuffix)
+			if err := os.RemoveAll(pinDir); err != nil {
+				errors = append(errors, err)
+			}
 		}
 	}
-
 	if len(errors) > 0 {
 		return apierrors.NewAggregate(errors)
 	}
@@ -268,17 +287,17 @@ func (infc *IngNodeFwController) Close() error {
 
 	klog.Info("Removing all pins")
 	if err := infc.removeAllPins(); err != nil {
-		errors = append(errors, fmt.Errorf("Could not remove all eBPF pins, err: %q", err))
+		errors = append(errors, fmt.Errorf("could not remove all eBPF pins, err: %q", err))
 	}
 
 	klog.Info("Removing table map")
 	if err := infc.removeTableMap(); err != nil {
-		errors = append(errors, fmt.Errorf("Could not remove eBPF table map, err: %q", err))
+		errors = append(errors, fmt.Errorf("could not remove eBPF table map, err: %q", err))
 	}
 
 	klog.Info("Running cleanup of eBPF objects")
 	if err := infc.cleaneBPFObjs(); err != nil {
-		errors = append(errors, fmt.Errorf("Could not clean eBPF objects, err: %q", err))
+		errors = append(errors, fmt.Errorf("could not clean eBPF objects, err: %q", err))
 	}
 
 	if len(errors) > 0 {
@@ -302,7 +321,7 @@ func (infc *IngNodeFwController) removeAllPins() error {
 		return err
 	}
 
-	re, err := regexp.Compile(".*" + linkSuffix + "$")
+	re, err := regexp.Compile(".*" + progSuffix + "$")
 	if err != nil {
 		return err
 	}
@@ -321,29 +340,30 @@ func (infc *IngNodeFwController) removeTableMap() error {
 	return os.Remove(path.Join(infc.pinPath, "ingress_node_firewall_table_map"))
 }
 
-// loadPinnedLinks loads any pinned links that reside inside the /sys mount into memory if no such memory representation
+// loadPinnedProgs loads any pinned programs that reside inside the /sys mount into memory if no such memory representation
 // exists yet.
-func (infc *IngNodeFwController) loadPinnedLinks() error {
+func (infc *IngNodeFwController) loadPinnedProgs() error {
 	klog.Info("Loading interfaces from pinned dir into memory")
 	files, err := ioutil.ReadDir(infc.pinPath)
 	if err != nil {
 		return err
 	}
 
-	re, err := regexp.Compile(".*" + linkSuffix + "$")
+	re, err := regexp.Compile(".*" + progSuffix + "$")
 	if err != nil {
 		return err
 	}
 
 	for _, file := range files {
 		if re.Match([]byte(file.Name())) {
-			interfaceName := strings.TrimSuffix(file.Name(), linkSuffix)
-			if _, ok := infc.links[interfaceName]; !ok {
-				l, err := link.LoadPinnedLink(path.Join(infc.pinPath, file.Name()), nil)
-				if err != nil {
-					return err
+			interfaceName := strings.TrimSuffix(file.Name(), progSuffix)
+			if _, ok := infc.progs[interfaceName]; !ok {
+				xdpPinPath := path.Join(infc.pinPath, file.Name())
+				p := libxdploader.FindXdpProgramFromPin(xdpPinPath)
+				if p == nil {
+					return fmt.Errorf("failed to load XDP program from pinPath %s", xdpPinPath)
 				}
-				infc.links[interfaceName] = l
+				infc.progs[interfaceName] = p
 			}
 		}
 	}
@@ -353,18 +373,22 @@ func (infc *IngNodeFwController) loadPinnedLinks() error {
 
 // cleanup will delete an interface's eBPF objects.
 func (infc *IngNodeFwController) cleanup(ifName string) error {
-	l, ok := infc.links[ifName]
+	p, ok := infc.progs[ifName]
 	if !ok {
-		return fmt.Errorf("failed to find Link object for interface %s", ifName)
+		return fmt.Errorf("failed to find XDP program object for interface %s", ifName)
 	}
-	log.Printf("Running Unpin and Close for link %v", l)
-	if err := l.Unpin(); err != nil {
-		return fmt.Errorf("failed to unpin link for %s err: %q", ifName, err)
+	ifID, err := interfaces.GetInterfaceIndex(ifName)
+	if err != nil {
+		return err
 	}
-	if err := l.Close(); err != nil {
-		return fmt.Errorf("failed to close and detach link %s err: %q", ifName, err)
+
+	log.Printf("Running XDP program detach for  %v", p)
+	if rc := libxdploader.XdpDetachProgram(p, int(ifID)); rc != 0 {
+		return fmt.Errorf("failed to detach %v from  %s err: %d", p, ifName, rc)
 	}
-	delete(infc.links, ifName)
+
+	libxdploader.CloseProgram(p)
+	delete(infc.progs, ifName)
 	return nil
 }
 
@@ -536,7 +560,7 @@ func (infc *IngNodeFwController) getStaleInterfaceKeys() ([]BpfLpmIpKeySt, error
 
 	// Looup all valid interfaces IDs.
 	var validInterfaceIDs []uint32
-	for interfaceName := range infc.links {
+	for interfaceName := range infc.progs {
 		ifID, err := interfaces.GetInterfaceIndex(interfaceName)
 		if err != nil {
 			return nil, err
