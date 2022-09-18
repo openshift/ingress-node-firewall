@@ -2,6 +2,27 @@ FROM golang:1.18 AS builder
 WORKDIR /go/src/github.com/openshift/ingress-node-firewall
 COPY . .
 
+#Install libxdp and libbpf headers
+ENV TOOLS_VERSION=1.2.6
+ENV XDPTOOLS_SRC=./xdp-tools-$TOOLS_VERSION
+# Packages to install via APT for building.
+ENV BUILD_DEPS=" \
+    clang llvm libelf-dev libpcap-dev gcc-multilib build-essential m4 \
+    unzip \
+    wget \
+    libbpf-dev \
+"
+# install dependencies required for bulding libxdp lib
+RUN apt-get update && apt -y install \
+    ${BUILD_DEPS} && \
+    rm -rf /var/lib/apt/lists/*
+
+# Download libxdp source
+RUN wget -O xdp-tools.tar.gz "https://github.com/xdp-project/xdp-tools/releases/download/v${TOOLS_VERSION}/xdp-tools-${TOOLS_VERSION}.tar.gz" \
+    && tar xvfz xdp-tools.tar.gz \
+    && rm -f xdp-tools.tar.gz
+
+RUN cd $XDPTOOLS_SRC; ./configure; make install
 RUN ./hack/build-daemon.sh
 
 FROM quay.io/centos/centos:stream8
