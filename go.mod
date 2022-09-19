@@ -17,7 +17,7 @@ require (
 	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f
 	gopkg.in/mcuadros/go-syslog.v2 v2.3.0
 	k8s.io/api v0.25.1
-	k8s.io/apiextensions-apiserver v0.25.0
+	k8s.io/apiextensions-apiserver v0.25.1
 	k8s.io/apimachinery v0.25.1
 	k8s.io/client-go v0.25.1
 	k8s.io/component-base v0.25.1
