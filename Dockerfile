@@ -16,30 +16,8 @@ COPY controllers/ controllers/
 COPY pkg/ pkg/
 COPY bindata/manifests/ bindata/manifests/
 
-# Install libxdp and libbpf headers
-ENV TOOLS_VERSION=1.2.6
-ENV XDPTOOLS_SRC=/workspace/xdp-tools-$TOOLS_VERSION
-# Packages to install via APT for building.
-ENV BUILD_DEPS=" \
-    clang llvm libelf-dev libpcap-dev gcc-multilib build-essential m4 \
-    unzip \
-    wget \
-    libbpf-dev \
-"
-# install dependencies required for bulding libxdp lib
-RUN apt-get update && apt -y install \
-    ${BUILD_DEPS} && \
-    rm -rf /var/lib/apt/lists/*
-
-# Download libxdp source
-RUN wget -O xdp-tools.tar.gz "https://github.com/xdp-project/xdp-tools/releases/download/v${TOOLS_VERSION}/xdp-tools-${TOOLS_VERSION}.tar.gz" \
-    && tar xvfz xdp-tools.tar.gz \
-    && rm -f xdp-tools.tar.gz
-
-RUN cd $XDPTOOLS_SRC; ./configure; make install; cd $WORKDIR
-
 # Build
-RUN GOOS=linux GOARCH=amd64 go build -a -o manager main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
