@@ -10,7 +10,7 @@ metadata:
   namespace: ingress-node-firewall-system
 spec:
   displayName: Ingress Node Firewall Index
-  image: quay.io/openshift/ingress-nodefw/ingress-node-firewall-index:v0.0.1
+  image: quay.io/openshift/ingress-nodefw/ingress-node-firewall-index:v4.12.0
   publisher: github.com/openshift/ingress-node-firewall
   sourceType: grpc
 ---
