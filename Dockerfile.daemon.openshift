@@ -1,4 +1,8 @@
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.19-openshift-4.14 AS builder
+RUN yum install -y libbpf libbpf-devel libxdp-1.2.1-1.el8.x86_64
+# Temporary workaround until https://issues.redhat.com/browse/ENGCMP-2609 is fixed.
+RUN yum install -y \
+  https://koji.mbox.centos.org/pkgs/packages/xdp-tools/1.2.1/1.el8/x86_64/libxdp-devel-1.2.1-1.el8.x86_64.rpm
 
 WORKDIR /go/src/github.com/openshift/ingress-node-firewall
 COPY . .
