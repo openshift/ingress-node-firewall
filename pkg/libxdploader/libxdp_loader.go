@@ -1,3 +1,6 @@
+//go:build cgo
+// +build cgo
+
 package libxdploader
 
 // #cgo LDFLAGS: -lxdp -lbpf
