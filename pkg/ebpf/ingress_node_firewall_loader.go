@@ -227,9 +227,14 @@ func (infc *IngNodeFwController) IngressNodeFwAttach(ifacesName ...string) error
 		}
 
 		// Attach the program.
-		xdpProgramName := "../ebpf/bpf_bpfel.o"
+		ebpfBinaryPath, ok := os.LookupEnv("EBPF_BINARIES_PATH")
+		if !ok {
+			ebpfBinaryPath = "../ebpf"
+		}
+
+		xdpProgramName := ebpfBinaryPath + "/bpf_bpfel.o"
 		if nativeEndian == binary.BigEndian {
-			xdpProgramName = "../ebpf/bpf_bpfeb.o"
+			xdpProgramName = ebpfBinaryPath + "/bpf_bpfeb.o"
 		}
 		xdpProgram := libxdploader.LoadXdpProgram(xdpProgramName, infc.pinPath)
 		if xdpProgram == nil {

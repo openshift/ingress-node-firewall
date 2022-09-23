@@ -37,6 +37,8 @@ spec:
                   fieldPath: metadata.namespace
             - name: POLL_PERIOD_SECONDS
               value: "30"
+            - name: EBPF_BINARIES_PATH
+              value: "/usr/ebpf/"
           securityContext:
             privileged: true
             runAsUser: 0
