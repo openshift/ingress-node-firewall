@@ -71,7 +71,7 @@ controller-gen v0.9.0+
 
 For fedora, you will need the following packages
 ```sh
-sudo dnf install glibc-devel glibc-devel.i686
+sudo dnf install glibc-devel glibc-devel.i686 libbpf libxdp
 ```
 
 ### Running on a KinD cluster
