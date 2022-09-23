@@ -6,7 +6,6 @@ RUN yum install -y \
 
 WORKDIR /go/src/github.com/openshift/ingress-node-firewall
 COPY . .
-RUN dnf install -y libbpf libxdp
 RUN ./hack/build-daemon.sh
 
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-base-openshift-4.14
