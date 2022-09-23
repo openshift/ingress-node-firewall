@@ -26,10 +26,9 @@ RUN cd $XDPTOOLS_SRC; ./configure; make install
 RUN ./hack/build-daemon.sh
 
 FROM quay.io/centos/centos:stream8
+RUN yum install -y libbpf libxdp
 RUN mkdir -p /usr/ebpf
 COPY --from=builder /go/src/github.com/openshift/ingress-node-firewall/bin/daemon /usr/bin/
 COPY --from=builder /go/src/github.com/openshift/ingress-node-firewall/bin/syslog /usr/bin/
 COPY --from=builder /go/src/github.com/openshift/ingress-node-firewall/pkg/ebpf/bpf_bpfe*.o /usr/ebpf/
-RUN dnf install -y libbpf \
-  http://download.eng.bos.redhat.com/brewroot/vol/rhel-8/packages/xdp-tools/1.2.1/1.el8/x86_64/libxdp-1.2.1-1.el8.x86_64.rpm
 CMD ["/usr/bin/daemon"]
