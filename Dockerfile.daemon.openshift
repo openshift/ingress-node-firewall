@@ -2,9 +2,13 @@ FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.19-openshift-4.14 AS 
 
 WORKDIR /go/src/github.com/openshift/ingress-node-firewall
 COPY . .
+RUN dnf install -y libbpf libxdp
 RUN ./hack/build-daemon.sh
 
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-base-openshift-4.14
+RUN yum install -y libbpf libxdp
+RUN mkdir -p /usr/ebpf
 COPY --from=builder /go/src/github.com/openshift/ingress-node-firewall/bin/daemon /usr/bin/
 COPY --from=builder /go/src/github.com/openshift/ingress-node-firewall/bin/syslog /usr/bin/
+COPY --from=builder /go/src/github.com/openshift/ingress-node-firewall/pkg/ebpf/bpf_bpfe*.o /usr/ebpf/
 CMD ["/usr/bin/daemon"]
