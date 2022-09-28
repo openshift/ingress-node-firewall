@@ -4,6 +4,7 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
+    olm.skipRange: '>=4.11.0 <4.12.0'
   name: ingress-node-firewall.v0.0.0
   namespace: placeholder
 spec:
@@ -48,6 +49,9 @@ spec:
     type: AllNamespaces
   keywords:
   - ingressnodefirewall
+  labels:
+    olm-owner-enterprise-app: ingress-node-firewall
+    olm-status-descriptors: ingress-node-firewall.v4.12.0
   links:
   - name: Ingress Node Firewall
     url: https://ingress-node-firewall.domain
