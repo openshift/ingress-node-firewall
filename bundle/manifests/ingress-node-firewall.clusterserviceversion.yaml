@@ -77,14 +77,7 @@ metadata:
           "spec": {
             "nodeSelector": {
               "node-role.kubernetes.io/worker": ""
-            },
-            "tolerations": [
-              {
-                "effect": "NoExecute",
-                "key": "Example",
-                "operator": "Exists"
-              }
-            ]
+            }
           }
         }
       ]

@@ -154,9 +154,6 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 			if len(config.Spec.NodeSelector) > 0 {
 				ds.Spec.Template.Spec.NodeSelector = config.Spec.NodeSelector
 			}
-			if len(config.Spec.Tolerations) > 0 {
-				ds.Spec.Template.Spec.Tolerations = config.Spec.Tolerations
-			}
 			if err := ctrl.SetControllerReference(config, ds, r.Scheme); err != nil {
 				return errors.Wrapf(err, "Failed to set controller reference to %s %s", obj.GetNamespace(), obj.GetName())
 			}

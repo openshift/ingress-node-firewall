@@ -10,7 +10,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -85,43 +84,6 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 
 			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
 			err = k8sClient.Get(context.Background(), types.NamespacedName{Name: IngressNodeFirewallResourceName, Namespace: IngressNodeFwConfigTestNameSpace}, config)
-			Expect(err).NotTo(HaveOccurred())
-			By("Specify the Daemon's Tolerations")
-			config.Spec.Tolerations = []v1.Toleration{
-				{
-					Key:      "example1",
-					Operator: v1.TolerationOpExists,
-					Effect:   v1.TaintEffectNoExecute,
-				},
-				{
-					Key:      "example2",
-					Operator: v1.TolerationOpExists,
-					Effect:   v1.TaintEffectNoExecute,
-				},
-			}
-
-			err = k8sClient.Update(context.TODO(), config)
-			Expect(err).NotTo(HaveOccurred())
-
-			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
-			err = k8sClient.Get(context.Background(), types.NamespacedName{Name: IngressNodeFirewallResourceName, Namespace: IngressNodeFwConfigTestNameSpace}, config)
-			Expect(err).NotTo(HaveOccurred())
-			daemonSet = &appsv1.DaemonSet{}
-			Eventually(func() []v1.Toleration {
-				err := k8sClient.Get(context.TODO(), types.NamespacedName{Name: DeamonSetName, Namespace: IngressNodeFwConfigTestNameSpace}, daemonSet)
-				if err != nil {
-					return nil
-				}
-				return daemonSet.Spec.Template.Spec.Tolerations
-			}, 2*time.Second, 200*time.Millisecond).Should(Equal(config.Spec.Tolerations))
-			Expect(daemonSet).NotTo(BeZero())
-			Expect(len(daemonSet.Spec.Template.Spec.Containers)).To(BeNumerically(">", 0))
-			// Reset toleration configuration
-			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
-			err = k8sClient.Get(context.Background(), types.NamespacedName{Name: IngressNodeFirewallResourceName, Namespace: IngressNodeFwConfigTestNameSpace}, config)
-			Expect(err).NotTo(HaveOccurred())
-			config.Spec.Tolerations = nil
-			err = k8sClient.Update(context.TODO(), config)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})

@@ -20,6 +20,8 @@ spec:
       hostPID: true
       nodeSelector:
         kubernetes.io/os: linux
+      tolerations:
+        - operator: Exists
       priorityClassName: "system-node-critical"
       initContainers:
         - name: mount-bpffs

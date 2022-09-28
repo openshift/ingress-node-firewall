@@ -17,7 +17,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -27,10 +26,6 @@ type IngressNodeFirewallConfigSpec struct {
 	// + This field is using map[string]string instead of metav1.LabelSelector because it matches the daemonset NodeSelector template. Thus one cannot benefit from additional match criteria that metav1.LabelSelector provides.
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
-	// A list of tolerations applied to ingress node firewall controller.
-	// daemonsets.
-	// +optional
-	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
 // IngressNodeFirewallConfigStatus defines the observed state of IngressNodeFirewallConfig.

@@ -6,7 +6,3 @@ metadata:
 spec:
   nodeSelector:
     node-role.kubernetes.io/worker: ""
-  tolerations:
-  - key: "Example"
-    operator: "Exists"
-    effect: "NoExecute"
