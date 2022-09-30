@@ -214,6 +214,11 @@ func isConflictWithSafeRulesTransport(rule ingressnodefwv1alpha1.IngressNodeFire
 		if r == nil {
 			return false, fmt.Errorf("expected ports to be defined for transport protocol")
 		}
+		// Its ok for user to add allow rules for failSafe ports in case
+		// we will have 0.0.0.0/0 rule at the end to deny all.
+		if rule.Action == ingressnodefwv1alpha1.IngressNodeFirewallAllow {
+			continue
+		}
 		if utils.IsRange(r) {
 			start, end, err = utils.GetRange(r)
 			if err != nil {
