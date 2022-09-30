@@ -136,6 +136,10 @@ test-race: manifests generate fmt vet envtest ## Run tests and check for race co
 create-kind-cluster: ## Create a kind cluster.
 	hack/kind-cluster.sh
 
+.PHONY: create-and-deploy-kind-cluster
+create-and-deploy-kind-cluster: ## Create a kind cluster and deploy the operator.
+	hack/kind-cluster.sh -d
+
 .PHONY: destroy-kind-cluster 
 destroy-kind-cluster: ## Destroy the kind cluster.
 	kind delete cluster
