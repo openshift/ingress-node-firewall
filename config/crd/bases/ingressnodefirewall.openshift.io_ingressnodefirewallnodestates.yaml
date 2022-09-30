@@ -120,6 +120,7 @@ spec:
                                   - TCP
                                   - UDP
                                   - SCTP
+                                  - ""
                                   type: string
                                 sctp:
                                   description: sctp defines an ingress node firewall

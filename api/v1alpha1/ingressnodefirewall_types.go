@@ -53,7 +53,7 @@ type IngressNodeProtocolConfig struct {
 	// protocol can be ICMP, ICMPv6, TCP, SCTP or UDP.
 	// +unionDiscriminator
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum="ICMP";"ICMPv6";"TCP";"UDP";"SCTP"
+	// +kubebuilder:validation:Enum="ICMP";"ICMPv6";"TCP";"UDP";"SCTP";""
 	Protocol IngressNodeFirewallRuleProtocolType `json:"protocol"`
 
 	// tcp defines an ingress node firewall rule for TCP protocol.
