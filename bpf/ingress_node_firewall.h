@@ -7,6 +7,7 @@
 #define MAX_TARGETS (1024)
 #define MAX_RULES_PER_TARGET (100)
 #define MAX_EVENT_DATA 256
+#define INVALID_RULE_ID 0
 
 #define GET_ACTION(a) (__u8)((a)&0xFF)
 #define SET_ACTION(a) (__u32)(((__u32)a) & 0xFF)
