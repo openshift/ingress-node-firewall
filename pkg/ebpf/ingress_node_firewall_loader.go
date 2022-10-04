@@ -448,8 +448,6 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(
 			rules.Rules[idx].IcmpCode = rule.ProtocolConfig.ICMPv6.ICMPCode
 			rules.Rules[idx].Protocol = syscall.IPPROTO_ICMPV6
 
-		default:
-			return keys, rules, fmt.Errorf("Failed invalid protocol %v", rule.ProtocolConfig.Protocol)
 		}
 		switch rule.Action {
 		case ingressnodefwiov1alpha1.IngressNodeFirewallAllow:

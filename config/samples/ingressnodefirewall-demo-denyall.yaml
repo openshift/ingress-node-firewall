@@ -1,0 +1,16 @@
+apiVersion: ingressnodefirewall.openshift.io/v1alpha1
+kind: IngressNodeFirewall
+metadata:
+  name: ingressnodefirewall-denyall
+spec:
+  interfaces:
+  - eth0
+  nodeSelector:
+    matchLabels:
+      do-node-ingress-firewall: 'true'
+  ingress:
+  - sourceCIDRs:
+       - 0.0.0.0/0
+    rules:
+    - order: 20
+      action: Deny

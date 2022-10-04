@@ -202,6 +202,10 @@ ipv4_firewall_lookup(void *dataStart, void *dataEnd, __u32 ifId) {
 #pragma clang loop unroll(full)
         for (i = 0; i < MAX_RULES_PER_TARGET; ++i) {
             struct ruleType_st *rule = &rulesVal->rules[i];
+            if (rule->ruleId == INVALID_RULE_ID) {
+                continue;
+            }
+
             if (likely((rule->protocol != 0) && (rule->protocol == proto))) {
 				bpf_printk("ruleInfo (protocol %d, Id %d, action %d)", rule->protocol, rule->ruleId, rule->action);
                 if ((rule->protocol == IPPROTO_TCP) ||
@@ -226,6 +230,10 @@ ipv4_firewall_lookup(void *dataStart, void *dataEnd, __u32 ifId) {
                         return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
                     }
                 }
+            }
+            // Protocol is not set so just apply the action
+            if (rule->protocol == 0) {
+                return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
             }
         }
 		bpf_printk("Packet didn't match any rule proto %d port %d", proto, bpf_ntohs(dstPort));
@@ -271,6 +279,9 @@ ipv6_firewall_lookup(void *dataStart, void *dataEnd, __u32 ifId) {
 #pragma clang loop unroll(full)
         for (i = 0; i < MAX_RULES_PER_TARGET; ++i) {
             struct ruleType_st *rule = &rulesVal->rules[i];
+            if (rule->ruleId == INVALID_RULE_ID) {
+                continue;
+            }
             if (likely((rule->protocol != 0) && (rule->protocol == proto))) {
 				bpf_printk("ruleInfo (protocol %d, Id %d, action %d)", rule->protocol, rule->ruleId, rule->action);
                 if ((rule->protocol == IPPROTO_TCP) ||
@@ -295,6 +306,10 @@ ipv6_firewall_lookup(void *dataStart, void *dataEnd, __u32 ifId) {
                         return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
                     }
                 }
+            }
+            // Protocol is not set so just apply the action
+            if (rule->protocol == 0) {
+                return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
             }
         }
 		bpf_printk("Packet didn't match any rule proto %d port %d", proto, bpf_ntohs(dstPort));
