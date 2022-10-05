@@ -354,7 +354,7 @@ generate_event_and_update_statistics(struct xdp_md *ctx, __u16 packet_len, __u8 
             __sync_fetch_and_add(&statistics->allow_stats.packets, 1);
             __sync_fetch_and_add(&statistics->allow_stats.bytes, packet_len);
             break;
-       case DENY:
+        case DENY:
             __sync_fetch_and_add(&statistics->deny_stats.packets, 1);
             __sync_fetch_and_add(&statistics->deny_stats.bytes, packet_len);
             break;
