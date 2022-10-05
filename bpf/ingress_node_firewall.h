@@ -37,7 +37,7 @@
 #endif
 
 struct ruleStatistics_st {
-	struct allow_stats_st {
+    struct allow_stats_st {
         __u64 packets;
         __u64 bytes;
     } allow_stats;
