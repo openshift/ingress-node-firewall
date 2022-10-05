@@ -10,7 +10,6 @@ import (
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	nodefwloader "github.com/openshift/ingress-node-firewall/pkg/ebpf"
 	intfs "github.com/openshift/ingress-node-firewall/pkg/interfaces"
-	intutil "github.com/openshift/ingress-node-firewall/pkg/interfaces"
 	"github.com/openshift/ingress-node-firewall/pkg/metrics"
 
 	"github.com/go-logr/logr"
@@ -144,9 +143,6 @@ func (e *ebpfSingleton) loadIngressNodeFirewallRules(
 
 // resetAll deletes all current attachments and cleans all eBPFObjects. It then sets the ingress firewall manager
 // back to nil. It also deletes all pins and removed all XDP attachments for all system interfaces.
-// FIXME: During tests, I encountered issues with detach operations which did not work in all cases. This resetAll()
-// here runs some redundant steps such as DetachXDPFromAllInterfaces which might not be necessary but until we
-// get to the bottom of the detach issues, I opted for doing more than needed.
 func (e *ebpfSingleton) resetAll() error {
 	e.log.Info("Running detach operation of managed interfaces")
 	for intf := range e.managedInterfaces {
@@ -159,12 +155,6 @@ func (e *ebpfSingleton) resetAll() error {
 	e.log.Info("Closing all objects that belong to the firewall manager")
 	if err := e.c.Close(); err != nil {
 		e.log.Info("Could not clean up all objects that belong to the firewall manager", "err", err)
-	}
-
-	// FIXME: Is this really necesary? The steps before should have cleaned up everything already.
-	e.log.Info("Running XDP detach operation from all interfaces")
-	if err := intutil.DetachXDPFromAllInterfaces(); err != nil {
-		e.log.Info("Error during detach operation", "err", err)
 	}
 
 	e.managedInterfaces = make(map[string]struct{})
