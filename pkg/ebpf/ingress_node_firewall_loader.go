@@ -31,6 +31,7 @@ const (
 	xdpIngressNodeFirewallProcess = "xdp_ingress_node_firewall_process"
 	linkSuffix                    = "_link"
 	ifIndexKeyLength              = 32 // Interface Index key length in bits
+	xdpEBUSYErr                   = "device or resource busy"
 )
 
 // IngNodeFwController structure is the object hold controls for starting
@@ -204,6 +205,11 @@ func (infc *IngNodeFwController) IngressNodeFwAttach(ifacesName ...string) error
 			Interface: int(ifID),
 		})
 		if err != nil {
+			// Check if the XDM program was already attached in case the daemonset restarted
+			if strings.Contains(err.Error(), xdpEBUSYErr) {
+				log.Printf("Interface %s is already attached", ifaceName)
+				continue
+			}
 			errors = append(errors, fmt.Errorf("could not attach XDP program: %s", err))
 			continue
 		}
