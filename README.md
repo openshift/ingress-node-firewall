@@ -142,7 +142,7 @@ make uninstall
 
 In order to delete the kind cluster:
 ```sh
-kind delete cluster
+make destroy-kind-cluster
 ```
 
 ### Running on an OCP cluster
@@ -254,6 +254,7 @@ make test-race
 ```shell
 make test-e2e
 ```
+Note: See test README.md for test options.
 
 ## Statistics
 
