@@ -256,10 +256,14 @@ func validateSourceCIDR(sourceCIDR string) (bool, string) {
 }
 
 func isValidICMPICMPV6Rule(rule ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule) (bool, string) {
-	if rule.ProtocolConfig.ICMP == nil && rule.ProtocolConfig.ICMPv6 == nil {
+	if rule.ProtocolConfig.Protocol == ingressnodefwv1alpha1.ProtocolTypeICMP &&
+		(rule.ProtocolConfig.ICMP == nil || rule.ProtocolConfig.ICMPv6 != nil) {
 		return false, "no ICMP rules defined. Define icmpType/icmpCode"
 	}
-
+	if rule.ProtocolConfig.Protocol == ingressnodefwv1alpha1.ProtocolTypeICMP6 &&
+		(rule.ProtocolConfig.ICMPv6 == nil || rule.ProtocolConfig.ICMP != nil) {
+		return false, "no ICMPv6 rules defined. Define icmpType/icmpCode"
+	}
 	if rule.ProtocolConfig.TCP != nil || rule.ProtocolConfig.UDP != nil || rule.ProtocolConfig.SCTP != nil {
 		return false, "ports are erroneously defined"
 	}
