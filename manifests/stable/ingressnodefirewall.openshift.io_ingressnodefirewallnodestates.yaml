@@ -172,6 +172,27 @@ spec:
                               required:
                               - protocol
                               type: object
+                              x-kubernetes-validations:
+                              - message: tcp is required when protocol is TCP, and
+                                  forbidden otherwise
+                                rule: 'has(self.protocol) && self.protocol == ''TCP''
+                                  ?  has(self.tcp) : !has(self.tcp)'
+                              - message: udp is required when protocol is UDP, and
+                                  forbidden otherwise
+                                rule: 'has(self.protocol) && self.protocol == ''UDP''
+                                  ?  has(self.udp) : !has(self.udp)'
+                              - message: sctp is required when protocol is SCTP, and
+                                  forbidden otherwise
+                                rule: 'has(self.protocol) && self.protocol == ''SCTP''
+                                  ?  has(self.sctp) : !has(self.sctp)'
+                              - message: icmp is required when protocol is ICMP, and
+                                  forbidden otherwise
+                                rule: 'has(self.protocol) && self.protocol == ''ICMP''
+                                  ?  has(self.icmp) : !has(self.icmp)'
+                              - message: icmpv6 is required when protocol is ICMPv6,
+                                  and forbidden otherwise
+                                rule: 'has(self.protocol) && self.protocol == ''ICMPv6''
+                                  ?  has(self.icmpv6) : !has(self.icmpv6)'
                           required:
                           - order
                           type: object
