@@ -18,7 +18,7 @@ parse_args() {
 
 # deploy_kind installs the kind cluster
 deploy_kind() {
-  cat <<EOF | kind create cluster --image kindest/node:v1.24.0 --config=- --kubeconfig=${DIR}/kubeconfig
+  cat <<EOF | kind create cluster --image kindest/node:v1.25.2 --config=- --kubeconfig=${DIR}/kubeconfig
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 networking:
