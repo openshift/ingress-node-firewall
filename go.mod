@@ -16,7 +16,7 @@ require (
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/sys v0.0.0-20220928140112-f11e5e49a4ec
 	gopkg.in/mcuadros/go-syslog.v2 v2.3.0
-	k8s.io/api v0.25.2
+	k8s.io/api v0.25.3
 	k8s.io/apiextensions-apiserver v0.25.2
 	k8s.io/apimachinery v0.25.3
 	k8s.io/client-go v0.25.2
