@@ -49,6 +49,11 @@ type IngressNodeFirewallProtoRule struct {
 
 // IngressNodeProtocolConfig is a discriminated union of protocol's specific configuration.
 // +union
+// +kubebuilder:validation:XValidation:rule="has(self.protocol) && self.protocol == 'TCP' ?  has(self.tcp) : !has(self.tcp)",message="tcp is required when protocol is TCP, and forbidden otherwise"
+// +kubebuilder:validation:XValidation:rule="has(self.protocol) && self.protocol == 'UDP' ?  has(self.udp) : !has(self.udp)",message="udp is required when protocol is UDP, and forbidden otherwise"
+// +kubebuilder:validation:XValidation:rule="has(self.protocol) && self.protocol == 'SCTP' ?  has(self.sctp) : !has(self.sctp)",message="sctp is required when protocol is SCTP, and forbidden otherwise"
+// +kubebuilder:validation:XValidation:rule="has(self.protocol) && self.protocol == 'ICMP' ?  has(self.icmp) : !has(self.icmp)",message="icmp is required when protocol is ICMP, and forbidden otherwise"
+// +kubebuilder:validation:XValidation:rule="has(self.protocol) && self.protocol == 'ICMPv6' ?  has(self.icmpv6) : !has(self.icmpv6)",message="icmpv6 is required when protocol is ICMPv6, and forbidden otherwise"
 type IngressNodeProtocolConfig struct {
 	// protocol can be ICMP, ICMPv6, TCP, SCTP or UDP.
 	// +unionDiscriminator
@@ -57,22 +62,27 @@ type IngressNodeProtocolConfig struct {
 	Protocol IngressNodeFirewallRuleProtocolType `json:"protocol"`
 
 	// tcp defines an ingress node firewall rule for TCP protocol.
+	// +unionMember
 	// +optional
 	TCP *IngressNodeFirewallProtoRule `json:"tcp,omitempty"`
 
 	// udp defines an ingress node firewall rule for UDP protocol.
+	// +unionMember
 	// +optional
 	UDP *IngressNodeFirewallProtoRule `json:"udp,omitempty"`
 
 	// sctp defines an ingress node firewall rule for SCTP protocol.
+	// +unionMember
 	// +optional
 	SCTP *IngressNodeFirewallProtoRule `json:"sctp,omitempty"`
 
 	// icmp defines an ingress node firewall rule for ICMP protocol.
+	// +unionMember
 	// +optional
 	ICMP *IngressNodeFirewallICMPRule `json:"icmp,omitempty"`
 
 	// icmpv6 defines an ingress node firewall rule for ICMPv6 protocol.
+	// +unionMember
 	// +optional
 	ICMPv6 *IngressNodeFirewallICMPRule `json:"icmpv6,omitempty"`
 }

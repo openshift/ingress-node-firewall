@@ -197,6 +197,12 @@ var _ = Describe("Rules", func() {
 			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.TCP = portRule
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
+
+		It("rejects rule with icmpv6 defined", func() {
+			icmp6Rule := &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{ICMPType: icmpTypeEchoReply}
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.ICMPv6 = icmp6Rule
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
 	})
 
 	Context("protocol is ICMPv6", func() {
@@ -204,7 +210,7 @@ var _ = Describe("Rules", func() {
 
 		BeforeEach(func() {
 			inf = getIngressNodeFirewall("rulesicmpv6")
-			initCIDRICMPRule(inf, ipv6CIDR, validOrder, false, icmpTypeEchoReply, icmpTypeEchoReply, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			initCIDRICMPRule(inf, ipv6CIDR, validOrder, true, icmpTypeEchoReply, icmpTypeEchoReply, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
 		})
 
 		It("allows valid rule", func() {
@@ -212,14 +218,20 @@ var _ = Describe("Rules", func() {
 			Expect(deleteIngressNodeFirewall(inf)).To(Succeed())
 		})
 
-		It("rejects rule with no ICMP details defined", func() {
-			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.ICMP = nil
+		It("rejects rule with no ICMPv6 details defined", func() {
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.ICMPv6 = nil
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 
 		It("rejects rule with port defined", func() {
 			portRule := &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{Ports: intstr.FromString(validPort)}
 			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.TCP = portRule
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rejects rule with icmp defined", func() {
+			icmpRule := &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{ICMPType: icmpTypeEchoReply}
+			inf.Spec.Ingress[0].FirewallProtocolRules[0].ProtocolConfig.ICMP = icmpRule
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 	})
