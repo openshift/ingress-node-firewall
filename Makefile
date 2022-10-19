@@ -159,7 +159,7 @@ test-validation: generate fmt vet manifests  ## Run validation tests
 test-functional: generate fmt vet manifests  ## Run functional tests
 	rm -rf ${TESTS_REPORTS_PATH}
 	mkdir -p ${TESTS_REPORTS_PATH}
-	go test --tags=e2etests -v ./test/e2e/functional -ginkgo.v -junit $(TESTS_REPORTS_PATH) -report $(TESTS_REPORTS_PATH) $(FOCUS)
+	go test -timeout 20m --tags=e2etests -v ./test/e2e/functional -ginkgo.v -junit $(TESTS_REPORTS_PATH) -report $(TESTS_REPORTS_PATH) $(FOCUS)
 
 .PHONY: test-e2e
 test-e2e: generate fmt vet manifests test-validation test-functional  ## Run e2e tests. Limit scope with WHAT="<expression>".

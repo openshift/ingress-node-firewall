@@ -1,67 +1,89 @@
 package pods
 
 import (
-	"bytes"
 	"context"
-	"io"
-	"os"
+	"net"
+	"time"
 
 	testclient "github.com/openshift/ingress-node-firewall/test/e2e/client"
-
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
-// ExecCommand runs command in the pod and returns buffer output
-// copied entirely from SRIOV Network Operator
-func ExecCommand(cs *testclient.ClientSet, pod *corev1.Pod, command ...string) (string, string, error) {
-	var buf, errbuf bytes.Buffer
-	req := cs.CoreV1Interface.RESTClient().
-		Post().
-		Namespace(pod.Namespace).
-		Resource("pods").
-		Name(pod.Name).
-		SubResource("exec").
-		VersionedParams(&corev1.PodExecOptions{
-			Container: pod.Spec.Containers[0].Name,
-			Command:   command,
-			Stdin:     true,
-			Stdout:    true,
-			Stderr:    true,
-			TTY:       false,
-		}, scheme.ParameterCodec)
+func EnsureRunning(client *testclient.ClientSet, pod *corev1.Pod, namespace string, retryInterval,
+	timeout time.Duration) (*corev1.Pod, error) {
+	var err error
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
-	exec, err := remotecommand.NewSPDYExecutor(cs.Config, "POST", req.URL())
+	pod, err = client.Pods(namespace).Create(ctx, pod, metav1.CreateOptions{})
 	if err != nil {
-		return buf.String(), errbuf.String(), err
+		if !errors.IsAlreadyExists(err) {
+			return pod, err
+		}
 	}
 
-	err = exec.Stream(remotecommand.StreamOptions{
-		Stdin:  os.Stdin,
-		Stdout: &buf,
-		Stderr: &errbuf,
-		Tty:    true,
+	err = wait.PollImmediate(retryInterval, timeout, func() (done bool, err error) {
+		pod, err = client.Pods(namespace).Get(ctx, pod.Name, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		if pod.Status.Phase == corev1.PodRunning {
+			return true, nil
+		}
+		return false, nil
 	})
-	if err != nil {
-		return buf.String(), errbuf.String(), err
-	}
-
-	return buf.String(), errbuf.String(), nil
+	return pod, err
 }
 
-// GetPodLogs returns the logs from container, or an error if the logs
-// could not be fetched.
-func GetPodLogs(clientset *testclient.ClientSet, pod *corev1.Pod, container string) (string, error) {
-	req := clientset.Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{Container: container})
-	logStream, err := req.Stream(context.Background())
+func EnsureDeleted(client *testclient.ClientSet, pod *corev1.Pod, timeout time.Duration) error {
+	ctxCreatePod, cancelCreatePod := context.WithTimeout(context.Background(), timeout)
+	defer cancelCreatePod()
+
+	err := client.Pods(pod.Namespace).Delete(ctxCreatePod, pod.Name, metav1.DeleteOptions{})
+
 	if err != nil {
-		return "", err
+		if errors.IsNotFound(err) {
+			return nil
+		}
+		return err
 	}
-	defer logStream.Close()
-	buf := new(bytes.Buffer)
-	if _, err := io.Copy(buf, logStream); err != nil {
-		return "", err
+	return nil
+}
+
+func EnsureDeletedWithLabel(client *testclient.ClientSet, ns, label string, timeout time.Duration) error {
+	podList, err := client.Pods(ns).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: label,
+	})
+	if err != nil {
+		return err
 	}
-	return buf.String(), nil
+	for _, pod := range podList.Items {
+		if err = EnsureDeleted(client, &pod, timeout); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func GetIPV4(ips []corev1.PodIP) string {
+	for _, ip := range ips {
+		parsedIP := net.ParseIP(ip.IP)
+		if parsedIP.To4() != nil {
+			return parsedIP.String()
+		}
+	}
+	return ""
+}
+
+func GetIPV6(ips []corev1.PodIP) string {
+	for _, ip := range ips {
+		parsedIP := net.ParseIP(ip.IP)
+		if parsedIP.To4() == nil {
+			return parsedIP.String()
+		}
+	}
+	return ""
 }

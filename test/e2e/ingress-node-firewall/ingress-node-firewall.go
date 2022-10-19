@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"os"
-	"os/exec"
 	"time"
 
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
@@ -14,59 +12,40 @@ import (
 	testclient "github.com/openshift/ingress-node-firewall/test/e2e/client"
 
 	. "github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	goclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
-	// Timeout and Interval settings
-	Timeout       = time.Second * 40
-	DeployTimeout = time.Minute * 5
-	Interval      = time.Second * 4
-)
-
-// DeleteINFConfig and check the IngressNodeFirewallConfig custom resource is deleted to avoid status leak in between tests.
-func DeleteINFConfig(config *ingressnodefwv1alpha1.IngressNodeFirewallConfig) {
-	err := testclient.Client.Delete(context.Background(), config)
+// DeleteIngressNodeFirewallConfig and check the IngressNodeFirewallConfig custom resource is deleted to avoid status leak in between tests.
+func DeleteIngressNodeFirewallConfig(client *testclient.ClientSet, config *ingressnodefwv1alpha1.IngressNodeFirewallConfig, interval, timeout time.Duration) {
+	err := client.Delete(context.Background(), config)
 	if errors.IsNotFound(err) { // Ignore err, could be already deleted.
 		return
 	}
 	Expect(err).ToNot(HaveOccurred())
 
 	Eventually(func() bool {
-		err := testclient.Client.Get(context.Background(), goclient.ObjectKey{Namespace: config.Namespace, Name: config.Name}, config)
+		err := client.Get(context.Background(), goclient.ObjectKey{Namespace: config.Namespace, Name: config.Name}, config)
 		return errors.IsNotFound(err)
-	}, 1*time.Minute, 5*time.Second).Should(BeTrue(), "Failed to delete IngressNodeFirewallConfig custom resource")
+	}, timeout, interval).Should(BeTrue(), "Failed to delete IngressNodeFirewallConfig custom resource")
 
 	Eventually(func() bool {
-		_, err := testclient.Client.DaemonSets(config.Namespace).Get(context.Background(), consts.IngressNodeFirewallDaemonsetName, metav1.GetOptions{})
+		_, err := client.DaemonSets(config.Namespace).Get(context.Background(), consts.IngressNodeFirewallDaemonsetName, metav1.GetOptions{})
 		return errors.IsNotFound(err)
-	}, DeployTimeout, Interval).Should(BeTrue())
+	}, timeout, interval).Should(BeTrue())
 
 	Eventually(func() bool {
-		pods, _ := testclient.Client.Pods(consts.DefaultOperatorNameSpace).List(context.Background(), metav1.ListOptions{
+		pods, _ := client.Pods(consts.DefaultOperatorNameSpace).List(context.Background(), metav1.ListOptions{
 			LabelSelector: fmt.Sprintf("component=%s", consts.IngressNodeFirewallDaemonsetName)})
 		return len(pods.Items) == 0
-	}, DeployTimeout, Interval).Should(BeTrue())
-}
-
-func decodeYAML(r io.Reader, obj interface{}) error {
-	decoder := yaml.NewYAMLToJSONDecoder(r)
-	return decoder.Decode(obj)
+	}, timeout, interval).Should(BeTrue())
 }
 
 func LoadIngressNodeFirewallConfigFromFile(config *ingressnodefwv1alpha1.IngressNodeFirewallConfig, fileName string) error {
 	return loadFromFile(config, fileName)
-}
-
-func LoadIngressNodeFirewallFromFile(inf *ingressnodefwv1alpha1.IngressNodeFirewall, fileName string) error {
-	return loadFromFile(inf, fileName)
 }
 
 func loadFromFile(obj interface{}, fileName string) error {
@@ -79,94 +58,56 @@ func loadFromFile(obj interface{}, fileName string) error {
 	return decodeYAML(f, obj)
 }
 
-func NodeIPs(nodeName string) ([]string, error) {
-	var res []string
-
-	node, err := testclient.Client.Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-	for _, a := range node.Status.Addresses {
-		if a.Type == v1.NodeInternalIP {
-			res = append(res, a.Address)
-		}
-	}
-	return res, nil
+func decodeYAML(r io.Reader, obj interface{}) error {
+	decoder := yaml.NewYAMLToJSONDecoder(r)
+	return decoder.Decode(obj)
 }
 
-func NodesIPs(nodes []v1.Node) []string {
-	var res []string
-	for _, n := range nodes {
-		for _, a := range n.Status.Addresses {
-			if a.Type == v1.NodeInternalIP {
-				res = append(res, a.Address)
+func EnsureIngressNodeFirewallConfigExists(client *testclient.ClientSet, config *ingressnodefwv1alpha1.IngressNodeFirewallConfig,
+	timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	err := client.Create(ctx, config)
+	if err != nil {
+		if errors.IsAlreadyExists(err) {
+			return nil
+		}
+	}
+	return err
+}
+
+func CreateIngressNodeFirewall(client *testclient.ClientSet, inf *ingressnodefwv1alpha1.IngressNodeFirewall,
+	timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	// we want to return failure if it already exists to avoid leaks between test cases.
+	return client.Create(ctx, inf)
+}
+
+func DeleteIngressNodeFirewall(client *testclient.ClientSet, inf *ingressnodefwv1alpha1.IngressNodeFirewall,
+	timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	// we want to return failure if it already deleted to highlight possible test setup failure.
+	return client.Delete(ctx, inf)
+}
+
+func DeleteIngressNodeFirewallsWithLabels(client *testclient.ClientSet, namespace, label string, timeout time.Duration) error {
+	var infList ingressnodefwv1alpha1.IngressNodeFirewallList
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	err := client.List(ctx, &infList, goclient.InNamespace(namespace), &goclient.HasLabels{label})
+	if err != nil {
+		return err
+	}
+	for _, inf := range infList.Items {
+		if err = DeleteIngressNodeFirewall(client, &inf, timeout); err != nil {
+			if !errors.IsNotFound(err) {
+				return err
 			}
 		}
 	}
-	return res
-}
-
-func GetRuleCIDR(isSingleStack bool, nodes []v1.Node) (string, string, error) {
-	var v4CIDR, v6CIDR string
-	v4CIDRLen := 12
-	v6CIDRLen := 64
-	ips := NodesIPs(nodes)
-	for _, ip := range ips {
-		addr := net.ParseIP(ip)
-		if addr.To4() != nil {
-			v4Mask := net.CIDRMask(v4CIDRLen, 32)
-			v4CIDR = fmt.Sprintf("%s/%d", addr.Mask(v4Mask), v4CIDRLen)
-		} else if addr.To16() != nil {
-			v6Mask := net.CIDRMask(v6CIDRLen, 128)
-			v6CIDR = fmt.Sprintf("%s/%d", addr.Mask(v6Mask), v6CIDRLen)
-		} else {
-			return "", "", fmt.Errorf("invalid ip address family %s", ip)
-		}
-		if isSingleStack && (v4CIDR != "" || v6CIDR != "") {
-			break
-		}
-		if v4CIDR != "" && v6CIDR != "" {
-			break
-		}
-	}
-	return v4CIDR, v6CIDR, nil
-}
-
-func RunPingTest(nodes []v1.Node) (error, int) {
-	var errs []error
-	ii := NodesIPs(nodes)
-	for _, ip := range ii {
-		if _, err := exec.Command("ping", "-c", "1", ip).CombinedOutput(); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return kerrors.NewAggregate(errs), len(errs)
-}
-
-func GetDaemonSetPods(ns string) (*v1.PodList, error) {
-	var podList *v1.PodList
-	err := wait.PollImmediate(1*time.Second, 10*time.Second, func() (done bool, err error) {
-		podList, err = testclient.Client.Pods(ns).List(context.TODO(), metav1.ListOptions{
-			LabelSelector: "app=ingress-node-firewall-daemon",
-		})
-
-		if err != nil {
-			return false, err
-		}
-
-		if len(podList.Items) > 0 {
-			return true, nil
-		}
-		return false, nil
-	})
-	return podList, err
-}
-
-func GetINF(operatorNamespace string, name string) *ingressnodefwv1alpha1.IngressNodeFirewall {
-	inf := &ingressnodefwv1alpha1.IngressNodeFirewall{}
-	inf.SetName(name)
-	inf.SetNamespace(operatorNamespace)
-	return inf
+	return nil
 }
 
 func DefineWithWorkerNodeSelector(inf *ingressnodefwv1alpha1.IngressNodeFirewall) {
@@ -181,92 +122,121 @@ func DefineWithInterface(inf *ingressnodefwv1alpha1.IngressNodeFirewall, interfa
 	}
 }
 
-func DefineDenyTCPRule(inf *ingressnodefwv1alpha1.IngressNodeFirewall, sourceCIDR string, port uint16) {
+func AppendIngress(inf *ingressnodefwv1alpha1.IngressNodeFirewall, sourceCIDR string, rules ...ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule) {
 	inf.Spec.Ingress = append(inf.Spec.Ingress, ingressnodefwv1alpha1.IngressNodeFirewallRules{
-		SourceCIDRs: []string{sourceCIDR},
-		FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
-			{
-				Order: 1,
-				ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
-					Protocol: ingressnodefwv1alpha1.ProtocolTypeTCP,
-					TCP: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
-						Ports: intstr.FromInt(int(port)),
-					},
-				},
-				Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
-			},
-		},
+		SourceCIDRs:           []string{sourceCIDR},
+		FirewallProtocolRules: rules,
 	})
 }
 
-func DefineDenyUDPRule(inf *ingressnodefwv1alpha1.IngressNodeFirewall, sourceCIDR string, port uint16) {
-	inf.Spec.Ingress = append(inf.Spec.Ingress, ingressnodefwv1alpha1.IngressNodeFirewallRules{
-		SourceCIDRs: []string{sourceCIDR},
-		FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
-			{
-				Order: 1,
-				ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
-					Protocol: ingressnodefwv1alpha1.ProtocolTypeUDP,
-					UDP: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
-						Ports: intstr.FromInt(int(port)),
-					},
-				},
-				Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+func GetTCPRule(order uint32, port string, action ingressnodefwv1alpha1.IngressNodeFirewallActionType) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
+	return ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+		Order: order,
+		ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+			Protocol: ingressnodefwv1alpha1.ProtocolTypeTCP,
+			TCP: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
+				Ports: intstr.FromString(port),
 			},
 		},
-	})
+		Action: action,
+	}
 }
 
-func DefineDenySCTPRule(inf *ingressnodefwv1alpha1.IngressNodeFirewall, sourceCIDR string, port uint16) {
-	inf.Spec.Ingress = append(inf.Spec.Ingress, ingressnodefwv1alpha1.IngressNodeFirewallRules{
-		SourceCIDRs: []string{sourceCIDR},
-		FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
-			{
-				Order: 1,
-				ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
-					Protocol: ingressnodefwv1alpha1.ProtocolTypeSCTP,
-					SCTP: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
-						Ports: intstr.FromInt(int(port)),
-					},
-				},
-				Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+func GetUDPRule(order uint32, port string, action ingressnodefwv1alpha1.IngressNodeFirewallActionType) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
+	return ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+		Order: order,
+		ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+			Protocol: ingressnodefwv1alpha1.ProtocolTypeUDP,
+			UDP: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
+				Ports: intstr.FromString(port),
 			},
 		},
-	})
+		Action: action,
+	}
 }
 
-func DefineDenyICMPV4Rule(inf *ingressnodefwv1alpha1.IngressNodeFirewall, sourceCIDR string) {
-	inf.Spec.Ingress = append(inf.Spec.Ingress, ingressnodefwv1alpha1.IngressNodeFirewallRules{
-		SourceCIDRs: []string{sourceCIDR},
-		FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
-			{
-				Order: 1,
-				ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
-					Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP,
-					ICMP: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
-						ICMPCode: 8,
-					},
-				},
-				Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+func GetSCTPRule(order uint32, port string, action ingressnodefwv1alpha1.IngressNodeFirewallActionType) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
+	return ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+		Order: order,
+		ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+			Protocol: ingressnodefwv1alpha1.ProtocolTypeSCTP,
+			SCTP: &ingressnodefwv1alpha1.IngressNodeFirewallProtoRule{
+				Ports: intstr.FromString(port),
 			},
 		},
-	})
+		Action: action,
+	}
 }
 
-func DefineDenyICMPV6Rule(inf *ingressnodefwv1alpha1.IngressNodeFirewall, sourceCIDR string) {
-	inf.Spec.Ingress = append(inf.Spec.Ingress, ingressnodefwv1alpha1.IngressNodeFirewallRules{
-		SourceCIDRs: []string{sourceCIDR},
-		FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
-			{
-				Order: 1,
-				ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
-					Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP6,
-					ICMPv6: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
-						ICMPCode: 8,
-					},
-				},
-				Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+func GetICMPV4Rule(order uint32, icmpType, icmpCode uint8, action ingressnodefwv1alpha1.IngressNodeFirewallActionType) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
+	return ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+		Order: order,
+		ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+			Protocol: ingressnodefwv1alpha1.ProtocolTypeICMP,
+			ICMP: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
+				ICMPType: icmpType,
+				ICMPCode: icmpCode,
 			},
 		},
-	})
+		Action: action,
+	}
+}
+
+func GetTransportProtocolBlockPortRule(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32, port string) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
+	switch proto {
+	case ingressnodefwv1alpha1.ProtocolTypeTCP:
+		return GetTCPRule(order, port, ingressnodefwv1alpha1.IngressNodeFirewallDeny)
+	case ingressnodefwv1alpha1.ProtocolTypeUDP:
+		return GetUDPRule(order, port, ingressnodefwv1alpha1.IngressNodeFirewallDeny)
+	case ingressnodefwv1alpha1.ProtocolTypeSCTP:
+		return GetSCTPRule(order, port, ingressnodefwv1alpha1.IngressNodeFirewallDeny)
+	default:
+		panic("Unsupported protocol")
+	}
+}
+
+func GetICMPBlockRule(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32, icmpType, icmpCode uint8) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
+	switch proto {
+	case ingressnodefwv1alpha1.ProtocolTypeICMP:
+		return ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+			Order: order,
+			ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+				Protocol: proto,
+				ICMP: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
+					ICMPType: icmpType,
+					ICMPCode: icmpCode,
+				},
+			},
+			Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+		}
+	case ingressnodefwv1alpha1.ProtocolTypeICMP6:
+		return ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+			Order: order,
+			ProtocolConfig: ingressnodefwv1alpha1.IngressNodeProtocolConfig{
+				Protocol: proto,
+				ICMPv6: &ingressnodefwv1alpha1.IngressNodeFirewallICMPRule{
+					ICMPType: icmpType,
+					ICMPCode: icmpCode,
+				},
+			},
+			Action: ingressnodefwv1alpha1.IngressNodeFirewallDeny,
+		}
+	default:
+		panic("Unsupported protocol")
+	}
+}
+
+func IsTransportProtocol(protocol ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType) bool {
+	if protocol == ingressnodefwv1alpha1.ProtocolTypeTCP || protocol == ingressnodefwv1alpha1.ProtocolTypeUDP ||
+		protocol == ingressnodefwv1alpha1.ProtocolTypeSCTP {
+		return true
+	}
+	return false
+}
+
+func IsICMPProtocol(protocol ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType) bool {
+	if protocol == ingressnodefwv1alpha1.ProtocolTypeICMP || protocol == ingressnodefwv1alpha1.ProtocolTypeICMP6 {
+		return true
+	}
+	return false
 }

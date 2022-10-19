@@ -4,24 +4,27 @@ import (
 	"context"
 	"fmt"
 	"os"
-
-	"github.com/openshift/ingress-node-firewall/test/consts"
-	testclient "github.com/openshift/ingress-node-firewall/test/e2e/client"
-	"github.com/openshift/ingress-node-firewall/test/e2e/ingress-node-firewall"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/openshift/ingress-node-firewall/test/consts"
+	testclient "github.com/openshift/ingress-node-firewall/test/e2e/client"
 	corev1 "k8s.io/api/core/v1"
 	apiext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	goclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var OperatorNameSpace = consts.DefaultOperatorNameSpace
+var (
+	operatorNameSpace = consts.DefaultOperatorNameSpace
+	timeout           = 40 * time.Second
+	retryInterval     = 10 * time.Millisecond
+)
 
 func init() {
 	if ns := os.Getenv("OO_INSTALL_NAMESPACE"); len(ns) != 0 {
-		OperatorNameSpace = ns
+		operatorNameSpace = ns
 	}
 }
 
@@ -29,18 +32,18 @@ var _ = Describe("IngressNodeFirewall", func() {
 	Context("IngressNodeFirewall", func() {
 		It("should have the IngressNodeFirewall Operator deployment in running state", func() {
 			Eventually(func() bool {
-				deploy, err := testclient.Client.Deployments(OperatorNameSpace).Get(context.Background(), consts.IngressNodeFirewallOperatorDeploymentName, metav1.GetOptions{})
+				deploy, err := testclient.Client.Deployments(operatorNameSpace).Get(context.Background(), consts.IngressNodeFirewallOperatorDeploymentName, metav1.GetOptions{})
 				if err != nil {
 					return false
 				}
 				return deploy.Status.ReadyReplicas == deploy.Status.Replicas
-			}, ingressnodefirewall.DeployTimeout, ingressnodefirewall.Interval).Should(BeTrue())
+			}, timeout, retryInterval).Should(BeTrue())
 
-			pods, err := testclient.Client.Pods(OperatorNameSpace).List(context.Background(), metav1.ListOptions{
+			pods, err := testclient.Client.Pods(operatorNameSpace).List(context.Background(), metav1.ListOptions{
 				LabelSelector: fmt.Sprintf("control-plane=%s", consts.IngressNodeFirewallOperatorDeploymentLabel)})
 			Expect(err).ToNot(HaveOccurred())
 
-			deploy, err := testclient.Client.Deployments(OperatorNameSpace).Get(context.Background(), consts.IngressNodeFirewallOperatorDeploymentName, metav1.GetOptions{})
+			deploy, err := testclient.Client.Deployments(operatorNameSpace).Get(context.Background(), consts.IngressNodeFirewallOperatorDeploymentName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(len(pods.Items)).To(Equal(int(deploy.Status.Replicas)))
 
