@@ -127,7 +127,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			testArtifactsLabelString, timeout)).Should(Succeed())
 	})
 
-	Context(fmt.Sprintf("Ingress"), func() {
+	Context("Ingress", func() {
 		var (
 			config             *ingressnodefwv1alpha1.IngressNodeFirewallConfig
 			serverOnePort      = "80"
@@ -1182,7 +1182,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			infwutils.AppendIngress(inf, "1.1.1.1/32", infwutils.GetTCPRule(1, "40000",
 				ingressnodefwv1alpha1.IngressNodeFirewallDeny))
 			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
-			infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)
+			Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).To(Succeed())
 		})
 
 		It("should allow valid ingressnodefirewall UDP rule", func() {
@@ -1194,7 +1194,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			infwutils.AppendIngress(inf, "1.1.1.1/32", infwutils.GetUDPRule(1, "40000",
 				ingressnodefwv1alpha1.IngressNodeFirewallDeny))
 			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
-			infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)
+			Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).To(Succeed())
 		})
 
 		It("should allow valid ingressnodefirewall ICMPV4 rule", func() {
@@ -1206,7 +1206,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			infwutils.AppendIngress(inf, "1.1.1.1/32", infwutils.GetICMPV4Rule(1, 0, 1,
 				ingressnodefwv1alpha1.IngressNodeFirewallDeny))
 			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
-			infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)
+			Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).To(Succeed())
 		})
 
 		It("should allow valid ingressnodefirewall ICMPV6 rule", func() {
@@ -1218,7 +1218,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			infwutils.AppendIngress(inf, "1:1:1::1/64", infwutils.GetICMPV4Rule(1, 0, 1,
 				ingressnodefwv1alpha1.IngressNodeFirewallDeny))
 			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
-			infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)
+			Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).To(Succeed())
 		})
 
 		It("should allow valid ingressnodefirewall SCTP rule", func() {
@@ -1230,7 +1230,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			infwutils.AppendIngress(inf, "1.1.1.1/32", infwutils.GetSCTPRule(1, "40000",
 				ingressnodefwv1alpha1.IngressNodeFirewallDeny))
 			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
-			infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)
+			Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).To(Succeed())
 		})
 
 		It("should block any rules which conflict with failsafe rules", func() {
@@ -1243,7 +1243,6 @@ var _ = Describe("Ingress Node Firewall", func() {
 				infwutils.AppendIngress(inf, "1.1.1.1/32", infwutils.GetTCPRule(1, fmt.Sprintf("%d", tcpFailSafeRule.GetPort()),
 					ingressnodefwv1alpha1.IngressNodeFirewallDeny))
 				Expect(testclient.Client.Create(context.Background(), inf)).ToNot(Succeed())
-				infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)
 			}
 			for _, udpFailSafeRule := range failsaferules.GetUDP() {
 				inf := &ingressnodefwv1alpha1.IngressNodeFirewall{}
@@ -1254,7 +1253,6 @@ var _ = Describe("Ingress Node Firewall", func() {
 				infwutils.AppendIngress(inf, "1.1.1.1/32", infwutils.GetUDPRule(1, fmt.Sprintf("%d", udpFailSafeRule.GetPort()),
 					ingressnodefwv1alpha1.IngressNodeFirewallDeny))
 				Expect(testclient.Client.Create(context.Background(), inf)).ToNot(Succeed())
-				infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)
 			}
 		})
 	})
@@ -1297,12 +1295,9 @@ func isConnectivitySeen(client *testclient.ClientSet, protocol ingressnodefwv1al
 		return icmp.IsConnectivityOK(client, protocol, sourcePod, destinationIP)
 	} else if infwutils.IsTransportProtocol(protocol) {
 		// Connectivity will be confirmed with server output later and expecting server output to contain clients IP.
-		transport.ConnectToPortFromPod(client, protocol, v6, sourcePod, sourceIP, destinationIP, destinationPort)
+		_, _, _ = transport.ConnectToPortFromPod(client, protocol, v6, sourcePod, sourceIP, destinationIP, destinationPort)
 		serverResult := <-serverResultsCh
-		if strings.Contains(serverResult, sourceIP) {
-			return true
-		}
-		return false
+		return strings.Contains(serverResult, sourceIP)
 	} else {
 		panic("Unexpected protocol")
 	}

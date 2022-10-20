@@ -75,7 +75,7 @@ func ExecCommandWithStdin(cs *testclient.ClientSet, pod *corev1.Pod, stdin strin
 	go func() {
 		defer writer.Close()
 		buf := bytes.NewBufferString(stdin)
-		io.Copy(writer, buf)
+		_, _ = io.Copy(writer, buf)
 	}()
 	var stdout, stderr bytes.Buffer
 	err = exec.Stream(remotecommand.StreamOptions{
