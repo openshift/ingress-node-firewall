@@ -113,6 +113,10 @@ func (infc *IngNodeFwController) IngressNodeFwRulesLoader(
 	// Build a map of valid ebpfKeys pointing to the ebpfRules that should be associated to them.
 	ebpfKeyToRules := make(map[BpfLpmIpKeySt]BpfRulesValSt)
 	for interfaceName, ingressRules := range ifaceIngressRules {
+		if !interfaces.IsValidInterfaceNameAndState(interfaceName) {
+			klog.Infof("Fail to load ingress firewall rules invalid interface %s", interfaceName)
+			continue
+		}
 		// Look up the network interface by name.
 		ifID, err := interfaces.GetInterfaceIndex(interfaceName)
 		if err != nil {
