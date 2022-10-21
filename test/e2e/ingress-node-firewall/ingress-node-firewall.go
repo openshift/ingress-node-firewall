@@ -122,6 +122,10 @@ func DefineWithInterface(inf *ingressnodefwv1alpha1.IngressNodeFirewall, interfa
 	}
 }
 
+func DefineWithInterfaces(inf *ingressnodefwv1alpha1.IngressNodeFirewall, interfaces []string) {
+	inf.Spec.Interfaces = interfaces
+}
+
 func AppendIngress(inf *ingressnodefwv1alpha1.IngressNodeFirewall, sourceCIDR string, rules ...ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule) {
 	inf.Spec.Ingress = append(inf.Spec.Ingress, ingressnodefwv1alpha1.IngressNodeFirewallRules{
 		SourceCIDRs:           []string{sourceCIDR},
