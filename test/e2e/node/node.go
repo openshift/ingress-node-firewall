@@ -52,7 +52,7 @@ func IPV6NetworkExists(client *testclient.ClientSet, timeout time.Duration) bool
 			continue
 		}
 		ip := net.ParseIP(address.Address)
-		if ip.To4() == nil {
+		if ip.To16() != nil {
 			return true
 		}
 	}
