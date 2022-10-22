@@ -103,9 +103,11 @@ func (e *ebpfSingleton) SyncInterfaceIngressRules(
 		return err
 	}
 
-	// Load IngressNodeFirewall Rules (this is idempotent and will add new rules and purge rules that shouldn't exist).
-	if err := e.loadIngressNodeFirewallRules(ifaceIngressRules); err != nil {
-		return err
+	if len(e.managedInterfaces) != 0 {
+		// Load IngressNodeFirewall Rules (this is idempotent and will add new rules and purge rules that shouldn't exist).
+		if err := e.loadIngressNodeFirewallRules(ifaceIngressRules); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -135,7 +137,7 @@ func (e *ebpfSingleton) loadIngressNodeFirewallRules(
 	ifaceIngressRules map[string][]v1alpha1.IngressNodeFirewallRules) error {
 	e.log.Info("Loading rules")
 	if err := e.c.IngressNodeFwRulesLoader(ifaceIngressRules); err != nil {
-		e.log.Error(err, "Failed loading ingress firewall rules", ifaceIngressRules, ifaceIngressRules)
+		e.log.Error(err, "Failed loading ingress firewall rules")
 		return err
 	}
 	return nil
@@ -170,7 +172,8 @@ func (e *ebpfSingleton) attachNewInterfaces(ifaceIngressRules map[string][]v1alp
 	for intf := range ifaceIngressRules {
 		// First, check if the interface name is valid.
 		if !isValidInterfaceNameAndState(intf) {
-			return fmt.Errorf("Fail to attach ingress node Firewall rules: invalid interface %s", intf)
+			e.log.Info("Fail to attach ingress firewall rules", "invalid interface", intf)
+			continue
 		}
 
 		// Then, check if the interface is already managed.

@@ -49,7 +49,8 @@ var (
 // testIngressNodeFirewall represents one IngressNodeFirewall object and is used to generate the sourceCIDRs and protocol
 // rules.
 type testIngressNodeFirewall struct {
-	testRules []testRule
+	interfaces []string
+	testRules  []testRule
 }
 
 // testRule is used as a template to generate sourceCIDRs entries and protocol rules
@@ -127,7 +128,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			testArtifactsLabelString, timeout)).Should(Succeed())
 	})
 
-	Context("Ingress", func() {
+	Context("IngressNodeFirewall", func() {
 		var (
 			config             *ingressnodefwv1alpha1.IngressNodeFirewallConfig
 			serverOnePort      = "80"
@@ -187,6 +188,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 				"block a port with a single rule defining the destinations port",
 				[]testIngressNodeFirewall{
 					{
+						[]string{testInterface},
 						[]testRule{
 							{
 								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
@@ -223,6 +225,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 				"block a port using a range when multiple source CIDRs exist",
 				[]testIngressNodeFirewall{
 					{
+						[]string{testInterface},
 						[]testRule{
 							{
 								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}, {clientTwoPodName, "32", "128"}},
@@ -269,6 +272,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 				"block multiple ports",
 				[]testIngressNodeFirewall{
 					{
+						[]string{testInterface},
 						[]testRule{
 							{
 								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
@@ -318,6 +322,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 				"block port when rules for a source CIDR are located in multiple IngressNodeFirewall objects",
 				[]testIngressNodeFirewall{
 					{
+						[]string{testInterface},
 						[]testRule{
 							{
 								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
@@ -330,6 +335,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						},
 					},
 					{
+						[]string{testInterface},
 						[]testRule{
 							{
 								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
@@ -369,6 +375,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 				// between the two policies. We want to test if we merge them correctly.
 				[]testIngressNodeFirewall{
 					{
+						[]string{testInterface},
 						[]testRule{
 							{
 								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
@@ -383,6 +390,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 					},
 					// following rule will have higher order value
 					{
+						[]string{testInterface},
 						[]testRule{
 							{
 								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}, {clientTwoPodName, "32", "128"}},
@@ -429,6 +437,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 				"merges multiple IngressNodeFirewalls which contain multiple ingress entries with protocol rules for all protocols",
 				[]testIngressNodeFirewall{
 					{
+						[]string{testInterface},
 						[]testRule{
 							{
 								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
@@ -474,6 +483,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 					},
 					//Second IngressNodeFirewall
 					{
+						[]string{testInterface},
 						[]testRule{
 							{
 								[]sourceCIDRsEntry{{clientThreePodName, "32", "128"}},
@@ -572,6 +582,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 				"block port when rules for a source CIDR are located in multiple IngressNodeFirewall objects",
 				[]testIngressNodeFirewall{
 					{
+						[]string{testInterface},
 						[]testRule{
 							{
 								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
@@ -584,6 +595,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						},
 					},
 					{
+						[]string{testInterface},
 						[]testRule{
 							{
 								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
@@ -620,6 +632,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 				"merges transport protocol rules when source CIDRs overlap in multiple IngressNodeFirewalls but the number of source CIDRs in each policy is different",
 				[]testIngressNodeFirewall{
 					{
+						[]string{testInterface},
 						[]testRule{
 							{
 								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
@@ -634,6 +647,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 					},
 					// following rule will have higher order value
 					{
+						[]string{testInterface},
 						[]testRule{
 							{
 								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}, {clientTwoPodName, "32", "128"}},
@@ -680,6 +694,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 				"block ICMP echo request",
 				[]testIngressNodeFirewall{
 					{
+						[]string{testInterface},
 						[]testRule{
 							{
 								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
@@ -711,6 +726,94 @@ var _ = Describe("Ingress Node Firewall", func() {
 					},
 				},
 				icmpProtocols,
+				[]func() (*corev1.Pod, func(), error){
+					func() (*corev1.Pod, func(), error) {
+						return transport.GetAndEnsureRunningClient(testclient.Client, clientOnePodName, OperatorNameSpace, clientPodLabel, clientPodLabel,
+							serverPodLabel, retryInterval, timeout)
+					},
+					func() (*corev1.Pod, func(), error) {
+						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, serverOnePort, OperatorNameSpace,
+							serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
+					},
+				},
+			},
+			{
+				"non existent interface name doesn't block application of IngressNodeFirewall policy for valid interface",
+				[]testIngressNodeFirewall{
+					{
+						[]string{"doesntexist", testInterface},
+						[]testRule{
+							{
+								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
+								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
+										return infwutils.GetTransportProtocolBlockPortRule(proto, order, serverOnePort)
+									},
+								},
+							},
+						},
+					},
+				},
+				[]reachable{
+					{
+						clientOnePodName,
+						serverOnePodName,
+						serverOnePort,
+						false,
+					},
+				},
+				[]ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType{ingressnodefwv1alpha1.ProtocolTypeTCP},
+				[]func() (*corev1.Pod, func(), error){
+					func() (*corev1.Pod, func(), error) {
+						return transport.GetAndEnsureRunningClient(testclient.Client, clientOnePodName, OperatorNameSpace, clientPodLabel, clientPodLabel,
+							serverPodLabel, retryInterval, timeout)
+					},
+					func() (*corev1.Pod, func(), error) {
+						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, serverOnePort, OperatorNameSpace,
+							serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
+					},
+				},
+			},
+			{
+				"non existent interface name in unrelated IngressNodeFirewall doesn't block application of new IngressNodeFirewalls policies",
+				[]testIngressNodeFirewall{
+					{
+						[]string{"doesntexist"},
+						[]testRule{
+							{
+								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
+								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
+										// rule that doesn't affect test
+										return infwutils.GetTransportProtocolBlockPortRule(proto, order, allowedPort)
+									},
+								},
+							},
+						},
+					},
+					{
+						[]string{testInterface},
+						[]testRule{
+							{
+								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
+								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
+										return infwutils.GetTransportProtocolBlockPortRule(proto, order, serverOnePort)
+									},
+								},
+							},
+						},
+					},
+				},
+				[]reachable{
+					{
+						clientOnePodName,
+						serverOnePodName,
+						serverOnePort,
+						false,
+					},
+				},
+				[]ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType{ingressnodefwv1alpha1.ProtocolTypeTCP},
 				[]func() (*corev1.Pod, func(), error){
 					func() (*corev1.Pod, func(), error) {
 						return transport.GetAndEnsureRunningClient(testclient.Client, clientOnePodName, OperatorNameSpace, clientPodLabel, clientPodLabel,
@@ -795,7 +898,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 					inf.SetName(fmt.Sprintf("e2e-inf-%d", i))
 					inf.SetLabels(testArtifactsLabelMap)
 					infwutils.DefineWithWorkerNodeSelector(inf)
-					infwutils.DefineWithInterface(inf, testInterface)
+					infwutils.DefineWithInterfaces(inf, testINF.interfaces)
 
 					for _, rule := range testINF.testRules {
 						var protoRules []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule
