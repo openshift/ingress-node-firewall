@@ -103,11 +103,9 @@ func (e *ebpfSingleton) SyncInterfaceIngressRules(
 		return err
 	}
 
-	if len(e.managedInterfaces) != 0 {
-		// Load IngressNodeFirewall Rules (this is idempotent and will add new rules and purge rules that shouldn't exist).
-		if err := e.loadIngressNodeFirewallRules(ifaceIngressRules); err != nil {
-			return err
-		}
+	// Load IngressNodeFirewall Rules (this is idempotent and will add new rules and purge rules that shouldn't exist).
+	if err := e.loadIngressNodeFirewallRules(ifaceIngressRules); err != nil {
+		return err
 	}
 	return nil
 }
