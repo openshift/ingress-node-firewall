@@ -15,11 +15,33 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
-func WaitForDaemonSetReady(client *testclient.ClientSet, ds *appsv1.DaemonSet, namespace, name string, retryInterval, timeout time.Duration) error {
+func GetDaemonSet(client *testclient.ClientSet, namespace, name string, timeout time.Duration) (*appsv1.DaemonSet, error) {
+	var daemonSet appsv1.DaemonSet
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	err := client.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, &daemonSet)
+	return &daemonSet, err
+}
+
+func GetDaemonSetWithRetry(client *testclient.ClientSet, namespace, name string, retryInterval, timeout time.Duration) (*appsv1.DaemonSet, error) {
+	var daemonSet *appsv1.DaemonSet
+	err := wait.PollImmediate(retryInterval, timeout, func() (done bool, err error) {
+		if daemonSet, err = GetDaemonSet(client, namespace, name, timeout); err != nil {
+			if errors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, err
+	})
+	return daemonSet, err
+}
+
+func WaitForDaemonSetReady(client *testclient.ClientSet, ds *appsv1.DaemonSet, retryInterval, timeout time.Duration) error {
 	err := wait.PollImmediate(retryInterval, timeout, func() (done bool, err error) {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
-		err = client.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, ds)
+		err = client.Get(ctx, types.NamespacedName{Name: ds.Name, Namespace: ds.Namespace}, ds)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
@@ -33,7 +55,7 @@ func WaitForDaemonSetReady(client *testclient.ClientSet, ds *appsv1.DaemonSet, n
 		}
 	})
 	if err != nil {
-		return fmt.Errorf("failed to wait for daemonset %s in namespace %s to be ready: %v", ds.Name, namespace, err)
+		return fmt.Errorf("failed to wait for daemonset %s in namespace %s to be ready: %v", ds.Name, ds.Namespace, err)
 	}
 
 	return nil

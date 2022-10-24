@@ -53,8 +53,8 @@ func EnsureDeleted(client *testclient.ClientSet, pod *corev1.Pod, timeout time.D
 	return nil
 }
 
-func EnsureDeletedWithLabel(client *testclient.ClientSet, ns, label string, timeout time.Duration) error {
-	podList, err := client.Pods(ns).List(context.TODO(), metav1.ListOptions{
+func EnsureDeletedWithLabel(client *testclient.ClientSet, namespace, label string, timeout time.Duration) error {
+	podList, err := client.Pods(namespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: label,
 	})
 	if err != nil {
@@ -66,6 +66,23 @@ func EnsureDeletedWithLabel(client *testclient.ClientSet, ns, label string, time
 		}
 	}
 	return nil
+}
+
+func GetPodWithLabelRestartCount(client *testclient.ClientSet, namespace, label string, timeout time.Duration) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	pods, err := client.Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: label})
+	if err != nil {
+		return 0, err
+	}
+	var count int
+	for _, pod := range pods.Items {
+		for _, containerStatus := range pod.Status.ContainerStatuses {
+			count += int(containerStatus.RestartCount)
+		}
+	}
+	return count, nil
 }
 
 func GetIPV4(ips []corev1.PodIP) string {
