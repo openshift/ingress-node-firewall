@@ -24,9 +24,6 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 					Namespace: IngressNodeFwConfigTestNameSpace,
 				},
 			}
-			daemonInitContainers := map[string]string{
-				"mount-bpffs": "test-daemon:latest",
-			}
 			daemonContainers := map[string]string{
 				"daemon":          "test-daemon:latest",
 				"events":          "test-daemon:latest",
@@ -48,12 +45,6 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 			for _, c := range daemonSet.Spec.Template.Spec.Containers {
 				image, ok := daemonContainers[c.Name]
 				Expect(ok).To(BeTrue(), fmt.Sprintf("container %s not found in %s", c.Name, daemonContainers))
-				Expect(c.Image).To(Equal(image))
-			}
-			Expect(daemonSet.Spec.Template.Spec.InitContainers).To(HaveLen(len(daemonInitContainers)))
-			for _, c := range daemonSet.Spec.Template.Spec.InitContainers {
-				image, ok := daemonInitContainers[c.Name]
-				Expect(ok).To(BeTrue(), fmt.Sprintf("init container %s not found in %s", c.Name, daemonInitContainers))
 				Expect(c.Image).To(Equal(image))
 			}
 

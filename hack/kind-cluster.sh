@@ -40,7 +40,15 @@ nodes:
         extraArgs:
             v: "5"
 - role: worker
+  extraMounts:
+      - hostPath: /sys/fs/bpf
+        containerPath: /sys/fs/bpf
+        propagation: Bidirectional
 - role: worker
+  extraMounts:
+      - hostPath: /sys/fs/bpf
+        containerPath: /sys/fs/bpf
+        propagation: Bidirectional
 EOF
 }
 
