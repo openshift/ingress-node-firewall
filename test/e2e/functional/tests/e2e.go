@@ -216,7 +216,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 							serverPodLabel, retryInterval, timeout)
 					},
 					func() (*corev1.Pod, func(), error) {
-						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, serverOnePort, OperatorNameSpace,
+						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, OperatorNameSpace,
 							serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
 					},
 				},
@@ -263,7 +263,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 							serverPodLabel, retryInterval, timeout)
 					},
 					func() (*corev1.Pod, func(), error) {
-						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, serverOnePort, OperatorNameSpace,
+						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, OperatorNameSpace,
 							serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
 					},
 				},
@@ -309,11 +309,11 @@ var _ = Describe("Ingress Node Firewall", func() {
 							serverPodLabel, retryInterval, timeout)
 					},
 					func() (*corev1.Pod, func(), error) {
-						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, serverOnePort, OperatorNameSpace,
+						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, OperatorNameSpace,
 							serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
 					},
 					func() (*corev1.Pod, func(), error) {
-						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverTwoPodName, serverTwoPort, OperatorNameSpace,
+						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverTwoPodName, OperatorNameSpace,
 							serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
 					},
 				},
@@ -363,7 +363,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 							serverPodLabel, retryInterval, timeout)
 					},
 					func() (*corev1.Pod, func(), error) {
-						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, serverOnePort, OperatorNameSpace,
+						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, OperatorNameSpace,
 							serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
 					},
 				},
@@ -428,7 +428,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 							serverPodLabel, retryInterval, timeout)
 					},
 					func() (*corev1.Pod, func(), error) {
-						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, serverOnePort, OperatorNameSpace,
+						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, OperatorNameSpace,
 							serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
 					},
 				},
@@ -573,7 +573,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 							serverPodLabel, retryInterval, timeout)
 					},
 					func() (*corev1.Pod, func(), error) {
-						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, serverOnePort, OperatorNameSpace,
+						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, OperatorNameSpace,
 							serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
 					},
 				},
@@ -623,7 +623,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 							serverPodLabel, retryInterval, timeout)
 					},
 					func() (*corev1.Pod, func(), error) {
-						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, serverOnePort, OperatorNameSpace,
+						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, OperatorNameSpace,
 							serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
 					},
 				},
@@ -685,7 +685,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 							serverPodLabel, retryInterval, timeout)
 					},
 					func() (*corev1.Pod, func(), error) {
-						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, serverOnePort, OperatorNameSpace,
+						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, OperatorNameSpace,
 							serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
 					},
 				},
@@ -732,7 +732,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 							serverPodLabel, retryInterval, timeout)
 					},
 					func() (*corev1.Pod, func(), error) {
-						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, serverOnePort, OperatorNameSpace,
+						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, OperatorNameSpace,
 							serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
 					},
 				},
@@ -769,7 +769,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 							serverPodLabel, retryInterval, timeout)
 					},
 					func() (*corev1.Pod, func(), error) {
-						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, serverOnePort, OperatorNameSpace,
+						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, OperatorNameSpace,
 							serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
 					},
 				},
@@ -820,7 +820,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 							serverPodLabel, retryInterval, timeout)
 					},
 					func() (*corev1.Pod, func(), error) {
-						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, serverOnePort, OperatorNameSpace,
+						return transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, OperatorNameSpace,
 							serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
 					},
 				},
@@ -1111,7 +1111,6 @@ var _ = Describe("Ingress Node Firewall", func() {
 				inf              = &ingressnodefwv1alpha1.IngressNodeFirewall{}
 				clientOnePodName = "e2e-inf-client-one"
 				serverOnePodName = "e2e-inf-server-one"
-				serverOnePort    = "80"
 				serverLabelKey   = "e2e-inf-server"
 				serverLabelValue = ""
 				serverPodLabel   = map[string]string{serverLabelKey: serverLabelValue, testArtifactsLabelKey: testArtifactsLabelValue}
@@ -1135,7 +1134,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 				Expect(err).ShouldNot(HaveOccurred())
 				sourceCIDRs = append(sourceCIDRs, v6CIDR.String())
 			}
-			serverPod, serverCleanupFn, err := transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, serverOnePort, OperatorNameSpace,
+			serverPod, serverCleanupFn, err := transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, OperatorNameSpace,
 				serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
 			Expect(err).ShouldNot(HaveOccurred())
 			defer serverCleanupFn()

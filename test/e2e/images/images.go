@@ -18,7 +18,7 @@ func init() {
 
 	netcat = os.Getenv("NETCAT_IMAGE")
 	if netcat == "" {
-		netcat = "openshift/origin-network-tools:latest"
+		netcat = "ingressnodefirewall/netcat:latest"
 	}
 }
 

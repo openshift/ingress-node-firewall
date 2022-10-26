@@ -67,7 +67,7 @@ func getClient(clientPodName, namespace string, labels, affinity, antiAffinity m
 				{
 					Name:    "client",
 					Image:   images.NetcatImage(),
-					Command: []string{"/bin/bash", "-c", "sleep INF"},
+					Command: []string{"/bin/sh", "-c", "sleep INF"},
 					SecurityContext: &corev1.SecurityContext{
 						Privileged:   pointer.Bool(true),
 						Capabilities: &corev1.Capabilities{Add: []corev1.Capability{corev1.Capability("NET_ADMIN"), corev1.Capability("NET_RAW")}},
@@ -77,7 +77,7 @@ func getClient(clientPodName, namespace string, labels, affinity, antiAffinity m
 		}}
 }
 
-func GetAndEnsureRunningTransportServer(client *testclient.ClientSet, podName, listenPort, namespace string, labels, affinity, antiAffinity map[string]string,
+func GetAndEnsureRunningTransportServer(client *testclient.ClientSet, podName, namespace string, labels, affinity, antiAffinity map[string]string,
 	retry, timeout time.Duration) (*corev1.Pod, func(), error) {
 
 	pod := getServer(podName, namespace, labels, affinity, antiAffinity)
@@ -127,7 +127,7 @@ func getServer(serverPodName, namespace string, labels, affinity, antiAffinity m
 				{
 					Name:    "server",
 					Image:   images.NetcatImage(),
-					Command: []string{"/bin/bash", "-c", "sleep INF"},
+					Command: []string{"/bin/sh", "-c", "sleep INF"},
 					SecurityContext: &corev1.SecurityContext{
 						Privileged:   pointer.Bool(true),
 						Capabilities: &corev1.Capabilities{Add: []corev1.Capability{"NET_ADMIN", "NET_RAW"}},
@@ -141,7 +141,7 @@ func StartServerForProtocol(client *testclient.ClientSet, protocol ingressnodefw
 	pod *corev1.Pod, port string) chan string {
 	serverOutput := make(chan string)
 	var command []string
-	timeoutMessage := "command terminated with exit code 124" // 124 is timeout exit code
+	timeoutMessage := "command terminated with exit code 143" // 143 is timeout exit code
 
 	switch protocol {
 	case ingressnodefwv1alpha1.ProtocolTypeICMP, ingressnodefwv1alpha1.ProtocolTypeICMP6:
@@ -151,11 +151,11 @@ func StartServerForProtocol(client *testclient.ClientSet, protocol ingressnodefw
 	// terminate netcat. Test cases, in either case will be blocked until it ends because it expects its stdout and that
 	// is only accomplished when netcat ends.
 	case ingressnodefwv1alpha1.ProtocolTypeTCP:
-		command = []string{"timeout", "1s", "nc", "--listen", port}
+		command = []string{"timeout", "1s", "ncat", "--listen", port}
 	case ingressnodefwv1alpha1.ProtocolTypeUDP:
-		command = []string{"timeout", "1s", "nc", "--udp", "--listen", port}
+		command = []string{"timeout", "1s", "ncat", "--udp", "--listen", port}
 	case ingressnodefwv1alpha1.ProtocolTypeSCTP:
-		command = []string{"timeout", "1s", "nc", "--sctp", "--listen", port}
+		command = []string{"timeout", "1s", "ncat", "--sctp", "--listen", port}
 	default:
 		panic("Unimplemented protocol")
 	}
@@ -222,6 +222,6 @@ func ncClientSCTPV6(client *testclient.ClientSet, sourcePod *corev1.Pod, sourceI
 }
 
 func ncClientTransport(client *testclient.ClientSet, sourcePod *corev1.Pod, sourceIP, destinationIP, dPort string, additionalFlag ...string) (string, string, error) {
-	command := []string{"sh", "-c", fmt.Sprintf("nc %s --wait 1 %s %s", strings.Join(additionalFlag, " "), destinationIP, dPort)}
+	command := []string{"sh", "-c", fmt.Sprintf("ncat %s --wait 1 %s %s", strings.Join(additionalFlag, " "), destinationIP, dPort)}
 	return exec.ExecCommandWithStdin(client, sourcePod, sourceIP, command...)
 }
