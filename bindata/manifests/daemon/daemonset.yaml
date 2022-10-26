@@ -23,22 +23,6 @@ spec:
       tolerations:
         - operator: Exists
       priorityClassName: "system-node-critical"
-      initContainers:
-        - name: mount-bpffs
-          image: '{{.Image}}'
-          command: ['mount', 'bpffs', '/sys/fs/bpf', '-t', 'bpf']
-          securityContext:
-            privileged: true
-            runAsUser: 0
-            capabilities:
-              add:
-                - CAP_BPF
-                - CAP_NET_ADMIN
-          terminationMessagePolicy: FallbackToLogsOnError
-          volumeMounts:
-            - name: bpf-maps
-              mountPath: /sys/fs/bpf
-              mountPropagation: Bidirectional
       containers:
         - name: daemon
           image: '{{.Image}}'

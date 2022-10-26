@@ -278,17 +278,22 @@ func (infc *IngNodeFwController) Close() error {
 
 	klog.Info("Removing all pins")
 	if err := infc.removeAllPins(); err != nil {
-		errors = append(errors, fmt.Errorf("Could not remove all eBPF pins, err: %q", err))
+		errors = append(errors, fmt.Errorf("could not remove all eBPF pins, err: %q", err))
 	}
 
 	klog.Info("Removing table map")
 	if err := infc.removeTableMap(); err != nil {
-		errors = append(errors, fmt.Errorf("Could not remove eBPF table map, err: %q", err))
+		errors = append(errors, fmt.Errorf("could not remove eBPF table map, err: %q", err))
 	}
 
 	klog.Info("Running cleanup of eBPF objects")
 	if err := infc.cleaneBPFObjs(); err != nil {
-		errors = append(errors, fmt.Errorf("Could not clean eBPF objects, err: %q", err))
+		errors = append(errors, fmt.Errorf("could not clean eBPF objects, err: %q", err))
+	}
+
+	klog.Infof("Removing Ingress node firewall instance pin path %s", infc.pinPath)
+	if err := os.RemoveAll(infc.pinPath); err != nil {
+		errors = append(errors, fmt.Errorf("could not delete ingress node firewall pin path, err: %q", err))
 	}
 
 	if len(errors) > 0 {
@@ -309,6 +314,9 @@ func (infc *IngNodeFwController) cleaneBPFObjs() error {
 func (infc *IngNodeFwController) removeAllPins() error {
 	files, err := ioutil.ReadDir(infc.pinPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
 		return err
 	}
 
@@ -318,7 +326,10 @@ func (infc *IngNodeFwController) removeAllPins() error {
 	}
 	for _, file := range files {
 		if re.Match([]byte(file.Name())) {
-			if err := os.Remove(path.Join(infc.pinPath, file.Name())); err != nil {
+			// Note cilium Link unpin path also removes the pinPath, so avoid
+			// generating errors if the file has been already removed.
+			// https://github.com/cilium/ebpf/blob/master/internal/pinning.go#L72
+			if err := os.Remove(path.Join(infc.pinPath, file.Name())); err != nil && !os.IsNotExist(err) {
 				return err
 			}
 		}
@@ -328,7 +339,11 @@ func (infc *IngNodeFwController) removeAllPins() error {
 
 // removeTableMap removes the ebpf table map.
 func (infc *IngNodeFwController) removeTableMap() error {
-	return os.Remove(path.Join(infc.pinPath, "ingress_node_firewall_table_map"))
+	err := os.Remove(path.Join(infc.pinPath, "ingress_node_firewall_table_map"))
+	if err == nil || os.IsNotExist(err) {
+		return nil
+	}
+	return err
 }
 
 // loadPinnedLinks loads any pinned links that reside inside the /sys mount into memory if no such memory representation
