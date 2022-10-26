@@ -3,6 +3,8 @@ set -eux
 
 DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
+KIND_IMAGE="kindest/node:v1.25.2"
+
 # parse_args parses the provided command line arguments
 parse_args() {
   set +u
@@ -18,7 +20,7 @@ parse_args() {
 
 # deploy_kind installs the kind cluster
 deploy_kind() {
-  cat <<EOF | kind create cluster --image kindest/node:v1.25.2 --config=- --kubeconfig=${DIR}/kubeconfig
+  cat <<EOF | kind create cluster --image ${KIND_IMAGE} --config=- --kubeconfig=${DIR}/kubeconfig
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 networking:
@@ -40,16 +42,66 @@ nodes:
         extraArgs:
             v: "5"
 - role: worker
-  extraMounts:
-      - hostPath: /sys/fs/bpf
-        containerPath: /sys/fs/bpf
-        propagation: Bidirectional
 - role: worker
-  extraMounts:
-      - hostPath: /sys/fs/bpf
-        containerPath: /sys/fs/bpf
-        propagation: Bidirectional
 EOF
+}
+
+# install_bpf_daemonset will install the daemonset that mounts the bpf file system
+# into each kind docker container
+install_bpf_daemonset() {
+  cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: bpf-mounter
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: bpf-mounter
+  template:
+    metadata:
+      labels:
+        app: bpf-mounter
+    spec:
+      hostNetwork: true
+      hostPID: true
+      tolerations:
+        - operator: Exists
+      initContainers:
+        - name: mount-bpffs
+          image: ${KIND_IMAGE}
+          command:
+          - /bin/bash
+          - -xc
+          - |
+            #!/bin/bash
+            if ! /bin/mount | /bin/grep -q 'bpffs on /sys/fs/bpf'; then
+              /bin/mount bpffs /sys/fs/bpf -t bpf
+            fi
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            capabilities:
+              add:
+                - CAP_BPF
+                - CAP_NET_ADMIN
+          terminationMessagePolicy: FallbackToLogsOnError
+          volumeMounts:
+            - name: bpf-maps
+              mountPath: /sys/fs/bpf
+              mountPropagation: Bidirectional
+      containers:
+        - name: sleep
+          image: ${KIND_IMAGE}
+          command: ['sleep', 'infinity']
+      volumes:
+        - name: bpf-maps
+          hostPath:
+            path: /sys/fs/bpf
+            type: DirectoryOrCreate
+EOF
+  kubectl rollout status daemonset -n default bpf-mounter --timeout 300s
 }
 
 # install_operator installs the operator on top of the kind cluster
@@ -97,6 +149,9 @@ deploy_kind
 export KUBECONFIG=${DIR}/kubeconfig
 oc label node kind-worker node-role.kubernetes.io/worker=
 oc label node kind-worker2 node-role.kubernetes.io/worker=
+
+# DaemonSet to mount /sys/fs/bpf on each docker container
+install_bpf_daemonset
 
 # If the -d flag is set, install the operator as well
 if $DEPLOY_OPERATOR; then
