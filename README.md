@@ -254,7 +254,7 @@ make test-race
 ```shell
 make test-e2e
 ```
-Note: See test README.md for test options.
+Note: See test README.md for test options and known issues.
 
 ## Statistics
 
