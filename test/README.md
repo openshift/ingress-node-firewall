@@ -21,3 +21,13 @@ To run the tests use the following make targets:
     - Force single stack by setting environment variable `IS_SINGLESTACK=true`. When set to true and if the test target is a dual stack cluster, only IPV4 tests will execute.
 
 - make test-e2e - run all tests
+
+# Known issues
+- Executing IPV6 tests against a KinD cluster may not function if your KinD host has firewalld enabled.
+For fedora:
+```shell
+sudo systemctl stop firewalld
+sudo systemctl stop docker
+sudo systemctl start docker
+# create your cluster
+```
