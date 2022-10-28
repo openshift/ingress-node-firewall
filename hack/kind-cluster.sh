@@ -4,6 +4,8 @@ set -eux
 DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 KIND_IMAGE="kindest/node:v1.25.2"
+# Direct push from alpines offical docker repository to quay in order not to hit dockers rate limiting.
+BPF_MOUNTER_IMAGE="quay.io/ingressnodefirewall/alpine:3.14"
 
 # parse_args parses the provided command line arguments
 parse_args() {
@@ -70,12 +72,12 @@ spec:
         - operator: Exists
       initContainers:
         - name: mount-bpffs
-          image: ${KIND_IMAGE}
+          image: ${BPF_MOUNTER_IMAGE}
           command:
-          - /bin/bash
+          - /bin/sh
           - -xc
           - |
-            #!/bin/bash
+            #!/bin/sh
             if ! /bin/mount | /bin/grep -q 'bpffs on /sys/fs/bpf'; then
               /bin/mount bpffs /sys/fs/bpf -t bpf
             fi
@@ -93,7 +95,7 @@ spec:
               mountPropagation: Bidirectional
       containers:
         - name: sleep
-          image: ${KIND_IMAGE}
+          image: ${BPF_MOUNTER_IMAGE}
           command: ['sleep', 'infinity']
       volumes:
         - name: bpf-maps
