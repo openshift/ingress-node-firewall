@@ -87,6 +87,12 @@ func (e *ebpfSingleton) SyncInterfaceIngressRules(
 		return err
 	}
 
+	// Ensure IngNodeFwController's pinned links and our managed interfaces align
+	// TODO: refactor to not have managed interfaces names from two sources
+	for _, linkName := range e.c.GetPinnedLinkNames() {
+		e.managedInterfaces[linkName] = struct{}{}
+	}
+
 	// For delete operations, detach all interfaces and run a cleanup, set managed interfaces and the
 	// manager to empty / nil values, then return.
 	if isDelete {

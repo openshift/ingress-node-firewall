@@ -376,6 +376,15 @@ func (infc *IngNodeFwController) loadPinnedLinks() error {
 	return nil
 }
 
+func (infc *IngNodeFwController) GetPinnedLinkNames() []string {
+	linkNames := make([]string, 0, len(infc.links))
+
+	for linkName, _ := range infc.links {
+		linkNames = append(linkNames, linkName)
+	}
+	return linkNames
+}
+
 // cleanup will delete an interface's eBPF objects.
 func (infc *IngNodeFwController) cleanup(ifName string) error {
 	l, ok := infc.links[ifName]
