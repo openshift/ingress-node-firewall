@@ -82,13 +82,9 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    categories: Networking
     olm.skipRange: '>=4.11.0 <4.12.0'
-    operatorframework.io/suggested-namespace: ingress-node-firewall-system
     operators.operatorframework.io/builder: operator-sdk-v1.22.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
-    repository: https://github.com/openshift/ingress-node-firewall
-    support: Red Hat
   name: ingress-node-firewall.v4.12.0
   namespace: placeholder
 spec:
