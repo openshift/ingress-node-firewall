@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION=${VERSION:-"v4.12.0"}
+VERSION=${VERSION:-"v4.13.0"}
 CSV_NAME="ingress-node-firewall.${VERSION}"
 NAMESPACE=${NAMESPACE:-"openshift-ingress-node-firewall"}
 
