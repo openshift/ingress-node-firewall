@@ -59,7 +59,7 @@ spec:
     olm-status-descriptors: ingress-node-firewall.v4.12.0
   links:
   - name: Ingress Node Firewall
-    url: https://ingress-node-firewall.domain
+    url: https://github.com/openshift/ingress-node-firewall
   maintainers:
   - email: mmahmoud@redhat.com
     name: msherif1234
