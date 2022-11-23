@@ -1,7 +1,14 @@
-# ingress-node-firewall
+<p align="center">
+  <img src="logo.jpg" alt="logo" width="25%"/>
+</p>
+
+# Ingress Node Firewall
 This is the Ingress node Firewall Operator, implementing [Operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/) for deploying Ingress node firewall daemon on kubernetes cluster.
 It uses [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/)
-which provides a reconcile function responsible for synchronizing resources untile the desired state is reached on the cluster
+which provides a reconcile function responsible for synchronizing resources until the desired state is reached on the cluster
+
+[![Project maturity: alpha](https://img.shields.io/badge/maturity-alpha-orange.svg)]() [![license](https://img.shields.io/github/license/openshift/ingress-node-firewall.svg?maxAge=2592000)](https://github.com/openshift/ingress-node-firewall/blob/master/LICENSE) [![Containers](https://img.shields.io/badge/containers-ready-green.svg)](https://quay.io/openshift/ingress-node-firewall-operator:4.13) [![Go report card](https://goreportcard.com/badge/github.com/openshift/ingress-node-firewall)](https://goreportcard.com/report/github.com/openshift/ingress-node-firewall) [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/6726/badge)](https://bestpractices.coreinfrastructure.org/projects/6726)
+
 
 ## Usage
 
@@ -267,7 +274,7 @@ within the node daemons themselves:
 ```sh
 kubectl exec -n ${OPERATOR_NAMESPACE} -it ${NODE_DAEMON_NAME} sh
 ```
-2. Retrieve the prometheus formatted metrics
+2. Retrieve the Prometheus formatted metrics
 ```sh
 Curl 127.0.0.1:39301/metrics
 ```

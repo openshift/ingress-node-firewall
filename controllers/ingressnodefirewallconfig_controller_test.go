@@ -16,7 +16,7 @@ import (
 
 var _ = Describe("Ingress nodefirewall config Controller", func() {
 	Context("syncIngressNodeFwConfig", func() {
-		It("Should create manifests with images and namespace overriden", func() {
+		It("Should create manifests with images and namespace overridden", func() {
 
 			config := &ingressnodefwv1alpha1.IngressNodeFirewallConfig{
 				ObjectMeta: metav1.ObjectMeta{
