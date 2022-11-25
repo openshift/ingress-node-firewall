@@ -225,7 +225,7 @@ spec:
               of IngressNodeFirewallNodeState.
             properties:
               syncErrorMessage:
-                description: syncErrorMessage contains futher information about the
+                description: syncErrorMessage contains further information about the
                   encountered synchronization error.
                 type: string
               syncStatus:

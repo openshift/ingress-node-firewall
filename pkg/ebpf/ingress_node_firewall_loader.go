@@ -484,7 +484,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(
 		}
 	}
 
-	// Parse CIDRs to construct map keys wih shared rules.
+	// Parse CIDRs to construct map keys with shared rules.
 	for _, cidr := range ingFirewallConfig.SourceCIDRs {
 		cidr := cidr
 		key, err := BuildEBPFKey(ifID, cidr)

@@ -37,7 +37,7 @@ func GetRange(p *infv1alpha1.IngressNodeFirewallProtoRule) (uint16, uint16, erro
 	}
 	ps := strings.SplitN(p.Ports.String(), "-", 2)
 	if len(ps) != 2 {
-		return 0, 0, fmt.Errorf("invalid ports range. Expected two integers seperated by hyphen but found  %q", p.Ports)
+		return 0, 0, fmt.Errorf("invalid ports range. Expected two integers separated by hyphen but found  %q", p.Ports)
 	}
 	startPort, err := strconv.ParseUint(ps[0], 10, 16)
 	if err != nil {

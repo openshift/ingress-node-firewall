@@ -36,7 +36,7 @@ type IngressNodeFirewallNodeStateStatus struct {
 	// syncStatus indicates if this IngressNodeFirewallNodeState object could be successfully generated
 	// from the input IngressNodeFirewall objects or if any issues occurred during this object's generation.
 	SyncStatus IngressNodeFirewallNodeStateSyncStatus `json:"syncStatus,omitempty"`
-	// syncErrorMessage contains futher information about the encountered synchronization error.
+	// syncErrorMessage contains further information about the encountered synchronization error.
 	SyncErrorMessage string `json:"syncErrorMessage,omitempty"`
 }
 
