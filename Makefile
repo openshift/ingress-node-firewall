@@ -448,6 +448,10 @@ docker-generate: ## Creating the container that generates the eBPF binaries
 	docker build . -f hack/generators.Dockerfile -t $(LOCAL_GENERATOR_IMAGE)
 	docker run --rm -v $(shell pwd):/src $(LOCAL_GENERATOR_IMAGE)
 
+.PHONY: ebpf-update-headers
+ebpf-update-headers: ## eBPF update libbpf headers.
+	hack/update-bfp-headers.sh
+
 ##@ Daemon development
 .PHONY: daemon
 daemon: ebpf-generate ## Build the daemon.
