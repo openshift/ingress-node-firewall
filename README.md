@@ -26,10 +26,6 @@ metadata:
 spec:
   nodeSelector:
     node-role.kubernetes.io/worker: ""
-  tolerations:
-  - key: "Example"
-    operator: "Exists"
-    effect: "NoExecute"
 ```
 
 After that, deploy one or multiple `IngressNodeFirewall` resources to apply firewall rules to your nodes. Make sure that the `nodeSelector` matches a set of nodes. The Ingress Node Firewall Operator will create objects of kind `IngressNodeFirewallNodeState` for each node that is matches by at least one `IngressNodeFirewall` resource:
