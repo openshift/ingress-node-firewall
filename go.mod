@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
-	github.com/cilium/ebpf v0.9.3
+	github.com/cilium/ebpf v0.10.0
 	github.com/go-logr/logr v1.2.3
 	github.com/golang/glog v1.0.0
 	github.com/google/gopacket v1.1.19

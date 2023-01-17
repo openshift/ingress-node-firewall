@@ -44,7 +44,7 @@ github.com/blang/semver/v4
 # github.com/cespare/xxhash/v2 v2.1.2
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
-# github.com/cilium/ebpf v0.9.3
+# github.com/cilium/ebpf v0.10.0
 ## explicit; go 1.18
 github.com/cilium/ebpf
 github.com/cilium/ebpf/asm
