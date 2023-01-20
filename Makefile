@@ -54,8 +54,8 @@ ifeq ($(USE_IMAGE_DIGESTS), true)
 endif
 
 # Image URL to use all building/pushing image targets
-IMG ?= quay.io/openshift/origin-ingress-node-firewall:latest
-DAEMON_IMG ?= quay.io/openshift/origin-ingress-node-firewall-daemon:latest
+IMG ?= quay.io/astoycos/origin-ingress-node-firewall:latest
+DAEMON_IMG ?= quay.io/astoycos/origin-ingress-node-firewall-daemon:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.25.2
 
@@ -205,14 +205,14 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy-kind
-deploy-kind: manifests kustomize install-cert-manager ## Deploy controller to the KinD cluster
+deploy-kind: manifests kustomize #install-cert-manager ## Deploy controller to the KinD cluster
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/kind | kubectl apply -f -
 
 .PHONY: undeploy-kind
 undeploy-kind: ## Undeploy controller from the KinD cluster. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/kind | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
-	kubectl delete -f $(CERT_MANAGER_URL)
+	#kubectl delete -f $(CERT_MANAGER_URL)
 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to OCP cluster.
@@ -239,13 +239,13 @@ uninstall-cert-manager: ## Uninstall cert manager from the target kubernetes clu
 .PHONY: deploy-samples
 deploy-samples:  ## Deploy samples
 	@echo "==== Label kind node to match nodeSelector"
-	kubectl label node kind-worker do-node-ingress-firewall="true" --overwrite=true
-	kubectl label node kind-worker2 do-node-ingress-firewall="true" --overwrite=true
+	kubectl label node bpfd-deployment-worker do-node-ingress-firewall="true" node-role.kubernetes.io/worker="" --overwrite=true
+	kubectl label node bpfd-deployment-worker2 do-node-ingress-firewall="true" node-role.kubernetes.io/worker="" --overwrite=true
 	$(KUSTOMIZE) build config/samples | kubectl apply -f -
 
 .PHONY: undeploy-samples
 undeploy-samples: ## Undeploy samples
-	kubectl label node kind-control-plane do-node-ingress-firewall="false" --overwrite=true
+#kubectl label node kind-control-plane do-node-ingress-firewall="false" --overwrite=true
 	$(KUSTOMIZE) build config/samples | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ##@ Build Dependencies

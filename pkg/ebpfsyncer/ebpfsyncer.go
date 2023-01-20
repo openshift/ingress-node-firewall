@@ -3,7 +3,6 @@ package ebpfsyncer
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/openshift/ingress-node-firewall/api/v1alpha1"
@@ -13,7 +12,6 @@ import (
 	"github.com/openshift/ingress-node-firewall/pkg/metrics"
 
 	"github.com/go-logr/logr"
-	"k8s.io/client-go/util/retry"
 )
 
 var (
@@ -87,20 +85,12 @@ func (e *ebpfSingleton) SyncInterfaceIngressRules(
 		return err
 	}
 
+	// (astoycos) clear out stats map if we're deleting
+	// removing/resetting the bpf program (yet).
 	// For delete operations, detach all interfaces and run a cleanup, set managed interfaces and the
 	// manager to empty / nil values, then return.
 	if isDelete {
-		return e.resetAll()
-	}
-
-	// Detach unmanaged interfaces that were previously managed.
-	if err := e.detachUnmanagedInterfaces(ifaceIngressRules); err != nil {
-		return err
-	}
-
-	// Attach interfaces which shall now be managed.
-	if err := e.attachNewInterfaces(ifaceIngressRules); err != nil {
-		return err
+		e.stats.PurgeMetrics(e.c.GetStatisticsMap())
 	}
 
 	// Load IngressNodeFirewall Rules (this is idempotent and will add new rules and purge rules that shouldn't exist).
@@ -137,82 +127,6 @@ func (e *ebpfSingleton) loadIngressNodeFirewallRules(
 	if err := e.c.IngressNodeFwRulesLoader(ifaceIngressRules); err != nil {
 		e.log.Error(err, "Failed loading ingress firewall rules")
 		return err
-	}
-	return nil
-}
-
-// resetAll deletes all current attachments and cleans all eBPFObjects. It then sets the ingress firewall manager
-// back to nil. It also deletes all pins and removed all XDP attachments for all system interfaces.
-func (e *ebpfSingleton) resetAll() error {
-	e.log.Info("Running detach operation of managed interfaces")
-	for intf := range e.managedInterfaces {
-		err := e.c.IngressNodeFwDetach(intf)
-		if err != nil {
-			e.log.Info("Could not detach managed interface", "intf", intf, "err", err)
-		}
-	}
-
-	e.log.Info("Closing all objects that belong to the firewall manager")
-	if err := e.c.Close(); err != nil {
-		e.log.Info("Could not clean up all objects that belong to the firewall manager", "err", err)
-	}
-
-	e.managedInterfaces = make(map[string]struct{})
-	e.c = nil
-
-	return nil
-}
-
-// attachNewInterfaces attaches the eBPF program to the XDP hook of unmanaged interfaces.
-// It is possible that an attach operation fails with "already attached" while a previous detach operation is
-// still in progress. Thus, if IngressNodeFwAttach fails, retry on error.
-func (e *ebpfSingleton) attachNewInterfaces(ifaceIngressRules map[string][]v1alpha1.IngressNodeFirewallRules) error {
-	for intf := range ifaceIngressRules {
-		// First, check if the interface name is valid.
-		if !isValidInterfaceNameAndState(intf) {
-			e.log.Info("Fail to attach ingress firewall rules", "invalid interface", intf)
-			continue
-		}
-
-		// Then, check if the interface is already managed.
-		if _, ok := e.managedInterfaces[intf]; !ok {
-			// Attach to the interfaces - in case the interface is already attached, retry.
-			err := retry.OnError(
-				retry.DefaultRetry,
-				func(err error) bool {
-					return strings.Contains(err.Error(), xdpEBUSYErr)
-				},
-				func() error {
-					e.log.Info("Attaching firewall interface", "intf", intf)
-					if err := e.c.IngressNodeFwAttach(intf); err != nil {
-						e.log.Error(err, "Fail to attach ingress firewall prog")
-						return err
-					}
-					e.managedInterfaces[intf] = struct{}{}
-					return nil
-				})
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// detachUnmanagedInterfaces detaches any interfaces that were managed by us but that should not be managed any more.
-// After this it purges all rules from the ruleset for interfaces that do not exist any more.
-func (e *ebpfSingleton) detachUnmanagedInterfaces(ifaceIngressRules map[string][]infv1alpha1.IngressNodeFirewallRules) error {
-	// Detach any interfaces that were managed by us but that should not be managed any more.
-	e.log.Info("Comparing currently managed interfaces against list of XDP interfaces on system",
-		"e.managedInterfaces", e.managedInterfaces)
-	for intf := range e.managedInterfaces {
-		if _, ok := ifaceIngressRules[intf]; !ok {
-			e.log.Info("Running detach operation for interface", "intf", intf)
-			if err := e.c.IngressNodeFwDetach(intf); err != nil {
-				return err
-			}
-			delete(e.managedInterfaces, intf)
-		}
 	}
 	return nil
 }

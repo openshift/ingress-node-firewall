@@ -109,6 +109,23 @@ func (m *Statistics) StopPoll() {
 	m.mapWG.Wait()
 }
 
+// With BPFD this is needed because the metrics map is no longer unpinned, therefore 
+// we need to purge it whenever we delete an IGNFW object.
+func (m *Statistics) PurgeMetrics(statsMap *ebpf.Map) {
+	log.Println("Starting node metrics purge.")
+	var emptyRuleStats []nodefwloader.BpfRuleStatisticsSt
+
+	var err error
+
+	for rule := 1; rule < failsaferules.MAX_INGRESS_RULES; rule++ {
+		if err = statsMap.Update(uint32(rule), emptyRuleStats, 0); err != nil {
+			log.Printf("Failed to zero statistics for rule %d: %v\n", rule, err)
+			continue
+		}
+
+	}
+}
+
 func updateMetrics(stopCh <-chan struct{}, statsMap *ebpf.Map, period time.Duration) {
 	log.Println("Starting node metrics updater. Metrics will be polled periodically and presented as prometheus metrics")
 	ticker := time.NewTicker(period)

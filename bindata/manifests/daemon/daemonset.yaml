@@ -40,14 +40,15 @@ spec:
           securityContext:
             privileged: true
             runAsUser: 0
-            capabilities:
-              add:
-                - CAP_BPF
-                - CAP_NET_ADMIN
+            # No longer need CAP_BPF with bpfd
+            # capabilities:
+            #   add:
+            #     - CAP_BPF
+            #     - CAP_NET_ADMIN
           terminationMessagePolicy: FallbackToLogsOnError
           volumeMounts:
             - name: bpf-maps
-              mountPath: /sys/fs/bpf
+              mountPath: /run/bpfd/fs
               mountPropagation: Bidirectional
             - name: syslog-socket
               mountPath: /var/run
@@ -114,7 +115,7 @@ spec:
       volumes:
         - name: bpf-maps
           hostPath:
-            path: /sys/fs/bpf
+            path: /run/bpfd/fs
             type: DirectoryOrCreate
         # Must be optional because the ingress-node-firewall-daemon-metrics-certs is a service serving
         # certificate and those cannot be generated without the daemon running

@@ -34,7 +34,10 @@ struct {
     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
     __type(key, __u32);
     __type(value, __u32);
-    __uint(max_entries, MAX_CPUS);
+    // Hardcoded for now, Aya will need to automatically calculate the number of CPUS for the BPF_MAP_CREATE syscall
+    // Just like cilium/ebpf does
+    __uint(max_entries, 24);
+    __uint(pinning, LIBBPF_PIN_BY_NAME);
 } ingress_node_firewall_events_map SEC(".maps");
 
 /*
@@ -47,6 +50,7 @@ struct {
     __type(key, __u32); // ruleId
     __type(value, struct ruleStatistics_st);
     __uint(max_entries, MAX_TARGETS);
+	__uint(pinning, LIBBPF_PIN_BY_NAME);
 } ingress_node_firewall_statistics_map SEC(".maps");
 
 /*
@@ -430,7 +434,7 @@ ingress_node_firewall_main(struct xdp_md *ctx) {
     }
 }
 
-SEC("xdp_ingress_node_firewall_process")
+SEC("xdp/ingress_node_firewall_process")
 int ingress_node_firewall_process(struct xdp_md *ctx) {
     return ingress_node_firewall_main(ctx);
 }

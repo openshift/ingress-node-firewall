@@ -9,7 +9,7 @@ patchesStrategicMerge:
 - manager_webhook_patch.yaml
 images:
 - name: controller
-  newName: quay.io/openshift/origin-ingress-node-firewall
+  newName: quay.io/astoycos/origin-ingress-node-firewall
   newTag: latest
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
