@@ -2,7 +2,7 @@
 # used to generate the 'manifests/' directory in a bundle.
 resources:
 - bases/ingress-node-firewall.clusterserviceversion.yaml
-- ../openshift
+- ../openshift-olm
 - ../samples
 - ../scorecard
 
