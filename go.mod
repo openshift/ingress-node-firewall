@@ -13,7 +13,7 @@ require (
 	github.com/onsi/gomega v1.26.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.14.0
-	github.com/prometheus/common v0.39.0
+	github.com/prometheus/common v0.40.0
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/sys v0.4.0
 	gopkg.in/mcuadros/go-syslog.v2 v2.3.0
