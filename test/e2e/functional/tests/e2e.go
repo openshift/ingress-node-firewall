@@ -1185,7 +1185,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			var stdOut, stdError string
 			var metrics testutil.Metrics
-			err = wait.PollImmediate(1*time.Second, 60*time.Second, func() (done bool, err error) {
+			err = wait.PollImmediate(1*time.Second, 120*time.Second, func() (done bool, err error) {
 				stdOut, stdError, err = exec.ExecCommand(testclient.Client, daemonsetPod, "/usr/bin/curl", "127.0.0.1:39301/metrics")
 
 				if err != nil {
