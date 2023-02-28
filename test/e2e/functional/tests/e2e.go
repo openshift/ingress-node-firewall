@@ -1046,7 +1046,6 @@ var _ = Describe("Ingress Node Firewall", func() {
 
 	Context("Statistics", func() {
 		var config *ingressnodefwv1alpha1.IngressNodeFirewallConfig
-		var configCRExisted bool
 
 		BeforeEach(func() {
 			var err error
@@ -1054,29 +1053,20 @@ var _ = Describe("Ingress Node Firewall", func() {
 			err = infwutils.LoadIngressNodeFirewallConfigFromFile(config, inftestconsts.IngressNodeFirewallConfigCRFile)
 			Expect(err).ToNot(HaveOccurred())
 			config.SetNamespace(OperatorNameSpace)
-			configCRExisted = true
-			err = testclient.Client.Get(context.Background(), goclient.ObjectKey{Namespace: config.Namespace, Name: config.Name}, config)
-			if errors.IsNotFound(err) {
-				configCRExisted = false
-				Expect(testclient.Client.Create(context.Background(), config)).Should(Succeed())
-			} else {
-				Expect(err).ToNot(HaveOccurred())
-			}
+			Expect(testclient.Client.Create(context.Background(), config)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			if !configCRExisted {
-				daemonset, err := testclient.Client.DaemonSets(config.Namespace).Get(context.Background(), inftestconsts.IngressNodeFirewallDaemonsetName, metav1.GetOptions{})
-				if err != nil {
-					if !errors.IsNotFound(err) {
-						Expect(err).ToNot(HaveOccurred())
-					}
-				} else {
-					Expect(daemonset.OwnerReferences).ToNot(BeNil())
-					Expect(daemonset.OwnerReferences[0].Kind).To(Equal("IngressNodeFirewallConfig"))
+			daemonset, err := testclient.Client.DaemonSets(config.Namespace).Get(context.Background(), inftestconsts.IngressNodeFirewallDaemonsetName, metav1.GetOptions{})
+			if err != nil {
+				if !errors.IsNotFound(err) {
+					Expect(err).ToNot(HaveOccurred())
 				}
-				infwutils.DeleteIngressNodeFirewallConfig(testclient.Client, config, retryInterval, timeout)
+			} else {
+				Expect(daemonset.OwnerReferences).ToNot(BeNil())
+				Expect(daemonset.OwnerReferences[0].Kind).To(Equal("IngressNodeFirewallConfig"))
 			}
+			infwutils.DeleteIngressNodeFirewallConfig(testclient.Client, config, retryInterval, timeout)
 		})
 
 		It("should expose at least one endpoint via a daemon metrics service", func() {
