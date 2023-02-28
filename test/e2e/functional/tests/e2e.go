@@ -1001,7 +1001,9 @@ var _ = Describe("Ingress Node Firewall", func() {
 								Eventually(func() bool {
 									result, err := events.DidEventOccur(testclient.Client, OperatorNameSpace,
 										destinationPodNodeName, expectedEvent, timeout)
-									Expect(err).ShouldNot(HaveOccurred())
+									if err != nil {
+										log.Printf("failed to get events err %v", err)
+									}
 									return result
 								}, timeout, retryInterval).Should(BeTrue())
 							}

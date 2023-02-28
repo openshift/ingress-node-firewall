@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"regexp"
 	"strconv"
 	"time"
@@ -32,7 +33,7 @@ type TestEvent struct {
 func GetFromDaemonLogsOnNode(client *testclient.ClientSet, namespace, nodeName string, timeout time.Duration) ([]TestEvent, error) {
 	daemonsetPod, err := daemonset.GetDaemonSetOnNode(client, namespace, nodeName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get daemonSet on node %s nameSpace %s err %w", nodeName, namespace, err)
 	}
 	request := client.CoreV1Interface.Pods(namespace).GetLogs(daemonsetPod.Name, &corev1.PodLogOptions{
 		Container: "events",
@@ -41,7 +42,8 @@ func GetFromDaemonLogsOnNode(client *testclient.ClientSet, namespace, nodeName s
 	defer cancel()
 	daemonsetLogsStream, err := request.Stream(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(" failed to read events container logs on node %s namespace %s err %w",
+			nodeName, namespace, err)
 	}
 	defer daemonsetLogsStream.Close()
 
@@ -173,6 +175,7 @@ func isEventInList(existingEvents []TestEvent, event TestEvent) bool {
 		}
 		return true
 	}
+	log.Printf("expected event %+v not in the existing events list %+v\n", event, existingEvents)
 	return false
 }
 
