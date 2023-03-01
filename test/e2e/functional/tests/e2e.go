@@ -1099,8 +1099,8 @@ var _ = Describe("Ingress Node Firewall", func() {
 		It("should expose daemon metrics", func() {
 			var (
 				inf              = &ingressnodefwv1alpha1.IngressNodeFirewall{}
-				clientOnePodName = "e2e-inf-client-one"
-				serverOnePodName = "e2e-inf-server-one"
+				clientOnePodName = "e2e-inf-daemon-metrics-client-one"
+				serverOnePodName = "e2e-inf-daemon-metrics-server-one"
 				serverLabelKey   = "e2e-inf-server"
 				serverLabelValue = ""
 				serverPodLabel   = map[string]string{serverLabelKey: serverLabelValue, testArtifactsLabelKey: testArtifactsLabelValue}
@@ -1175,13 +1175,17 @@ var _ = Describe("Ingress Node Firewall", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			var stdOut, stdError string
 			var metrics testutil.Metrics
-			err = wait.PollImmediate(1*time.Second, 120*time.Second, func() (done bool, err error) {
-				stdOut, stdError, err = exec.ExecCommand(testclient.Client, daemonsetPod, "/usr/bin/curl", "127.0.0.1:39301/metrics")
-
+			err = wait.PollImmediate(1*time.Second, 60*time.Second, func() (done bool, err error) {
+				// FIXME: SPDY protocol stream gets truncated at random when return data is greater than an unknown amount.
+				// We reduce the amount of data to ensure we get all the data we require.
+				_, _, _ = exec.ExecCommand(testclient.Client, daemonsetPod, "/usr/bin/curl", "127.0.0.1:39301/metrics",
+					"-o", "/tmp/metrics")
+				stdOut, stdError, err = exec.ExecCommand(testclient.Client, daemonsetPod, "grep",
+					infmetrics.MetricINFNamespace+"_"+infmetrics.MetricINFSubsystemNode+"_"+"packet_", "/tmp/metrics")
 				if err != nil {
 					return false, err
 				}
-
+				stdOut = strings.ReplaceAll(stdOut, "\r", "")
 				if stdError != "" {
 					return false, fmt.Errorf("%s", stdError)
 				}
