@@ -13,7 +13,7 @@ require (
 	github.com/onsi/gomega v1.27.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.14.0
-	github.com/prometheus/common v0.39.0
+	github.com/prometheus/common v0.41.0
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/sys v0.5.0
 	gopkg.in/mcuadros/go-syslog.v2 v2.3.0
@@ -70,7 +70,7 @@ require (
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/crypto v0.1.0 // indirect
 	golang.org/x/net v0.7.0 // indirect
-	golang.org/x/oauth2 v0.3.0 // indirect
+	golang.org/x/oauth2 v0.5.0 // indirect
 	golang.org/x/term v0.5.0 // indirect
 	golang.org/x/text v0.7.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
