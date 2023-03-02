@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"k8s.io/klog"
 	"regexp"
 	"strconv"
 	"time"
@@ -50,6 +51,7 @@ func GetFromDaemonLogsOnNode(client *testclient.ClientSet, namespace, nodeName s
 	if err != nil {
 		return nil, err
 	}
+	klog.Infof("## GetFromDaemonLogsOnNode(): daemon logs: %q", buffer.String())
 
 	return extractEventsFromString(buffer.String())
 }
@@ -139,6 +141,7 @@ func DidEventOccur(client *testclient.ClientSet, namespace, node string, event T
 	if err != nil {
 		return false, err
 	}
+	klog.Infof("## DidEventOccur(): testing if event '%+v' is seen in daemon events '%+v'")
 	if isEventInList(occurredEvents, event) {
 		return true, nil
 	}
