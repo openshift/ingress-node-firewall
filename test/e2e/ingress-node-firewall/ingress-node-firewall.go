@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	goclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -82,6 +83,14 @@ func CreateIngressNodeFirewall(client *testclient.ClientSet, inf *ingressnodefwv
 	defer cancel()
 	// we want to return failure if it already exists to avoid leaks between test cases.
 	return client.Create(ctx, inf)
+}
+
+func GetIngressNodeFirewallObj(client *testclient.ClientSet, name string, inf *ingressnodefwv1alpha1.IngressNodeFirewall,
+	timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	key := types.NamespacedName{Name: name}
+	return client.Get(ctx, key, inf)
 }
 
 func DeleteIngressNodeFirewall(client *testclient.ClientSet, inf *ingressnodefwv1alpha1.IngressNodeFirewall,

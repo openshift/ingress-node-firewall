@@ -5,6 +5,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/openshift/ingress-node-firewall/test/consts"
 	testclient "github.com/openshift/ingress-node-firewall/test/e2e/client"
 
 	corev1 "k8s.io/api/core/v1"
@@ -52,9 +53,20 @@ func IPV6NetworkExists(client *testclient.ClientSet, timeout time.Duration) bool
 			continue
 		}
 		ip := net.ParseIP(address.Address)
-		if ip.To4() == nil {
+		if ip != nil && ip.To4() == nil {
 			return true
 		}
 	}
 	return false
+}
+
+func GetNumOfNodesWithMatchingLabel(client *testclient.ClientSet, timeout time.Duration) int {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	nodesList, err := client.Nodes().List(ctx, metav1.ListOptions{LabelSelector: consts.IngressNodeFirewallNodeLabel})
+
+	if err != nil {
+		panic("Unable to list nodes")
+	}
+	return len(nodesList.Items)
 }

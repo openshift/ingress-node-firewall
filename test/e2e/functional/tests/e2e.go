@@ -44,6 +44,8 @@ var (
 	isSingleStack     = false
 	v4Enabled         = false
 	v6Enabled         = false
+	v4SubnetLen       = "32"
+	v6SubnetLen       = "128"
 )
 
 // testIngressNodeFirewall represents one IngressNodeFirewall object and is used to generate the sourceCIDRs and protocol
@@ -191,7 +193,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{testInterface},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientOnePodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										return infwutils.GetTransportProtocolBlockPortRule(proto, order, serverOnePort)
@@ -228,7 +230,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{testInterface},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}, {clientTwoPodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientOnePodName, v4SubnetLen, v6SubnetLen}, {clientTwoPodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										return infwutils.GetTransportProtocolBlockPortRule(proto, order, serverOnePortRange)
@@ -275,7 +277,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{testInterface},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientOnePodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										return infwutils.GetTransportProtocolBlockPortRule(proto, order, serverOnePort)
@@ -325,7 +327,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{testInterface},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientOnePodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										return infwutils.GetTransportProtocolBlockPortRule(proto, order, allowedPort)
@@ -338,7 +340,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{testInterface},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientOnePodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										return infwutils.GetTransportProtocolBlockPortRule(proto, order, serverOnePort)
@@ -378,7 +380,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{testInterface},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientOnePodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										// dummy rule - no effect on test
@@ -393,7 +395,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{testInterface},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}, {clientTwoPodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientOnePodName, v4SubnetLen, v6SubnetLen}, {clientTwoPodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										return infwutils.GetTransportProtocolBlockPortRule(proto, order, serverOnePort)
@@ -440,7 +442,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{testInterface},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientOnePodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										if infwutils.IsTransportProtocol(proto) {
@@ -460,7 +462,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 								},
 							},
 							{
-								[]sourceCIDRsEntry{{clientTwoPodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientTwoPodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										if infwutils.IsTransportProtocol(proto) {
@@ -486,7 +488,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{testInterface},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientThreePodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientThreePodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										if infwutils.IsTransportProtocol(proto) {
@@ -506,7 +508,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 								},
 							},
 							{
-								[]sourceCIDRsEntry{{clientFourPodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientFourPodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										if infwutils.IsTransportProtocol(proto) {
@@ -585,7 +587,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{testInterface},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientOnePodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										return infwutils.GetTransportProtocolBlockPortRule(proto, order, allowedPort)
@@ -598,7 +600,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{testInterface},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientOnePodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										return infwutils.GetTransportProtocolBlockPortRule(proto, order, serverOnePort)
@@ -635,7 +637,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{testInterface},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientOnePodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										// dummy rule - no effect on test
@@ -650,7 +652,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{testInterface},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}, {clientTwoPodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientOnePodName, v4SubnetLen, v6SubnetLen}, {clientTwoPodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										return infwutils.GetTransportProtocolBlockPortRule(proto, order, serverOnePort)
@@ -697,7 +699,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{testInterface},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientOnePodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										var echoRequestType uint8
@@ -744,7 +746,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{"doesntexist", testInterface},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientOnePodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										return infwutils.GetTransportProtocolBlockPortRule(proto, order, serverOnePort)
@@ -781,7 +783,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{"doesntexist"},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientOnePodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										// rule that doesn't affect test
@@ -795,7 +797,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 						[]string{testInterface},
 						[]testRule{
 							{
-								[]sourceCIDRsEntry{{clientOnePodName, "32", "128"}},
+								[]sourceCIDRsEntry{{clientOnePodName, v4SubnetLen, v6SubnetLen}},
 								[]func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
 									func(proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, order uint32) ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule {
 										return infwutils.GetTransportProtocolBlockPortRule(proto, order, serverOnePort)
@@ -851,49 +853,26 @@ var _ = Describe("Ingress Node Firewall", func() {
 
 			It(entry.it, func() {
 				var testINFs []*ingressnodefwv1alpha1.IngressNodeFirewall
+				var nodeStateList *ingressnodefwv1alpha1.IngressNodeFirewallNodeStateList
 				nextSourceCIDRsOrder := make(map[string]uint32)
+				var podNameObj map[string]*corev1.Pod
+				var cleanupFn func()
+				var err error
 
-				podNameObj, cleanupFn, err := getTestPods(entry.getTestPods)
-				Expect(err).ShouldNot(HaveOccurred())
+				Eventually(func() error {
+					podNameObj, cleanupFn, err = getTestPods(entry.getTestPods)
+					return err
+				}, time.Minute, time.Second).ShouldNot(HaveOccurred(), "Failed to setup test pods")
 				defer cleanupFn()
-
 				// confirm initial connectivity conditions for all protocols defined before IngressNodeFirewall policy application
 				for _, reach := range entry.reachables {
 					reach := reach
-					sourcePod := podNameObj[reach.source]
-					destinationPod := podNameObj[reach.destination]
-
-					for _, protocol := range entry.protocols {
-						if skipProtocol(protocol, isSingleStack) {
-							continue
-						}
-						// v4 tests
-						if v4Enabled && protocol != ingressnodefwv1alpha1.ProtocolTypeICMP6 {
-							By(fmt.Sprintf("[IPV4] Confirm connectivity before IngressNodeFirewall policy application for protocol %s from pod "+
-								"%q to destination pod %q", protocol, reach.source, reach.destination))
-							sourcePodV4IP := pods.GetIPV4(sourcePod.Status.PodIPs)
-							destinationPodV4IP := pods.GetIPV4(destinationPod.Status.PodIPs)
-							Eventually(func() bool {
-								return isConnectivitySeen(testclient.Client, protocol, sourcePod, sourcePodV4IP, destinationPod,
-									destinationPodV4IP, reach.port, false)
-							}, timeout, retryInterval).Should(BeTrue())
-						}
-						// v6 tests
-						if !isSingleStack && v6Enabled && protocol != ingressnodefwv1alpha1.ProtocolTypeICMP {
-							By(fmt.Sprintf("[IPV6] Confirm connectivity before IngressNodeFirewall policy application for protocol %s from pod "+
-								"%q to destination pod %q", protocol, reach.source, reach.destination))
-							sourcePodV6IP := pods.GetIPV6(sourcePod.Status.PodIPs)
-							destinationPodV6IP := pods.GetIPV6(destinationPod.Status.PodIPs)
-							Eventually(func() bool {
-								return isConnectivitySeen(testclient.Client, protocol, sourcePod, sourcePodV6IP, destinationPod,
-									destinationPodV6IP, reach.port, true)
-							}, timeout, retryInterval).Should(BeTrue())
-						}
-					}
+					reachabilityCheck(reach, podNameObj, entry.protocols, true)
 				}
 
 				// generate IngressNodeFirewall objects from the templates defined
 				for i, testINF := range entry.testINFs {
+					testINF := testINF
 					inf := &ingressnodefwv1alpha1.IngressNodeFirewall{}
 					inf.SetName(fmt.Sprintf("e2e-inf-%d", i))
 					inf.SetLabels(testArtifactsLabelMap)
@@ -901,10 +880,12 @@ var _ = Describe("Ingress Node Firewall", func() {
 					infwutils.DefineWithInterfaces(inf, testINF.interfaces)
 
 					for _, rule := range testINF.testRules {
+						rule := rule
 						var protoRules []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule
 						var sourceCIDRs []string
 
 						for _, entry := range rule.sourceCIDRsEntries {
+							entry := entry
 							ips := podNameObj[entry.podName].Status.PodIPs
 							if v4Enabled {
 								// convert pod IP to correct CIDR. e.g. IP 172.126.1.1 with prefix 8 will result in CIDR 172.0.0.0/8
@@ -930,19 +911,23 @@ var _ = Describe("Ingress Node Firewall", func() {
 						// find the largest order value seen across all INFs for a given sourceCIDR
 						var nextOrder uint32
 						for _, sourceCIDR := range sourceCIDRs {
+							sourceCIDR := sourceCIDR
 							if sourceCIDROrder := nextSourceCIDRsOrder[sourceCIDR]; sourceCIDROrder > nextOrder {
 								nextOrder = sourceCIDROrder
 							}
 						}
 						// generate the proto rules for each protocol defined
 						for _, protocol := range entry.protocols {
+							protocol := protocol
 							for _, getProtoRuleFn := range rule.protoRules {
+								getProtoRuleFn := getProtoRuleFn
 								protoRules = append(protoRules, getProtoRuleFn(protocol, nextOrder))
 								nextOrder += 1
 							}
 						}
 						// update the highest order seen for all the source CIDRs encountered
 						for _, sourceCIDR := range sourceCIDRs {
+							sourceCIDR := sourceCIDR
 							nextSourceCIDRsOrder[sourceCIDR] = nextOrder
 						}
 
@@ -954,92 +939,37 @@ var _ = Describe("Ingress Node Firewall", func() {
 					testINFs = append(testINFs, inf)
 				}
 				// preemptively delete all INFs that we are about to create. If any failure occurs, we want to clean up.
-				defer func() {
-					for _, testINFs := range testINFs {
-						Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, testINFs, timeout)).Should(Succeed())
-					}
-				}()
+				defer deleteAllTestRules(testINFs, testclient.Client, timeout, nodeStateList)
 
+				nodeStateList = &ingressnodefwv1alpha1.IngressNodeFirewallNodeStateList{}
 				for _, testINF := range testINFs {
-					Expect(infwutils.CreateIngressNodeFirewall(testclient.Client, testINF, timeout)).Should(Succeed())
+					testINF := testINF
+					By(fmt.Sprintf("Creating Ingress node firewall rules %+v", testINF))
+					Eventually(func() error {
+						err := infwutils.CreateIngressNodeFirewall(testclient.Client, testINF, timeout)
+						return err
+					}, timeout, retryInterval).ShouldNot(HaveOccurred())
+
+					Eventually(func() bool {
+						fw := &ingressnodefwv1alpha1.IngressNodeFirewall{}
+						if err := infwutils.GetIngressNodeFirewallObj(testclient.Client, testINF.Name, fw, timeout); err != nil {
+							return false
+						}
+						if fw.Status.SyncStatus == ingressnodefwv1alpha1.FirewallRulesSyncOK {
+							return true
+						}
+						return false
+					}, timeout, retryInterval).Should(BeTrue(), "failed to sync IngressNodeFirewall rule")
 				}
+				checkNodeStateCreate(testclient.Client, nodeStateList)
 
 				// test INF policy application for all protocols
 				for _, reach := range entry.reachables {
 					reach := reach
-					sourcePod := podNameObj[reach.source]
-					destinationPod := podNameObj[reach.destination]
-					destinationPodNodeName := podNameObj[reach.destination].Spec.NodeName
-
-					for _, protocol := range entry.protocols {
-						if skipProtocol(protocol, isSingleStack) {
-							continue
-						}
-						// V4 test
-						if v4Enabled && protocol != ingressnodefwv1alpha1.ProtocolTypeICMP6 {
-							By(fmt.Sprintf("[IPV4] Confirm IngressNodeFirewall policy application for protocol %s from pod "+
-								"%q to destination pod %q", protocol, reach.source, reach.destination))
-							sourcePodV4IP := pods.GetIPV4(sourcePod.Status.PodIPs)
-							destinationPodV4IP := pods.GetIPV4(destinationPod.Status.PodIPs)
-							Eventually(func() bool {
-								return isConnectivitySeen(testclient.Client, protocol, sourcePod, sourcePodV4IP, destinationPod,
-									destinationPodV4IP, reach.port, false)
-							}, timeout, retryInterval).Should(Equal(reach.connectivity))
-
-							// only expect drop events for dropped / blocked connections
-							if !reach.connectivity {
-								By("[IPV4] Checking if drop events created")
-								var expectedEvent events.TestEvent
-								if infwutils.IsICMPProtocol(protocol) {
-									//TODO: Here we always expect icmp code and type values for V4. Remove hardcoded icmp code and types to allow test flexibility.
-									expectedEvent = events.GetICMPTestEvent(protocol, testInterface, sourcePodV4IP,
-										destinationPodV4IP, 0, 8)
-								} else if infwutils.IsTransportProtocol(protocol) {
-									expectedEvent = events.GetTransportTestEvent(protocol, testInterface, sourcePodV4IP,
-										destinationPodV4IP, reach.port)
-								}
-								Eventually(func() bool {
-									result, err := events.DidEventOccur(testclient.Client, OperatorNameSpace,
-										destinationPodNodeName, expectedEvent, timeout)
-									Expect(err).ShouldNot(HaveOccurred())
-									return result
-								}, timeout, retryInterval).Should(BeTrue())
-							}
-						}
-
-						// V6 test
-						if !isSingleStack && v6Enabled && protocol != ingressnodefwv1alpha1.ProtocolTypeICMP {
-							By(fmt.Sprintf("[IPV6] Confirm IngressNodeFirewall policy application for protocol %s from pod "+
-								"%q to destination pod %q", protocol, reach.source, reach.destination))
-							sourcePodV6IP := pods.GetIPV6(sourcePod.Status.PodIPs)
-							destinationPodV6IP := pods.GetIPV6(destinationPod.Status.PodIPs)
-							Eventually(func() bool {
-								return isConnectivitySeen(testclient.Client, protocol, sourcePod, sourcePodV6IP, destinationPod,
-									destinationPodV6IP, reach.port,
-									true)
-							}, timeout, retryInterval).Should(Equal(reach.connectivity))
-							// only expect drop events for dropped / blocked connections
-							if !reach.connectivity {
-								By("[IPV6] Checking if drop events created")
-								var expectedEvent events.TestEvent
-								if infwutils.IsICMPProtocol(protocol) {
-									//TODO: Here we always expect icmp code and type values for V6. Remove hardcoded icmp code and types to allow test flexibility.
-									expectedEvent = events.GetICMPTestEvent(protocol, testInterface, sourcePodV6IP,
-										destinationPodV6IP, 0, 128)
-								} else if infwutils.IsTransportProtocol(protocol) {
-									expectedEvent = events.GetTransportTestEvent(protocol, testInterface, sourcePodV6IP,
-										destinationPodV6IP, reach.port)
-								}
-								Eventually(func() bool {
-									result, err := events.DidEventOccur(testclient.Client, OperatorNameSpace,
-										destinationPodNodeName, expectedEvent, timeout)
-									Expect(err).ShouldNot(HaveOccurred())
-									return result
-								}, timeout, retryInterval).Should(BeTrue())
-							}
-						}
-					}
+					reachabilityCheck(reach, podNameObj, entry.protocols, reach.connectivity)
 				}
+				// Make sure all rules are deleted before running next test
+				deleteAllTestRules(testINFs, testclient.Client, timeout, nodeStateList)
 			})
 		}
 	})
@@ -1108,35 +1038,43 @@ var _ = Describe("Ingress Node Firewall", func() {
 
 		It("should expose daemon metrics", func() {
 			var (
-				inf              = &ingressnodefwv1alpha1.IngressNodeFirewall{}
-				clientOnePodName = "e2e-inf-client-one"
-				serverOnePodName = "e2e-inf-server-one"
-				serverLabelKey   = "e2e-inf-server"
-				serverLabelValue = ""
-				serverPodLabel   = map[string]string{serverLabelKey: serverLabelValue, testArtifactsLabelKey: testArtifactsLabelValue}
-				clientLabelKey   = "e2e-inf-client"
-				clientLabelValue = ""
-				clientPodLabel   = map[string]string{clientLabelKey: clientLabelValue, testArtifactsLabelKey: testArtifactsLabelValue}
+				inf                              = &ingressnodefwv1alpha1.IngressNodeFirewall{}
+				nodeStateList                    = &ingressnodefwv1alpha1.IngressNodeFirewallNodeStateList{}
+				clientOnePodName                 = "e2e-inf-daemon-metrics-client-one"
+				serverOnePodName                 = "e2e-inf-daemon-metrics-server-one"
+				serverLabelKey                   = "e2e-inf-server"
+				serverLabelValue                 = ""
+				serverPodLabel                   = map[string]string{serverLabelKey: serverLabelValue, testArtifactsLabelKey: testArtifactsLabelValue}
+				clientLabelKey                   = "e2e-inf-client"
+				clientLabelValue                 = ""
+				clientPodLabel                   = map[string]string{clientLabelKey: clientLabelValue, testArtifactsLabelKey: testArtifactsLabelValue}
+				clientPod, serverPod             *corev1.Pod
+				clientCleanupFn, serverCleanupFn func()
+				err                              error
 			)
-			clientPod, clientCleanupFn, err := transport.GetAndEnsureRunningClient(testclient.Client, clientOnePodName, OperatorNameSpace, clientPodLabel, clientPodLabel,
-				serverPodLabel, retryInterval, timeout)
-			Expect(err).ShouldNot(HaveOccurred())
+			Eventually(func() error {
+				clientPod, clientCleanupFn, err = transport.GetAndEnsureRunningClient(testclient.Client, clientOnePodName, OperatorNameSpace, clientPodLabel, clientPodLabel,
+					serverPodLabel, retryInterval, timeout)
+				return err
+			}, timeout, retryInterval).ShouldNot(HaveOccurred(), "Failed to setup daemon metrics client test pod")
 			defer clientCleanupFn()
 			sourceCIDRs := make([]string, 0)
 			if v4Enabled {
-				_, v4CIDR, err := net.ParseCIDR(fmt.Sprintf("%s/%s", pods.GetIPV4(clientPod.Status.PodIPs), "32"))
+				_, v4CIDR, err := net.ParseCIDR(fmt.Sprintf("%s/%s", pods.GetIPV4(clientPod.Status.PodIPs), v4SubnetLen))
 				Expect(err).ShouldNot(HaveOccurred())
 				sourceCIDRs = append(sourceCIDRs, v4CIDR.String())
 			}
 			if !isSingleStack && v6Enabled {
 				// no-op if v6 tests are disabled
-				_, v6CIDR, err := net.ParseCIDR(fmt.Sprintf("%s/%s", pods.GetIPV6(clientPod.Status.PodIPs), "128"))
+				_, v6CIDR, err := net.ParseCIDR(fmt.Sprintf("%s/%s", pods.GetIPV6(clientPod.Status.PodIPs), v6SubnetLen))
 				Expect(err).ShouldNot(HaveOccurred())
 				sourceCIDRs = append(sourceCIDRs, v6CIDR.String())
 			}
-			serverPod, serverCleanupFn, err := transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, OperatorNameSpace,
-				serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
-			Expect(err).ShouldNot(HaveOccurred())
+			Eventually(func() error {
+				serverPod, serverCleanupFn, err = transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, OperatorNameSpace,
+					serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
+				return err
+			}, timeout, retryInterval).ShouldNot(HaveOccurred(), "Failed to setup daemon metrics server test pod")
 			defer serverCleanupFn()
 			inf.SetName("e2e-inf-daemon-metrics")
 			inf.SetLabels(testArtifactsLabelMap)
@@ -1158,12 +1096,25 @@ var _ = Describe("Ingress Node Firewall", func() {
 			Eventually(func() error {
 				err := testclient.Client.Create(context.Background(), inf)
 				return err
-			}, timeout, retryInterval).Should(Succeed())
+			}, timeout, retryInterval).ShouldNot(HaveOccurred())
+			Eventually(func() bool {
+				fw := &ingressnodefwv1alpha1.IngressNodeFirewall{}
+				if err := infwutils.GetIngressNodeFirewallObj(testclient.Client, inf.Name, fw, timeout); err != nil {
+					return false
+				}
+				if fw.Status.SyncStatus == ingressnodefwv1alpha1.FirewallRulesSyncOK {
+					return true
+				}
+				return false
+			}, timeout, retryInterval).Should(BeTrue(), "failed to sync IngressNodeFirewall rule")
+			checkNodeStateCreate(testclient.Client, nodeStateList)
 
-			defer Eventually(func() bool {
-				err := testclient.Client.Delete(context.Background(), inf)
-				return errors.IsNotFound(err)
-			}, timeout, retryInterval).Should(BeTrue(), "Failed destination delete IngressNodeFirewall custom resource")
+			defer func() {
+				Eventually(func() bool {
+					err := testclient.Client.Delete(context.Background(), inf)
+					return errors.IsNotFound(err)
+				}, timeout, retryInterval).Should(BeTrue(), "Failed destination delete IngressNodeFirewall custom resource")
+			}()
 			Eventually(func() bool {
 				if v4Enabled {
 					_, _, err = icmp.PingFromPod(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP, clientPod, pods.GetIPV4(serverPod.Status.PodIPs))
@@ -1181,13 +1132,12 @@ var _ = Describe("Ingress Node Firewall", func() {
 				return true
 			}).WithTimeout(timeout).Should(BeTrue())
 
-			daemonsetPod, err := daemonset.GetDaemonSetOnNode(testclient.Client, OperatorNameSpace, serverPod.Spec.NodeName)
+			daemonSetPod, err := daemonset.GetDaemonSetOnNode(testclient.Client, OperatorNameSpace, serverPod.Spec.NodeName)
 			Expect(err).ShouldNot(HaveOccurred())
 			var stdOut, stdError string
 			var metrics testutil.Metrics
 			err = wait.PollImmediate(1*time.Second, 60*time.Second, func() (done bool, err error) {
-				stdOut, stdError, err = exec.ExecCommand(testclient.Client, daemonsetPod, "/usr/bin/curl", "127.0.0.1:39301/metrics")
-
+				stdOut, stdError, err = exec.RunExecCommand(testclient.Client, daemonSetPod, "/usr/bin/curl", "127.0.0.1:39301/metrics")
 				if err != nil {
 					return false, err
 				}
@@ -1367,7 +1317,7 @@ func skipProtocol(protocol ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocol
 	return false
 }
 
-func getTestPods(getTestPods []func() (*corev1.Pod, func(), error)) (map[string]*corev1.Pod, func(), error) {
+func getTestPods(getTestPodsFns []func() (*corev1.Pod, func(), error)) (map[string]*corev1.Pod, func(), error) {
 	var podCleanups []func()
 	podNameObj := make(map[string]*corev1.Pod)
 
@@ -1376,7 +1326,7 @@ func getTestPods(getTestPods []func() (*corev1.Pod, func(), error)) (map[string]
 			podCleanup()
 		}
 	}
-	for _, podSetupFn := range getTestPods {
+	for _, podSetupFn := range getTestPodsFns {
 		podObj, cleanup, err := podSetupFn()
 		if err != nil {
 			return nil, nil, err
@@ -1403,4 +1353,113 @@ func isConnectivitySeen(client *testclient.ClientSet, protocol ingressnodefwv1al
 	} else {
 		panic("Unexpected protocol")
 	}
+}
+
+func deleteAllTestRules(testINFs []*ingressnodefwv1alpha1.IngressNodeFirewall, client *testclient.ClientSet, timeout time.Duration,
+	nodeStateList *ingressnodefwv1alpha1.IngressNodeFirewallNodeStateList) {
+	for _, testINF := range testINFs {
+		testINF := testINF
+		Eventually(func() bool {
+			err := infwutils.DeleteIngressNodeFirewall(client, testINF, timeout)
+			return errors.IsNotFound(err)
+		}, timeout, retryInterval).Should(BeTrue(), "Failed to delete IngressNodeFirewall rules")
+	}
+}
+
+func reachabilityCheck(reach reachable, podNameObj map[string]*corev1.Pod,
+	protocols []ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, isReachable bool) {
+	sourcePod := podNameObj[reach.source]
+	destinationPod := podNameObj[reach.destination]
+	destinationPodNodeName := podNameObj[reach.destination].Spec.NodeName
+	for _, protocol := range protocols {
+		if skipProtocol(protocol, !v6Enabled) {
+			continue
+		}
+		// v4 tests
+		if v4Enabled && protocol != ingressnodefwv1alpha1.ProtocolTypeICMP6 {
+			sourcePodV4IP := pods.GetIPV4(sourcePod.Status.PodIPs)
+			destinationPodV4IP := pods.GetIPV4(destinationPod.Status.PodIPs)
+			dbgMsg := fmt.Sprintf("[IPV4] Check connectivity after applying IngressNodeFirewall rules for protocol %s from pod "+
+				"%q/%s to destination pod %q/%s", protocol, reach.source, sourcePodV4IP, reach.destination, destinationPodV4IP)
+			if isReachable {
+				dbgMsg = fmt.Sprintf("[IPV4] Initial connectivity check for protocol %s from pod "+
+					"%q to destination pod %q", protocol, reach.source, reach.destination)
+			}
+			By(dbgMsg)
+			Eventually(func() bool {
+				return isConnectivitySeen(testclient.Client, protocol, sourcePod, sourcePodV4IP, destinationPod,
+					destinationPodV4IP, reach.port, false)
+			}, timeout, retryInterval).Should(Equal(isReachable), "Failed: IPv4 connectivity checks")
+
+			// only expect drop events for dropped / blocked connections
+			if !isReachable {
+				By("[IPV4] Checking if drop events created")
+				var expectedEvent events.TestEvent
+				if infwutils.IsICMPProtocol(protocol) {
+					//TODO: Here we always expect icmp code and type values for V4. Remove hardcoded icmp code and types to allow test flexibility.
+					expectedEvent = events.GetICMPTestEvent(protocol, testInterface, sourcePodV4IP,
+						destinationPodV4IP, 0, 8)
+				} else if infwutils.IsTransportProtocol(protocol) {
+					expectedEvent = events.GetTransportTestEvent(protocol, testInterface, sourcePodV4IP,
+						destinationPodV4IP, reach.port)
+				}
+				Eventually(func() bool {
+					result, err := events.DidEventOccur(testclient.Client, OperatorNameSpace,
+						destinationPodNodeName, expectedEvent, timeout)
+					if err != nil {
+						log.Printf("IPv4: failed check for events err %v", err)
+					}
+					return result
+				}, timeout, retryInterval).Should(BeTrue(), "Failed: IPv4 expected drop events didn't happen")
+			}
+		}
+
+		// v6 tests
+		if !isSingleStack && v6Enabled && protocol != ingressnodefwv1alpha1.ProtocolTypeICMP {
+			sourcePodV6IP := pods.GetIPV6(sourcePod.Status.PodIPs)
+			destinationPodV6IP := pods.GetIPV6(destinationPod.Status.PodIPs)
+			dbgMsg := fmt.Sprintf("[IPV6] Check connectivity after applying IngressNodeFirewall rules for protocol %s from pod "+
+				"%q/%s to destination pod %q/%s", protocol, reach.source, sourcePodV6IP, reach.destination, destinationPodV6IP)
+			if isReachable {
+				dbgMsg = fmt.Sprintf("[IPV6] Initial connectivity check for protocol %s from pod "+
+					"%q to destination pod %q", protocol, reach.source, reach.destination)
+			}
+			By(dbgMsg)
+			Eventually(func() bool {
+				return isConnectivitySeen(testclient.Client, protocol, sourcePod, sourcePodV6IP, destinationPod,
+					destinationPodV6IP, reach.port, true)
+			}, timeout, retryInterval).Should(Equal(isReachable), "Failed: IPv6 connectivity checks")
+			// only expect drop events for dropped / blocked connections
+			if !isReachable {
+				By("[IPV6] Checking if drop events created")
+				var expectedEvent events.TestEvent
+				if infwutils.IsICMPProtocol(protocol) {
+					//TODO: Here we always expect icmp code and type values for V6. Remove hardcoded icmp code and types to allow test flexibility.
+					expectedEvent = events.GetICMPTestEvent(protocol, testInterface, sourcePodV6IP,
+						destinationPodV6IP, 0, 128)
+				} else if infwutils.IsTransportProtocol(protocol) {
+					expectedEvent = events.GetTransportTestEvent(protocol, testInterface, sourcePodV6IP,
+						destinationPodV6IP, reach.port)
+				}
+				Eventually(func() bool {
+					result, err := events.DidEventOccur(testclient.Client, OperatorNameSpace,
+						destinationPodNodeName, expectedEvent, timeout)
+					if err != nil {
+						log.Printf("IPv6: failed check for events err %v", err)
+					}
+					return result
+				}, timeout, retryInterval).Should(BeTrue(), "Failed: IPv6 expected drop events didn't happen")
+			}
+		}
+	}
+}
+
+func checkNodeStateCreate(client *testclient.ClientSet, nodeStateList *ingressnodefwv1alpha1.IngressNodeFirewallNodeStateList) {
+	Eventually(func() bool {
+		err := client.List(context.Background(), nodeStateList)
+		if err != nil {
+			return false
+		}
+		return len(nodeStateList.Items) == node.GetNumOfNodesWithMatchingLabel(testclient.Client, timeout)
+	}, timeout, retryInterval).Should(BeTrue())
 }

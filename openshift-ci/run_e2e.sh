@@ -15,6 +15,8 @@ ovnkube_node_pod=$(oc get pod -n openshift-ovn-kubernetes -owide | grep ovnkube-
 export NODE_INTERFACE=genev_sys_6081
 # CoreOS nodes, by default, have SCTP kernel module unloaded.
 export ENABLE_SCTP=false
+export IMAGE_REGISTRY="registry.redhat.io"
+export NETCAT_IMAGE="rhel8/support-tools:latest"
 
 yum install -y go
 
