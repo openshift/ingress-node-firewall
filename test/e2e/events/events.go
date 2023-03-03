@@ -29,14 +29,18 @@ type TestEvent struct {
 	IcmpCode int
 }
 
-func GetFromDaemonLogsOnNode(client *testclient.ClientSet, namespace, nodeName string, timeout time.Duration) ([]TestEvent, error) {
+func getFromDaemonLogsOnNode(client *testclient.ClientSet, namespace, nodeName string, timeout time.Duration) ([]TestEvent, error) {
 	daemonsetPod, err := daemonset.GetDaemonSetOnNode(client, namespace, nodeName)
 	if err != nil {
 		return nil, err
 	}
+
 	request := client.CoreV1Interface.Pods(namespace).GetLogs(daemonsetPod.Name, &corev1.PodLogOptions{
 		Container: "events",
 	})
+	if request == nil {
+		return nil, fmt.Errorf("failed to get events conatiner logs")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	daemonsetLogsStream, err := request.Stream(ctx)
@@ -48,9 +52,8 @@ func GetFromDaemonLogsOnNode(client *testclient.ClientSet, namespace, nodeName s
 	buffer := new(bytes.Buffer)
 	_, err = io.Copy(buffer, daemonsetLogsStream)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error in copying info from pod logs to buffer")
 	}
-
 	return extractEventsFromString(buffer.String())
 }
 
@@ -135,7 +138,7 @@ func extractEventsFromString(str string) ([]TestEvent, error) {
 }
 
 func DidEventOccur(client *testclient.ClientSet, namespace, node string, event TestEvent, timeout time.Duration) (bool, error) {
-	occurredEvents, err := GetFromDaemonLogsOnNode(client, namespace, node, timeout)
+	occurredEvents, err := getFromDaemonLogsOnNode(client, namespace, node, timeout)
 	if err != nil {
 		return false, err
 	}
