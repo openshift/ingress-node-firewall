@@ -44,7 +44,7 @@ func pingV6(client *testclient.ClientSet, sourcePod *corev1.Pod, targetIP string
 
 func ping(client *testclient.ClientSet, sourcePod *corev1.Pod, targetIP string, isV6 bool) (string, string, error) {
 	if isV6 {
-		return exec.ExecCommand(client, sourcePod, "ping", "-6", "-c", "1", targetIP)
+		return exec.RunExecCommand(client, sourcePod, "ping", "-6", "-c", "1", "-W", "1", targetIP)
 	}
-	return exec.ExecCommand(client, sourcePod, "ping", "-4", "-c", "1", targetIP)
+	return exec.RunExecCommand(client, sourcePod, "ping", "-4", "-c", "1", "-W", "1", targetIP)
 }

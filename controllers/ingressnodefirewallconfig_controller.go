@@ -113,7 +113,8 @@ func (r *IngressNodeFirewallConfigReconciler) Reconcile(ctx context.Context, req
 		}
 	}
 	if err = status.Update(context.TODO(), r.Client, instance, condition, errorMsg, wrappedErrMsg); err != nil {
-		logger.Error(err, "Failed to update ingress node firewall config status", "Desired status", status.ConditionAvailable)
+		logger.Info("failed to update ingress node firewall config status", "Desired status", status.ConditionAvailable)
+		err = nil
 	}
 	return ctrResult, err
 }

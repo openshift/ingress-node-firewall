@@ -2,6 +2,7 @@ package exec
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 
@@ -13,7 +14,7 @@ import (
 )
 
 // ExecCommand runs command in the pod and returns buffer output
-func ExecCommand(cs *testclient.ClientSet, pod *corev1.Pod, command ...string) (string, string, error) {
+func RunExecCommand(cs *testclient.ClientSet, pod *corev1.Pod, command ...string) (string, string, error) {
 	var buf, errbuf bytes.Buffer
 	req := cs.CoreV1Interface.RESTClient().
 		Post().
@@ -35,7 +36,7 @@ func ExecCommand(cs *testclient.ClientSet, pod *corev1.Pod, command ...string) (
 		return buf.String(), errbuf.String(), err
 	}
 
-	err = exec.Stream(remotecommand.StreamOptions{
+	err = exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
 		Stdin:  os.Stdin,
 		Stdout: &buf,
 		Stderr: &errbuf,
@@ -50,7 +51,7 @@ func ExecCommand(cs *testclient.ClientSet, pod *corev1.Pod, command ...string) (
 }
 
 // ExecCommandWithStdin runs a command in the a pod and also injects a string to stdin.
-func ExecCommandWithStdin(cs *testclient.ClientSet, pod *corev1.Pod, stdin string, command ...string) (string, string, error) {
+func RunExecCommandWithStdin(cs *testclient.ClientSet, pod *corev1.Pod, stdin string, command ...string) (string, string, error) {
 	req := cs.CoreV1Interface.RESTClient().
 		Post().
 		Namespace(pod.Namespace).
@@ -78,7 +79,7 @@ func ExecCommandWithStdin(cs *testclient.ClientSet, pod *corev1.Pod, stdin strin
 		_, _ = io.Copy(writer, buf)
 	}()
 	var stdout, stderr bytes.Buffer
-	err = exec.Stream(remotecommand.StreamOptions{
+	err = exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
 		Stdin:  reader,
 		Stdout: &stdout,
 		Stderr: &stderr,
