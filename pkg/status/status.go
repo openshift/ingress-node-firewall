@@ -104,7 +104,7 @@ func IsIngressNodeFirewallConfigAvailable(ctx context.Context, client k8sclient.
 	if err != nil {
 		return err
 	}
-	if ds.Status.DesiredNumberScheduled != ds.Status.CurrentNumberScheduled {
+	if ds.Status.DesiredNumberScheduled != ds.Status.NumberReady {
 		return IngressNodeFirewallConfigResourcesNotReadyError{Message: "IngressNodeFirewall daemon not ready"}
 	}
 	return nil

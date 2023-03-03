@@ -6,51 +6,44 @@ import (
 	"time"
 
 	testclient "github.com/openshift/ingress-node-firewall/test/e2e/client"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 )
 
-func EnsureRunning(client *testclient.ClientSet, pod *corev1.Pod, namespace string, retryInterval,
-	timeout time.Duration) (*corev1.Pod, error) {
-	var err error
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	pod, err = client.Pods(namespace).Create(ctx, pod, metav1.CreateOptions{})
+func EnsureRunning(client *testclient.ClientSet, pod *corev1.Pod, namespace string,
+	retryInterval, timeout time.Duration) (*corev1.Pod, error) {
+	var testPod *corev1.Pod
+	pod, err := client.Pods(namespace).Create(context.Background(), pod, metav1.CreateOptions{})
 	if err != nil {
 		if !errors.IsAlreadyExists(err) {
-			return pod, err
+			return nil, err
 		}
 	}
-
 	err = wait.PollImmediate(retryInterval, timeout, func() (done bool, err error) {
-		pod, err = client.Pods(namespace).Get(ctx, pod.Name, metav1.GetOptions{})
+		testPod, err = client.Pods(namespace).Get(context.Background(), pod.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
-		if pod.Status.Phase == corev1.PodRunning {
+		if testPod.Status.Phase == corev1.PodRunning && podutil.IsPodReady(testPod) {
 			return true, nil
 		}
 		return false, nil
 	})
-	return pod, err
+	return testPod, err
 }
 
 func EnsureDeleted(client *testclient.ClientSet, pod *corev1.Pod, timeout time.Duration) error {
-	ctxCreatePod, cancelCreatePod := context.WithTimeout(context.Background(), timeout)
-	defer cancelCreatePod()
-
-	err := client.Pods(pod.Namespace).Delete(ctxCreatePod, pod.Name, metav1.DeleteOptions{})
-
+	err := client.Pods(pod.Namespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return nil
 		}
-		return err
 	}
-	return nil
+	return err
 }
 
 func EnsureDeletedWithLabel(client *testclient.ClientSet, ns, label string, timeout time.Duration) error {
