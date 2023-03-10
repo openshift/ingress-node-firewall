@@ -12,7 +12,7 @@ LDFLAGS=${LDFLAGS:-}
 # Set cross compilation flags and version override.
 GOOS=$(go env GOOS)
 GOARCH=$(go env GOARCH)
-CGO_ENABLED=${CGO_ENABLED:-1}
+CGO_ENABLED=${CGO_ENABLED:-0}
 if [ -z ${VERSION_OVERRIDE+a} ]; then
     echo "Using version from git..."
     VERSION_OVERRIDE=$(git describe --abbrev=8 --dirty --always)
