@@ -1,11 +1,21 @@
 reviewers:
+  - abhat
   - danwinship
   - dcbw
+  - dougbtv
+  - JacobTanenbaum
+  - jcaamano
   - msherif1234
   - trozet
+  - tssurya
 approvers:
+  - abhat
   - danwinship
   - dcbw
+  - dougbtv
+  - fepan
+  - JacobTanenbaum
+  - jcaamano
   - knobunc
   - msherif1234
   - trozet
