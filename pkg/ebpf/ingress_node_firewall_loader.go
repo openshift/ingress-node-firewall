@@ -1,6 +1,7 @@
 package nodefwloader
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -62,6 +63,12 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 	// Load pre-compiled programs into the kernel.
 	objs := BpfObjects{}
 	if err := LoadBpfObjects(&objs, &ebpf.CollectionOptions{Maps: ebpf.MapOptions{PinPath: pinDir}}); err != nil {
+		var ve *ebpf.VerifierError
+		if errors.As(err, &ve) {
+			// Using %+v will print the whole verifier error, not just the last
+			// few lines.
+			klog.Infof("Verifier error: %+v", ve)
+		}
 		return nil, fmt.Errorf("loading objects: pinDir:%s, err:%s", pinDir, err)
 	}
 	infc := &IngNodeFwController{
