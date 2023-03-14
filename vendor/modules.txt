@@ -197,7 +197,7 @@ github.com/prometheus/client_golang/prometheus/testutil/promlint
 # github.com/prometheus/client_model v0.3.0
 ## explicit; go 1.9
 github.com/prometheus/client_model/go
-# github.com/prometheus/common v0.41.0
+# github.com/prometheus/common v0.42.0
 ## explicit; go 1.18
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
@@ -639,8 +639,8 @@ k8s.io/kube-openapi/pkg/schemamutation
 k8s.io/kube-openapi/pkg/spec3
 k8s.io/kube-openapi/pkg/util/proto
 k8s.io/kube-openapi/pkg/validation/spec
-# k8s.io/kubernetes v1.26.2
-## explicit; go 1.19
+# k8s.io/kubernetes v1.15.0-alpha.0
+## explicit
 k8s.io/kubernetes/pkg/api/v1/pod
 # k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
 ## explicit; go 1.18
