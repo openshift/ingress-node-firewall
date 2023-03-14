@@ -13,7 +13,7 @@ require (
 	github.com/onsi/gomega v1.27.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.14.0
-	github.com/prometheus/common v0.41.0
+	github.com/prometheus/common v0.42.0
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/sys v0.5.0
 	gopkg.in/mcuadros/go-syslog.v2 v2.3.0
@@ -23,7 +23,7 @@ require (
 	k8s.io/client-go v0.26.2
 	k8s.io/component-base v0.26.2
 	k8s.io/klog v1.0.0
-	k8s.io/kubernetes v1.26.2
+	k8s.io/kubernetes v1.15.0-alpha.0
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
 	sigs.k8s.io/controller-runtime v0.14.5
 )
