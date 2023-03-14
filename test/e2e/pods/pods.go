@@ -17,14 +17,14 @@ import (
 func EnsureRunning(client *testclient.ClientSet, pod *corev1.Pod, namespace string,
 	retryInterval, timeout time.Duration) (*corev1.Pod, error) {
 	var testPod *corev1.Pod
-	pod, err := client.Pods(namespace).Create(context.Background(), pod, metav1.CreateOptions{})
+	created, err := client.Pods(namespace).Create(context.Background(), pod, metav1.CreateOptions{})
 	if err != nil {
 		if !errors.IsAlreadyExists(err) {
 			return nil, err
 		}
 	}
 	err = wait.PollImmediate(retryInterval, timeout, func() (done bool, err error) {
-		testPod, err = client.Pods(namespace).Get(context.Background(), pod.Name, metav1.GetOptions{})
+		testPod, err = client.Pods(namespace).Get(context.Background(), created.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
