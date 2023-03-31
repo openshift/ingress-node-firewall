@@ -431,7 +431,7 @@ spec:
     name: msherif1234
   maturity: alpha
   provider:
-    name: RedHat
+    name: Red Hat
   version: 4.13.0
   webhookdefinitions:
   - admissionReviewVersions:
