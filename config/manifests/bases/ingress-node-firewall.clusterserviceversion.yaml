@@ -6,9 +6,9 @@ metadata:
     capabilities: Basic Install
     categories: Networking
     certified: "false"
-    containerImage: quay.io/openshift/ingress-node-firewall-operator:4.13
+    containerImage: quay.io/openshift/ingress-node-firewall-operator:4.14
     createdAt: "2022-10-28 00:00:00"
-    olm.skipRange: '>=4.11.0 <4.13.0'
+    olm.skipRange: '>=4.11.0 <4.14.0'
     operatorframework.io/suggested-namespace: openshift-ingress-node-firewall
     repository: https://github.com/openshift/ingress-node-firewall
     support: Red Hat
@@ -59,7 +59,7 @@ spec:
   - ingressnodefirewall
   labels:
     olm-owner-enterprise-app: ingress-node-firewall
-    olm-status-descriptors: ingress-node-firewall.v4.13.0
+    olm-status-descriptors: ingress-node-firewall.v4.14.0
   links:
   - name: Ingress Node Firewall
     url: https://github.com/openshift/ingress-node-firewall

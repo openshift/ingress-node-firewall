@@ -84,15 +84,15 @@ metadata:
     capabilities: Basic Install
     categories: Networking
     certified: "false"
-    containerImage: quay.io/openshift/ingress-node-firewall-operator:4.13
+    containerImage: quay.io/openshift/ingress-node-firewall-operator:4.14
     createdAt: "2022-10-28 00:00:00"
-    olm.skipRange: '>=4.11.0 <4.13.0'
+    olm.skipRange: '>=4.11.0 <4.14.0'
     operatorframework.io/suggested-namespace: openshift-ingress-node-firewall
     operators.operatorframework.io/builder: operator-sdk-v1.25.0-ocp
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/openshift/ingress-node-firewall
     support: Red Hat
-  name: ingress-node-firewall.v4.13.0
+  name: ingress-node-firewall.v4.14.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -422,7 +422,7 @@ spec:
   - ingressnodefirewall
   labels:
     olm-owner-enterprise-app: ingress-node-firewall
-    olm-status-descriptors: ingress-node-firewall.v4.13.0
+    olm-status-descriptors: ingress-node-firewall.v4.14.0
   links:
   - name: Ingress Node Firewall
     url: https://github.com/openshift/ingress-node-firewall
@@ -431,8 +431,8 @@ spec:
     name: msherif1234
   maturity: alpha
   provider:
-    name: RedHat
-  version: 4.13.0
+    name: Red Hat
+  version: 4.14.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
