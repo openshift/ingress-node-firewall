@@ -68,5 +68,5 @@ spec:
     name: msherif1234
   maturity: alpha
   provider:
-    name: Red Hat
+    name: Red Hat, Inc
   version: 0.0.0
