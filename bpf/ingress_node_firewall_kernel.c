@@ -66,6 +66,13 @@ struct {
     __uint(pinning, LIBBPF_PIN_BY_NAME);
 } ingress_node_firewall_table_map SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, struct lpm_ip_key_st);
+    __type(value, struct lpm_ip_key_st);
+    __uint(max_entries, 16384);
+} ingress_node_firewall_dbg_map SEC(".maps");
+
 /*
  * ingress_node_firewall_printk: macro used to generate prog traces for debugging only
  * to enable uncomment the following line
@@ -211,9 +218,10 @@ ipv4_firewall_lookup(struct xdp_md *ctx, __u32 ifId) {
     key.ip_data[3] = (srcAddr >> 24) & 0xFF;
     key.ingress_ifindex = ifId;
 
+    (void)bpf_map_update_elem(&ingress_node_firewall_dbg_map, &key, &key, BPF_NOEXIST);
+
     struct rulesVal_st *rulesVal = (struct rulesVal_st *)bpf_map_lookup_elem(
         &ingress_node_firewall_table_map, &key);
-
 
     if (likely(NULL != rulesVal)) {
 #pragma clang loop unroll(full)
@@ -287,9 +295,11 @@ ipv6_firewall_lookup(struct xdp_md *ctx, __u32 ifId) {
     }
     srcAddr = iph->saddr.in6_u.u6_addr8;
     memset(&key, 0, sizeof(key));
-    key.prefixLen = 160; // ipv6 address _ ifId
+    key.prefixLen = 160; // ipv6 address + ifId
     memcpy(key.ip_data, srcAddr, 16);
     key.ingress_ifindex = ifId;
+
+    (void)bpf_map_update_elem(&ingress_node_firewall_dbg_map, &key, &key, BPF_NOEXIST);
 
     struct rulesVal_st *rulesVal = (struct rulesVal_st *)bpf_map_lookup_elem(
         &ingress_node_firewall_table_map, &key);
