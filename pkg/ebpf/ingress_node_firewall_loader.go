@@ -10,6 +10,7 @@ import (
 	"path"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -33,6 +34,8 @@ const (
 	linkSuffix                    = "_link"
 	ifIndexKeyLength              = 32 // Interface Index key length in bits
 	xdpEBUSYErr                   = "device or resource busy"
+	debugLookup                   = "debug_lookup" // constant defined in kernel hook to enable lPM lookup
+	debugLookupEnvVar             = "ENABLE_EBPF_LPM_LOOKUP_DBG"
 )
 
 // IngNodeFwController structure is the object hold controls for starting
@@ -62,6 +65,23 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 	}
 	// Load pre-compiled programs into the kernel.
 	objs := BpfObjects{}
+	spec, err := LoadBpf()
+	if err != nil {
+		return nil, fmt.Errorf("failed loading BPF data: %w", err)
+	}
+	debugLookupVal, ok := os.LookupEnv(debugLookupEnvVar)
+	if ok {
+		val, err := strconv.Atoi(debugLookupVal)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert %q to integer: %v", debugLookupVal, err)
+		}
+		if err := spec.RewriteConstants(map[string]interface{}{
+			debugLookup: uint32(val),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to rewrite BPF constants definition: %w", err)
+		}
+	}
+
 	if err := LoadBpfObjects(&objs, &ebpf.CollectionOptions{Maps: ebpf.MapOptions{PinPath: pinDir}}); err != nil {
 		var ve *ebpf.VerifierError
 		if errors.As(err, &ve) {

@@ -84,6 +84,9 @@ struct {
 #define ingress_node_firewall_printk(fmt, args...)
 #endif
 
+// Global used to enable lookup debug hashmap
+static volatile const __u32 debug_lookup = 0;
+
 /*
  * ip_extract_l4info(): extracts L4 info for the supported protocols from
  * the incoming packet's headers.
@@ -218,7 +221,9 @@ ipv4_firewall_lookup(struct xdp_md *ctx, __u32 ifId) {
     key.ip_data[3] = (srcAddr >> 24) & 0xFF;
     key.ingress_ifindex = ifId;
 
-    (void)bpf_map_update_elem(&ingress_node_firewall_dbg_map, &key, &key, BPF_NOEXIST);
+    if (unlikely(debug_lookup != 0)) {
+        (void)bpf_map_update_elem(&ingress_node_firewall_dbg_map, &key, &key, BPF_NOEXIST);
+    }
 
     struct rulesVal_st *rulesVal = (struct rulesVal_st *)bpf_map_lookup_elem(
         &ingress_node_firewall_table_map, &key);
@@ -299,7 +304,9 @@ ipv6_firewall_lookup(struct xdp_md *ctx, __u32 ifId) {
     memcpy(key.ip_data, srcAddr, 16);
     key.ingress_ifindex = ifId;
 
-    (void)bpf_map_update_elem(&ingress_node_firewall_dbg_map, &key, &key, BPF_NOEXIST);
+    if (unlikely(debug_lookup != 0)) {
+        (void)bpf_map_update_elem(&ingress_node_firewall_dbg_map, &key, &key, BPF_NOEXIST);
+    }
 
     struct rulesVal_st *rulesVal = (struct rulesVal_st *)bpf_map_lookup_elem(
         &ingress_node_firewall_table_map, &key);
