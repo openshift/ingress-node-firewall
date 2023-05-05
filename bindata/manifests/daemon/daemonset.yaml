@@ -37,6 +37,8 @@ spec:
                   fieldPath: metadata.namespace
             - name: POLL_PERIOD_SECONDS
               value: "30"
+            - name: ENABLE_EBPF_LPM_LOOKUP_DBG
+              value: "0"
           securityContext:
             privileged: true
             runAsUser: 0
