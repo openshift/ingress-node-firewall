@@ -145,7 +145,8 @@ func (infc *IngNodeFwController) IngressNodeFwRulesLoader(
 			continue
 		}
 		// Look up the network interface by name.
-		ifID, err := interfaces.GetInterfaceIndex(interfaceName)
+		// Note: for bond interface we use the slaves interfaces indices instead of the bond interface index
+		ifIDs, err := interfaces.GetInterfaceIndices(interfaceName)
 		if err != nil {
 			return err
 		}
@@ -153,12 +154,14 @@ func (infc *IngNodeFwController) IngressNodeFwRulesLoader(
 		// Convert each provided ingressRule into a mapping of potentially multiple keys (one for each CIDR)
 		// pointing to a flattened rule that can be written to the BPF map.
 		for _, rule := range ingressRules {
-			if ebpfKeys, ebpfRules, err := infc.makeIngressFwRulesMap(rule, ifID); err == nil {
-				for _, ebpfKey := range ebpfKeys {
-					ebpfKeyToRules[ebpfKey] = ebpfRules
+			for _, ifID := range ifIDs {
+				if ebpfKeys, ebpfRules, err := infc.makeIngressFwRulesMap(rule, ifID); err == nil {
+					for _, ebpfKey := range ebpfKeys {
+						ebpfKeyToRules[ebpfKey] = ebpfRules
+					}
+				} else {
+					return fmt.Errorf("failed to create map firewall rules: %v on if %d", err, ifID)
 				}
-			} else {
-				return fmt.Errorf("failed to create map firewall rules: %v on if %d", err, ifID)
 			}
 		}
 	}
@@ -587,11 +590,13 @@ func (infc *IngNodeFwController) getStaleInterfaceKeys() ([]BpfLpmIpKeySt, error
 	// Looup all valid interfaces IDs.
 	var validInterfaceIDs []uint32
 	for interfaceName := range infc.links {
-		ifID, err := interfaces.GetInterfaceIndex(interfaceName)
+		ifIDs, err := interfaces.GetInterfaceIndices(interfaceName)
 		if err != nil {
 			return nil, err
 		}
-		validInterfaceIDs = append(validInterfaceIDs, ifID)
+		for _, ifID := range ifIDs {
+			validInterfaceIDs = append(validInterfaceIDs, ifID)
+		}
 	}
 
 	// Lookup all keys inside the map and find keys that should be deleted.

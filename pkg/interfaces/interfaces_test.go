@@ -2,7 +2,10 @@ package interfaces
 
 import (
 	"net"
+	"os/user"
 	"testing"
+
+	"github.com/vishvananda/netlink"
 )
 
 func TestIsValidInterfaceNameAndState(t *testing.T) {
@@ -58,4 +61,54 @@ func TestIsValidInterfaceNameAndState(t *testing.T) {
 			t.Errorf("%s: wrong\n got: %v\nwant: %v\n", tt.name, got, tt.expected)
 		}
 	}
+}
+
+func TestGetInterfaceIndices(t *testing.T) {
+	var slaves []*netlink.Dummy
+	bondInterfaceName := "bond"
+	testSlaveInterfaces := []string{"packet1", "packet2", "packet3", "packet4"}
+	user, err := user.Current()
+	if err != nil {
+		t.Fatalf("Unable to get user: %s", err)
+	}
+	if user.Uid != "0" {
+		t.Skipf("Skipping this test due to insufficient privileges")
+	}
+
+	t.Log("By creating bond interfaces with members")
+	bond := netlink.NewLinkBond(netlink.LinkAttrs{Name: bondInterfaceName})
+	if err := netlink.LinkAdd(bond); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("bond interface index %d", bond.Attrs().Index)
+	defer netlink.LinkDel(bond)
+	for _, inf := range testSlaveInterfaces {
+		slaveDummy := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: inf}}
+		if err := netlink.LinkAdd(slaveDummy); err != nil {
+			t.Fatal(err)
+		}
+		if err := netlink.LinkSetBondSlave(slaveDummy, bond); err != nil {
+			t.Fatal(err)
+		}
+		slaves = append(slaves, slaveDummy)
+	}
+
+	defer func() {
+		for _, slave := range slaves {
+			netlink.LinkDel(slave)
+		}
+	}()
+
+	list, err := GetInterfaceIndices(bondInterfaceName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != len(testSlaveInterfaces) {
+		t.Errorf("expected to get %d members for the bond interface but got %d", len(testSlaveInterfaces), len(list))
+	}
+
+	for idx, i := range list {
+		t.Logf("%s interface index %d", testSlaveInterfaces[idx], i)
+	}
+
 }

@@ -78,3 +78,39 @@ func DetachXDPFromAllInterfaces() error {
 	}
 	return nil
 }
+
+// GetInterfaceIndices return one or more interface index based on the interface type
+// Note: for bond interfaces we attach XDP to the bond interface but the xdp packets
+// will be using bond member's interface_indices not the bond interface_index.
+func GetInterfaceIndices(interfaceName string) ([]uint32, error) {
+	var membersList []uint32
+
+	link, err := netlink.LinkByName(interfaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	if link.Type() != "bond" {
+		index, err := GetInterfaceIndex(interfaceName)
+		if err != nil {
+			return nil, err
+		}
+		membersList = append(membersList, index)
+		return membersList, nil
+	}
+
+	idx := link.Attrs().Index
+
+	links, err := netlink.LinkList()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, l := range links {
+		if l.Attrs().MasterIndex == idx {
+			membersList = append(membersList, uint32(l.Attrs().Index))
+		}
+	}
+
+	return membersList, nil
+}
