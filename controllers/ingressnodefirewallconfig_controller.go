@@ -136,6 +136,12 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 	data.Data["NameSpace"] = r.Namespace
 	data.Data["RBACProxyImage"] = os.Getenv("KUBE_RBAC_PROXY_IMAGE")
 	data.Data["IsOpenShift"] = r.PlatformInfo.IsOpenShift()
+	if config.Spec.Debug != nil {
+		data.Data["Debug"] = "0"
+		if *config.Spec.Debug {
+			data.Data["Debug"] = "1"
+		}
+	}
 
 	objs, err := render.RenderDir(ManifestPath, &data)
 	if err != nil {

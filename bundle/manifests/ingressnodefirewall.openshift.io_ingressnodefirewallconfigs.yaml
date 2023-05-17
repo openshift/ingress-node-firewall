@@ -36,6 +36,11 @@ spec:
             description: IngressNodeFirewallConfigSpec defines the desired state of
               IngressNodeFirewallConfig.
             properties:
+              debug:
+                default: false
+                description: Debug enable debug mode for ingress node firewall ebpf
+                  XDP lookup
+                type: boolean
               nodeSelector:
                 additionalProperties:
                   type: string

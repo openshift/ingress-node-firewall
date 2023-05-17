@@ -38,7 +38,7 @@ spec:
             - name: POLL_PERIOD_SECONDS
               value: "30"
             - name: ENABLE_EBPF_LPM_LOOKUP_DBG
-              value: "0"
+              value: '{{.Debug}}'
           securityContext:
             privileged: true
             runAsUser: 0
