@@ -12,6 +12,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 )
 
 var _ = Describe("Ingress nodefirewall config Controller", func() {
@@ -22,6 +23,9 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      IngressNodeFirewallResourceName,
 					Namespace: IngressNodeFwConfigTestNameSpace,
+				},
+				Spec: ingressnodefwv1alpha1.IngressNodeFirewallConfigSpec{
+					Debug: pointer.Bool(true),
 				},
 			}
 			daemonContainers := map[string]string{
@@ -42,10 +46,18 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 			}, 2*time.Second, 200*time.Millisecond).ShouldNot((HaveOccurred()))
 			Expect(daemonSet).NotTo(BeZero())
 			Expect(daemonSet.Spec.Template.Spec.Containers).To(HaveLen(len(daemonContainers)))
-			for _, c := range daemonSet.Spec.Template.Spec.Containers {
+			for idx, c := range daemonSet.Spec.Template.Spec.Containers {
 				image, ok := daemonContainers[c.Name]
 				Expect(ok).To(BeTrue(), fmt.Sprintf("container %s not found in %s", c.Name, daemonContainers))
 				Expect(c.Image).To(Equal(image))
+				// check debug flag make sure its set
+				if c.Name == "daemon" {
+					for _, env := range daemonSet.Spec.Template.Spec.Containers[idx].Env {
+						if env.Name == "ENABLE_EBPF_LPM_LOOKUP_DBG" {
+							Expect(env.Value).To(Equal("1"))
+						}
+					}
+				}
 			}
 
 			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}

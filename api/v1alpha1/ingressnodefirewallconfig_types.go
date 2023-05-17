@@ -26,6 +26,11 @@ type IngressNodeFirewallConfigSpec struct {
 	// + This field is using map[string]string instead of metav1.LabelSelector because it matches the daemonset NodeSelector template. Thus one cannot benefit from additional match criteria that metav1.LabelSelector provides.
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
+	// Debug enable debug mode for ingress node firewall ebpf XDP lookup
+	//+kubebuilder:default:=false
+	// +optional
+	Debug *bool `json:"debug,omitempty"`
 }
 
 // IngressNodeFirewallConfigStatus defines the observed state of IngressNodeFirewallConfig.

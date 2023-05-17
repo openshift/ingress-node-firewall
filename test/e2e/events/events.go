@@ -39,7 +39,7 @@ func getFromDaemonLogsOnNode(client *testclient.ClientSet, namespace, nodeName s
 		Container: "events",
 	})
 	if request == nil {
-		return nil, fmt.Errorf("failed to get events conatiner logs")
+		return nil, fmt.Errorf("failed to get events container logs")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

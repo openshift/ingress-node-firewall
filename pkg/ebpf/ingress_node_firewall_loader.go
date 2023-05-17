@@ -82,7 +82,7 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 		}
 	}
 
-	if err := LoadBpfObjects(&objs, &ebpf.CollectionOptions{Maps: ebpf.MapOptions{PinPath: pinDir}}); err != nil {
+	if err := spec.LoadAndAssign(&objs, &ebpf.CollectionOptions{Maps: ebpf.MapOptions{PinPath: pinDir}}); err != nil {
 		var ve *ebpf.VerifierError
 		if errors.As(err, &ve) {
 			// Using %+v will print the whole verifier error, not just the last
