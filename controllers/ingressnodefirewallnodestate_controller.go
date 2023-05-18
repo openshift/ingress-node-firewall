@@ -66,7 +66,7 @@ func (r *IngressNodeFirewallNodeStateReconciler) Reconcile(ctx context.Context, 
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
-			return r.reconcileResource(ctx, req, nodeState, true)
+			return r.reconcileResource(ctx, nodeState, true)
 		}
 		// Error reading the object - requeue the request.
 		r.Log.Error(err, "Failed to get IngressNodeFirewallNodeState")
@@ -74,7 +74,7 @@ func (r *IngressNodeFirewallNodeStateReconciler) Reconcile(ctx context.Context, 
 	}
 
 	r.Log.Info("Reconciling resource and programming bpf", "name", nodeState.Name, "namespace", nodeState.Namespace)
-	return r.reconcileResource(ctx, req, nodeState, false)
+	return r.reconcileResource(ctx, nodeState, false)
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -90,7 +90,7 @@ var mock ebpfsyncer.EbpfSyncer = nil
 // reconcileResource reconciles the resource by getting the EbpfDaemon singleton's SyncInterfaceIngressRules method.
 // For mock tests, var mock can be overwritten.
 func (r *IngressNodeFirewallNodeStateReconciler) reconcileResource(
-	ctx context.Context, req ctrl.Request, instance *infv1alpha1.IngressNodeFirewallNodeState, isDelete bool) (ctrl.Result, error) {
+	ctx context.Context, instance *infv1alpha1.IngressNodeFirewallNodeState, isDelete bool) (ctrl.Result, error) {
 	if err := ebpfsyncer.GetEbpfSyncer(ctx, r.Log, r.Stats, mock).SyncInterfaceIngressRules(instance.Spec.InterfaceIngressRules, isDelete); err != nil {
 		return ctrl.Result{}, errors.Wrapf(err, "FailedToSyncIngressNodeFirewallResources")
 	}
