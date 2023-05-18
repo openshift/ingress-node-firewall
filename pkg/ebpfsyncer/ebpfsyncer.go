@@ -3,8 +3,11 @@ package ebpfsyncer
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
@@ -72,6 +75,8 @@ func (e *ebpfSingleton) SyncInterfaceIngressRules(
 	logger := e.log.WithName("syncIngressNodeFirewallResources")
 	logger.Info("Running sync operation", "ifaceIngressRules", ifaceIngressRules, "isDelete", isDelete)
 
+	sigc := make(chan os.Signal, 1)
+
 	// Stop the poller for the time of this operation and start it again afterwards.
 	if e.stats != nil {
 		e.stats.StopPoll()
@@ -81,6 +86,15 @@ func (e *ebpfSingleton) SyncInterfaceIngressRules(
 			}
 		}()
 	}
+
+	signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
+	go func(c chan os.Signal) {
+		// Wait for a SIGTERM
+		<-c
+		if e.c != nil {
+			e.resetAll()
+		}
+	}(sigc)
 
 	// Create a new manager if none exists.
 	if err := e.createNewManager(); err != nil {
