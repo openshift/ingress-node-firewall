@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // IngressNodeFirewallNodeStateReconciler reconciles a IngressNodeFirewallNodeState object
@@ -37,6 +38,8 @@ type IngressNodeFirewallNodeStateReconciler struct {
 	Log       logr.Logger
 	Stats     *metrics.Statistics
 }
+
+var ingressNodeFirewallFinalizer = "ingressnodefirewall.openshift.io/finalizer"
 
 //+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewallnodestates,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,namespace=ingress-node-firewall-system,resources=ingressnodefirewallnodestates,verbs=get;list;watch;create;update;patch;delete
@@ -62,15 +65,37 @@ func (r *IngressNodeFirewallNodeStateReconciler) Reconcile(ctx context.Context, 
 	nodeState := &infv1alpha1.IngressNodeFirewallNodeState{}
 	err := r.Get(ctx, req.NamespacedName, nodeState)
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			// Request object not found, could have been deleted after reconcile request.
-			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
-			// Return and don't requeue
-			return r.reconcileResource(ctx, req, nodeState, true)
+		// Expect not to find node state that has been deleted. Handling of deletion should have previously occurred,
+		// therefore we only ignore errors with reason 'StatusReasonNotFound'.
+		if !apierrors.IsNotFound(err) {
+			r.Log.Error(err, "unable to get IngressNodeFirewallNodeState")
+			return ctrl.Result{}, err
 		}
-		// Error reading the object - requeue the request.
-		r.Log.Error(err, "Failed to get IngressNodeFirewallNodeState")
-		return ctrl.Result{}, err
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	// check if node state is being deleted
+	if isNodeStateDeletionInProgress(nodeState) {
+		if controllerutil.ContainsFinalizer(nodeState, ingressNodeFirewallFinalizer) {
+			if result, err := r.reconcileResource(ctx, nodeState, true); err != nil {
+				r.Log.Error(err, "failed to reconcile IngressNodeFirewallNodeState that is being deleted")
+				return result, err
+			}
+			controllerutil.RemoveFinalizer(nodeState, ingressNodeFirewallFinalizer)
+			if err = r.Update(ctx, nodeState); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		// stop reconciliation as node state is being deleted
+		return ctrl.Result{}, nil
+	} else {
+		// ensure node state contains finalizer if object is not being deleted
+		if !controllerutil.ContainsFinalizer(nodeState, ingressNodeFirewallFinalizer) {
+			controllerutil.AddFinalizer(nodeState, ingressNodeFirewallFinalizer)
+			if err = r.Update(ctx, nodeState); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
 	}
 
 	r.Log.Info("Reconciling resource and programming bpf", "name", nodeState.Name, "namespace", nodeState.Namespace)
@@ -95,4 +120,8 @@ func (r *IngressNodeFirewallNodeStateReconciler) reconcileResource(
 		return ctrl.Result{}, errors.Wrapf(err, "FailedToSyncIngressNodeFirewallResources")
 	}
 	return ctrl.Result{}, nil
+}
+
+func isNodeStateDeletionInProgress(nodeState *infv1alpha1.IngressNodeFirewallNodeState) bool {
+	return !nodeState.ObjectMeta.DeletionTimestamp.IsZero()
 }
