@@ -15,6 +15,7 @@ import (
 	inftestconsts "github.com/openshift/ingress-node-firewall/test/consts"
 	testclient "github.com/openshift/ingress-node-firewall/test/e2e/client"
 	"github.com/openshift/ingress-node-firewall/test/e2e/daemonset"
+	"github.com/openshift/ingress-node-firewall/test/e2e/deployment"
 	"github.com/openshift/ingress-node-firewall/test/e2e/events"
 	"github.com/openshift/ingress-node-firewall/test/e2e/exec"
 	"github.com/openshift/ingress-node-firewall/test/e2e/icmp"
@@ -36,16 +37,20 @@ import (
 )
 
 var (
-	OperatorNameSpace = inftestconsts.DefaultOperatorNameSpace
-	retryInterval     = time.Millisecond * 10
-	timeout           = time.Second * 40
-	testInterface     = "eth0"
-	sctpEnabled       = false
-	isSingleStack     = false
-	v4Enabled         = false
-	v6Enabled         = false
-	v4SubnetLen       = "32"
-	v6SubnetLen       = "128"
+	OperatorNameSpace        = inftestconsts.DefaultOperatorNameSpace
+	retryInterval            = time.Millisecond * 10
+	timeout                  = time.Second * 40
+	testInterface            = "eth0"
+	sctpEnabled              = false
+	isSingleStack            = false
+	v4Enabled                = false
+	v6Enabled                = false
+	v4SubnetLen              = "32"
+	v6SubnetLen              = "128"
+	testArtifactsLabelKey    = "e2e-inf-test"
+	testArtifactsLabelValue  = ""
+	testArtifactsLabelMap    = map[string]string{testArtifactsLabelKey: testArtifactsLabelValue}
+	testArtifactsLabelString = fmt.Sprintf("%s=%s", testArtifactsLabelKey, testArtifactsLabelValue)
 )
 
 // testIngressNodeFirewall represents one IngressNodeFirewall object and is used to generate the sourceCIDRs and protocol
@@ -112,20 +117,16 @@ func init() {
 
 	v4Enabled = node.IPV4NetworkExists(testclient.Client, timeout)
 	v6Enabled = node.IPV6NetworkExists(testclient.Client, timeout)
+	if !v4Enabled && !v6Enabled {
+		panic("Unable to detect if cluster is IPV4 or IPV6")
+	}
 }
 
 var _ = Describe("Ingress Node Firewall", func() {
-	var (
-		testArtifactsLabelKey    = "e2e-inf-test"
-		testArtifactsLabelValue  = ""
-		testArtifactsLabelMap    = map[string]string{testArtifactsLabelKey: testArtifactsLabelValue}
-		testArtifactsLabelString = fmt.Sprintf("%s=%s", testArtifactsLabelKey, testArtifactsLabelValue)
-	)
-
 	// Because we don't fully use BeforeAll / AfterAll to setup/teardown test infrastructure and if an error or interrupt occurs,
 	// we ensure a clean cluster using AfterSuite. This normally is a no-op and is only valid when user sends interrupt or test failure.
 	AfterSuite(func() {
-		Expect(pods.EnsureDeletedWithLabel(testclient.Client, OperatorNameSpace, testArtifactsLabelString, timeout)).Should(Succeed())
+		Expect(pods.EnsureDeletedWithLabel(testclient.Client, OperatorNameSpace, testArtifactsLabelString, retryInterval, timeout)).Should(Succeed())
 		Expect(infwutils.DeleteIngressNodeFirewallsWithLabels(testclient.Client, OperatorNameSpace,
 			testArtifactsLabelString, timeout)).Should(Succeed())
 	})
@@ -839,8 +840,9 @@ var _ = Describe("Ingress Node Firewall", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			//wait for daemonset to be rolled out
 			infDaemonSet := &appsv1.DaemonSet{}
-			err = daemonset.WaitForDaemonSetReady(testclient.Client, infDaemonSet, OperatorNameSpace,
-				"ingress-node-firewall-daemon", retryInterval, timeout)
+			infDaemonSet.SetName("ingress-node-firewall-daemon")
+			infDaemonSet.SetNamespace(OperatorNameSpace)
+			err = daemonset.WaitForDaemonSetReady(testclient.Client, infDaemonSet, retryInterval, timeout)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -859,10 +861,13 @@ var _ = Describe("Ingress Node Firewall", func() {
 				var cleanupFn func()
 				var err error
 
-				Eventually(func() error {
+				Eventually(func() bool {
 					podNameObj, cleanupFn, err = getTestPods(entry.getTestPods)
-					return err
-				}, time.Minute, time.Second).ShouldNot(HaveOccurred(), "Failed to setup test pods")
+					if err == nil && podNameObj != nil {
+						return true
+					}
+					return false
+				}, time.Minute, time.Second).Should(BeTrue(), "Failed to setup test pods")
 				defer cleanupFn()
 				// confirm initial connectivity conditions for all protocols defined before IngressNodeFirewall policy application
 				for _, reach := range entry.reachables {
@@ -974,6 +979,161 @@ var _ = Describe("Ingress Node Firewall", func() {
 		}
 	})
 
+	Context("Disruption", func() {
+		var (
+			testName         = "e2e-disruption"
+			clientOnePodName = "e2e-disruption-client-one"
+			serverOnePodName = "e2e-disruption-server-one"
+			serverLabelKey   = "e2e-disruption-server"
+			serverLabelValue = ""
+			serverPodLabel   = map[string]string{serverLabelKey: serverLabelValue, testArtifactsLabelKey: testArtifactsLabelValue}
+			clientLabelKey   = "e2e-disruption-client"
+			clientLabelValue = ""
+			clientPodLabel   = map[string]string{clientLabelKey: clientLabelValue, testArtifactsLabelKey: testArtifactsLabelValue}
+		)
+
+		It("controller manager functions after deletion", func() {
+			infConfigs, err := infwutils.GetIngressNodeFirewallConfigs(testclient.Client, timeout)
+			Expect(err).ShouldNot(HaveOccurred())
+			By("Ensure IngressNodeFirewallConfigs doesn't exist")
+			Expect(len(infConfigs)).Should(BeZero())
+			By("Delete controller manager pods")
+			controllerManagerDeployment, err := deployment.GetDeploymentWithRetry(testclient.Client, OperatorNameSpace,
+				inftestconsts.IngressNodeFirewallOperatorDeploymentName, retryInterval, timeout)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(deployment.WaitForDeploymentSetReady(testclient.Client, controllerManagerDeployment, retryInterval,
+				timeout)).ShouldNot(HaveOccurred())
+			Expect(pods.EnsureDeletedWithLabel(testclient.Client, OperatorNameSpace,
+				fmt.Sprintf("control-plane=%s", inftestconsts.IngressNodeFirewallOperatorDeploymentLabel),
+				retryInterval, timeout)).ShouldNot(HaveOccurred())
+			Expect(deployment.WaitForDeploymentSetReady(testclient.Client, controllerManagerDeployment, retryInterval,
+				timeout)).ShouldNot(HaveOccurred())
+			By("Ensure controller manager reacts to new IngressNodeFirewallConfig object")
+			config := &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
+			err = infwutils.LoadIngressNodeFirewallConfigFromFile(config, inftestconsts.IngressNodeFirewallConfigCRFile)
+			Expect(err).ToNot(HaveOccurred())
+			config.SetNamespace(OperatorNameSpace)
+			Expect(infwutils.EnsureIngressNodeFirewallConfigExists(testclient.Client, config, timeout)).ShouldNot(HaveOccurred())
+			defer infwutils.DeleteIngressNodeFirewallConfig(testclient.Client, config, retryInterval, timeout)
+			_, err = daemonset.GetDaemonSetWithRetry(testclient.Client, OperatorNameSpace,
+				inftestconsts.IngressNodeFirewallDaemonsetName, retryInterval, timeout)
+			Expect(err).ShouldNot(HaveOccurred())
+			By("Ensure no controller manager restarts occurred")
+			restartCount, err := pods.GetPodWithLabelRestartCount(testclient.Client, OperatorNameSpace,
+				fmt.Sprintf("control-plane=%s", inftestconsts.IngressNodeFirewallOperatorDeploymentLabel), timeout)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(restartCount).Should(BeZero())
+		})
+
+		It("Existing IngresNodeFirewall policy persists after daemon deletion", func() {
+			config := &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
+			err := infwutils.LoadIngressNodeFirewallConfigFromFile(config, inftestconsts.IngressNodeFirewallConfigCRFile)
+			Expect(err).ToNot(HaveOccurred())
+			config.SetNamespace(OperatorNameSpace)
+			Expect(infwutils.EnsureIngressNodeFirewallConfigExists(testclient.Client, config, timeout)).ShouldNot(HaveOccurred())
+			defer infwutils.DeleteIngressNodeFirewallConfig(testclient.Client, config, retryInterval, timeout)
+			daemonSetDeployment, err := daemonset.GetDaemonSetWithRetry(testclient.Client, OperatorNameSpace,
+				inftestconsts.IngressNodeFirewallDaemonsetName, retryInterval, timeout)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(daemonset.WaitForDaemonSetReady(testclient.Client, daemonSetDeployment, retryInterval, timeout)).ShouldNot(HaveOccurred())
+			clientPod, serverPod, cleanupPodsFn, err := getClientServerTestPods(testclient.Client,
+				OperatorNameSpace, clientOnePodName, clientPodLabel, serverOnePodName, serverPodLabel)
+			Expect(err).ShouldNot(HaveOccurred())
+			defer cleanupPodsFn()
+			inf, err := getICMPEchoBlockINF(clientPod, testName, v4Enabled, v6Enabled, isSingleStack)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(infwutils.CreateIngressNodeFirewall(testclient.Client, inf, timeout)).ShouldNot(HaveOccurred())
+			By("Confirm connectivity is affected by IngressNodeFirewall policy")
+			if v4Enabled {
+				Eventually(func() bool {
+					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP, clientPod, pods.GetIPV4(serverPod.Status.PodIPs))
+				}, timeout, retryInterval).Should(BeFalse())
+			}
+
+			if !isSingleStack && v6Enabled {
+				Eventually(func() bool {
+					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP6, clientPod, pods.GetIPV6(serverPod.Status.PodIPs))
+				}, timeout, retryInterval).Should(BeFalse())
+
+			}
+			By("Delete node daemon on node where policy will be applied")
+			daemonSetPod, err := daemonset.GetDaemonSetOnNode(testclient.Client, OperatorNameSpace, serverPod.Spec.NodeName)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(pods.EnsureDeleted(testclient.Client, daemonSetPod, retryInterval, timeout)).ShouldNot(HaveOccurred())
+			Expect(daemonset.WaitForDaemonSetReady(testclient.Client, daemonSetDeployment, retryInterval, timeout)).ShouldNot(HaveOccurred())
+			By("Confirm IngressNodeFirewall policy is unaffected after daemon restart")
+			if v4Enabled {
+				Eventually(func() bool {
+					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP, clientPod, pods.GetIPV4(serverPod.Status.PodIPs))
+				}, timeout, retryInterval).Should(BeFalse())
+			}
+
+			if !isSingleStack && v6Enabled {
+				Eventually(func() bool {
+					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP6, clientPod, pods.GetIPV6(serverPod.Status.PodIPs))
+				}, timeout, retryInterval).Should(BeFalse())
+
+			}
+			Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).ShouldNot(HaveOccurred())
+		})
+
+		It("IngressNodeFirewall policy is configurable after daemon deletion", func() {
+			config := &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
+			err := infwutils.LoadIngressNodeFirewallConfigFromFile(config, inftestconsts.IngressNodeFirewallConfigCRFile)
+			Expect(err).ToNot(HaveOccurred())
+			config.SetNamespace(OperatorNameSpace)
+			Expect(infwutils.EnsureIngressNodeFirewallConfigExists(testclient.Client, config, timeout)).ShouldNot(HaveOccurred())
+			defer infwutils.DeleteIngressNodeFirewallConfig(testclient.Client, config, retryInterval, timeout)
+			daemonSetDeployment, err := daemonset.GetDaemonSetWithRetry(testclient.Client, OperatorNameSpace,
+				inftestconsts.IngressNodeFirewallDaemonsetName, retryInterval, timeout)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(daemonset.WaitForDaemonSetReady(testclient.Client, daemonSetDeployment, retryInterval, timeout)).ShouldNot(HaveOccurred())
+			clientPod, serverPod, cleanupPodsFn, err := getClientServerTestPods(testclient.Client,
+				OperatorNameSpace, clientOnePodName, clientPodLabel, serverOnePodName, serverPodLabel)
+			Expect(err).ShouldNot(HaveOccurred())
+			defer cleanupPodsFn()
+			inf, err := getICMPEchoBlockINF(clientPod, testName, v4Enabled, v6Enabled, isSingleStack)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(infwutils.CreateIngressNodeFirewall(testclient.Client, inf, timeout)).ShouldNot(HaveOccurred())
+			By("Confirm connectivity is affected by IngressNodeFirewall policy")
+			if v4Enabled {
+				Eventually(func() bool {
+					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP, clientPod, pods.GetIPV4(serverPod.Status.PodIPs))
+				}, timeout, retryInterval).Should(BeFalse())
+			}
+
+			if !isSingleStack && v6Enabled {
+				Eventually(func() bool {
+					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP6, clientPod, pods.GetIPV6(serverPod.Status.PodIPs))
+				}, timeout, retryInterval).Should(BeFalse())
+
+			}
+			By("Delete node daemon on node where policy will be applied")
+			daemonSetPod, err := daemonset.GetDaemonSetOnNode(testclient.Client, OperatorNameSpace, serverPod.Spec.NodeName)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(pods.EnsureDeleted(testclient.Client, daemonSetPod, retryInterval, timeout)).ShouldNot(HaveOccurred())
+			Expect(daemonset.WaitForDaemonSetReady(testclient.Client, daemonSetDeployment, retryInterval, timeout)).ShouldNot(HaveOccurred())
+			By("Delete IngressNodeFirewall removes policy")
+			Eventually(func() bool {
+				err := infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)
+				return errors.IsNotFound(err)
+			}, timeout, retryInterval).Should(BeTrue(), "Failed to delete IngressNodeFirewall rules")
+
+			if v4Enabled {
+				Eventually(func() bool {
+					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP, clientPod, pods.GetIPV4(serverPod.Status.PodIPs))
+				}, timeout, retryInterval).Should(BeTrue())
+			}
+
+			if !isSingleStack && v6Enabled {
+				Eventually(func() bool {
+					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP6, clientPod, pods.GetIPV6(serverPod.Status.PodIPs))
+				}, timeout, retryInterval).Should(BeTrue())
+
+			}
+		})
+	})
+
 	Context("Statistics", func() {
 		var config *ingressnodefwv1alpha1.IngressNodeFirewallConfig
 		var configCRExisted bool
@@ -1010,7 +1170,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 		})
 
 		It("should expose at least one endpoint via a daemon metrics service", func() {
-			err := wait.PollImmediate(1*time.Second, 10*time.Second, func() (done bool, err error) {
+			err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, 10*time.Second, true, func(ctx context.Context) (done bool, err error) {
 				endpointSliceList, err := testclient.Client.Endpoints(OperatorNameSpace).List(context.TODO(), metav1.ListOptions{
 					LabelSelector: "app=ingress-node-firewall-daemon",
 				})
@@ -1136,7 +1296,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			var stdOut, stdError string
 			var metrics testutil.Metrics
-			err = wait.PollImmediate(1*time.Second, 60*time.Second, func() (done bool, err error) {
+			err = wait.PollUntilContextTimeout(context.Background(), 1*time.Second, 30*time.Second, true, func(ctx context.Context) (done bool, err error) {
 				stdOut, stdError, err = exec.RunExecCommand(testclient.Client, daemonSetPod, "/usr/bin/curl", "127.0.0.1:39301/metrics")
 				if err != nil {
 					return false, err
@@ -1462,4 +1622,77 @@ func checkNodeStateCreate(client *testclient.ClientSet, nodeStateList *ingressno
 		}
 		return len(nodeStateList.Items) == node.GetNumOfNodesWithMatchingLabel(testclient.Client, timeout)
 	}, timeout, retryInterval).Should(BeTrue())
+}
+
+func getClientServerTestPods(client *testclient.ClientSet, namespace, clientName string, clientLabel map[string]string,
+	serverName string, serverLabel map[string]string) (*corev1.Pod, *corev1.Pod, func(), error) {
+	var clientPod, serverPod *corev1.Pod
+	var clientCleanupFn, serverCleanupFn func()
+	var err error
+
+	Eventually(func() bool {
+		clientPod, clientCleanupFn, err = transport.GetAndEnsureRunningClient(client, clientName, namespace, clientLabel, clientLabel,
+			serverLabel, retryInterval, timeout)
+		if err == nil && clientPod != nil {
+			return true
+		}
+		return false
+	}, time.Minute, time.Second).Should(BeTrue(), "Failed to setup client test pod")
+
+	Eventually(func() bool {
+		serverPod, serverCleanupFn, err = transport.GetAndEnsureRunningTransportServer(client, serverName,
+			OperatorNameSpace, serverLabel, serverLabel, clientLabel, retryInterval, timeout)
+		if err == nil && serverPod != nil {
+			return true
+		}
+		return false
+	}, time.Minute, time.Second).Should(BeTrue(), "Failed to setup server test pod")
+
+	return clientPod, serverPod, func() {
+		clientCleanupFn()
+		serverCleanupFn()
+	}, nil
+}
+
+func getPodSourceCIDRs(pod *corev1.Pod, v4, v6, singleStack bool) ([]string, error) {
+	sourceCIDRs := make([]string, 0)
+	if v4 {
+		_, v4CIDR, err := net.ParseCIDR(fmt.Sprintf("%s/%s", pods.GetIPV4(pod.Status.PodIPs), "32"))
+		if err != nil {
+			return nil, err
+		}
+		sourceCIDRs = append(sourceCIDRs, v4CIDR.String())
+	}
+	if !singleStack && v6 {
+		_, v6CIDR, err := net.ParseCIDR(fmt.Sprintf("%s/%s", pods.GetIPV6(pod.Status.PodIPs), "128"))
+		if err != nil {
+			return nil, err
+		}
+		sourceCIDRs = append(sourceCIDRs, v6CIDR.String())
+	}
+	return sourceCIDRs, nil
+}
+
+func getICMPEchoBlockINF(pod *corev1.Pod, infName string, v4, v6, singleStack bool) (*ingressnodefwv1alpha1.IngressNodeFirewall, error) {
+	inf := &ingressnodefwv1alpha1.IngressNodeFirewall{}
+	inf.SetName(infName)
+	inf.SetLabels(testArtifactsLabelMap)
+	infwutils.DefineWithWorkerNodeSelector(inf)
+	infwutils.DefineWithInterface(inf, testInterface)
+	sourceCIDRs, err := getPodSourceCIDRs(pod, v4, v6, singleStack)
+	if err != nil {
+		return nil, err
+	}
+	protoRules := make([]ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule, 0)
+	if v4 {
+		protoRules = append(protoRules, infwutils.GetICMPBlockRule(ingressnodefwv1alpha1.ProtocolTypeICMP, 1, 8, 0))
+	}
+	if !singleStack && v6 {
+		protoRules = append(protoRules, infwutils.GetICMPBlockRule(ingressnodefwv1alpha1.ProtocolTypeICMP6, 2, 128, 0))
+	}
+	inf.Spec.Ingress = append(inf.Spec.Ingress, ingressnodefwv1alpha1.IngressNodeFirewallRules{
+		SourceCIDRs:           sourceCIDRs,
+		FirewallProtocolRules: protoRules,
+	})
+	return inf, nil
 }

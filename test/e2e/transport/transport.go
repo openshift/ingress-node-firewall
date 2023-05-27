@@ -26,7 +26,7 @@ func GetAndEnsureRunningClient(client *testclient.ClientSet, podName, namespace 
 		return nil, nil, err
 	}
 	return pod, func() {
-		if err = pods.EnsureDeleted(client, pod, timeout); err != nil {
+		if err = pods.EnsureDeleted(client, pod, retryInterval, timeout); err != nil {
 			panic(err)
 		}
 	}, nil
@@ -85,7 +85,7 @@ func GetAndEnsureRunningTransportServer(client *testclient.ClientSet, podName, n
 		return nil, nil, err
 	}
 	return pod, func() {
-		if err = pods.EnsureDeleted(client, pod, timeout); err != nil {
+		if err = pods.EnsureDeleted(client, pod, retryInterval, timeout); err != nil {
 			panic(err)
 		}
 	}, nil
