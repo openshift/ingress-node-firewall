@@ -77,6 +77,16 @@ func EnsureIngressNodeFirewallConfigExists(client *testclient.ClientSet, config 
 	return err
 }
 
+func GetIngressNodeFirewallConfigs(client *testclient.ClientSet, timeout time.Duration) ([]ingressnodefwv1alpha1.IngressNodeFirewallConfig, error) {
+	var infcList ingressnodefwv1alpha1.IngressNodeFirewallConfigList
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := client.List(ctx, &infcList); err != nil {
+		return nil, err
+	}
+	return infcList.Items, nil
+}
+
 func CreateIngressNodeFirewall(client *testclient.ClientSet, inf *ingressnodefwv1alpha1.IngressNodeFirewall,
 	timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
