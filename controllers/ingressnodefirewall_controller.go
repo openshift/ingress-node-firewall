@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/go-logr/logr"
-
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
+
+	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -34,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 // IngressNodeFirewallReconciler reconciles a IngressNodeFirewall object
@@ -202,11 +201,11 @@ func (r *IngressNodeFirewallReconciler) Reconcile(ctx context.Context, req ctrl.
 // triggerReconciliation triggers reconciliation for the first ingressnodefwv1alpha1.IngressNodeFirewall object that it
 // can find. Triggering reconciliation for a single object suffices because the IngressNodeFirewall reconciler will list
 // and reconcile all dependant resources with each reconciliation.
-func (r *IngressNodeFirewallReconciler) triggerReconciliation(object client.Object) []reconcile.Request {
+func (r *IngressNodeFirewallReconciler) triggerReconciliation(ctx context.Context, object client.Object) []reconcile.Request {
 	ingressNodeFirewallList := infv1alpha1.IngressNodeFirewallList{}
 	reconcileReq := make([]reconcile.Request, 0)
 	listOpts := []client.ListOption{}
-	if err := r.List(context.TODO(), &ingressNodeFirewallList, listOpts...); err != nil {
+	if err := r.List(ctx, &ingressNodeFirewallList, listOpts...); err != nil {
 		r.Log.Error(err, "Failed to list IngressNodeFirewall objects")
 		return []reconcile.Request{}
 	}
@@ -241,11 +240,11 @@ func (r *IngressNodeFirewallReconciler) SetupWithManager(mgr ctrl.Manager) error
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infv1alpha1.IngressNodeFirewall{}).
 		Watches(
-			&source.Kind{Type: &v1.Node{}},
+			&v1.Node{},
 			handler.EnqueueRequestsFromMapFunc(r.triggerReconciliation)).
 		Watches(
-			&source.Kind{Type: &infv1alpha1.IngressNodeFirewallNodeState{}},
-			&handler.EnqueueRequestForOwner{OwnerType: &infv1alpha1.IngressNodeFirewall{}, IsController: false}).
+			&infv1alpha1.IngressNodeFirewallNodeState{},
+			handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &infv1alpha1.IngressNodeFirewall{})).
 		Complete(r)
 }
 
