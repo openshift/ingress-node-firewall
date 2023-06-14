@@ -1,6 +1,12 @@
 #ifndef __INGRESS_NODE_FIREWALL__
 #define __INGRESS_NODE_FIREWALL__
 
+#define ETH_ALEN 6
+#define ETH_P_IP 0x0800
+#define ETH_P_IPV6 0x86DD
+#define ETH_P_ARP 0x0806
+#define IPPROTO_ICMPV6 58
+
 #define UNDEF XDP_ABORTED
 #define DENY XDP_DROP
 #define ALLOW XDP_PASS

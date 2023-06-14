@@ -1,31 +1,22 @@
 // +build ignore
-#include <inttypes.h>
-#include <linux/icmp.h>
-#include <linux/icmpv6.h>
-#include <linux/if_ether.h>
-#include <linux/if_packet.h>
-#include <linux/if_vlan.h>
-#include <linux/in.h>
-#include <linux/ip.h>
-#include <linux/ipv6.h>
-#include <linux/tcp.h>
-#include <linux/udp.h>
-#include <linux/sctp.h>
-
-#include "bpf_endian.h"
+#define BPF_NO_PRESERVE_ACCESS_INDEX //FIXME: remove when https://github.com/libbpf/libbpf/issues/697 is fixed
+#include <vmlinux.h>
 #include "bpf_tracing.h"
-#include "common.h"
 #include "ingress_node_firewall.h"
 
 #define MAX_CPUS		256
 
-// FIXME: Hack this structure defined in linux/sctp.h however I am getting incomplete type when I reference it
-struct sctphdr {
-    __be16 source;
-    __be16 dest;
-    __be32 vtag;
-    __le32 checksum;
-};
+#if defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
+	__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define bpf_ntohs(x)		__builtin_bswap16(x)
+#define bpf_htons(x)		__builtin_bswap16(x)
+#elif defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__) && \
+	__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define bpf_ntohs(x)		(x)
+#define bpf_htons(x)		(x)
+#else
+# error "Endianness detection needs to be set up for your compiler?!"
+#endif
 
 /*
  * ingress_node_firewall_events_map: is perf event array map type
