@@ -1,5 +1,4 @@
 // +build ignore
-#define BPF_NO_PRESERVE_ACCESS_INDEX //FIXME: remove when https://github.com/libbpf/libbpf/issues/697 is fixed
 #include <vmlinux.h>
 #include "bpf_tracing.h"
 #include "ingress_node_firewall.h"
