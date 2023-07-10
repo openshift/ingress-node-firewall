@@ -15,7 +15,7 @@ require (
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/common v0.44.0
 	github.com/vishvananda/netlink v1.1.0
-	golang.org/x/sys v0.9.0
+	golang.org/x/sys v0.10.0
 	gopkg.in/mcuadros/go-syslog.v2 v2.3.0
 	k8s.io/api v0.27.3
 	k8s.io/apiextensions-apiserver v0.27.3
