@@ -23,7 +23,7 @@ require (
 	k8s.io/client-go v0.28.0
 	k8s.io/component-base v0.28.0
 	k8s.io/klog v1.0.0
-	k8s.io/kubernetes v1.15.0-alpha.0
+	k8s.io/kubernetes v1.29.0-alpha.0
 	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2
 	sigs.k8s.io/controller-runtime v0.15.1
 )
@@ -65,7 +65,7 @@ require (
 	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae // indirect
+	github.com/vishvananda/netns v0.0.4 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
