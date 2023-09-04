@@ -21,11 +21,11 @@ require (
 	k8s.io/apiextensions-apiserver v0.28.0
 	k8s.io/apimachinery v0.28.1
 	k8s.io/client-go v0.28.1
-	k8s.io/component-base v0.28.0
+	k8s.io/component-base v0.28.1
 	k8s.io/klog v1.0.0
 	k8s.io/kubernetes v1.15.0-alpha.0
 	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2
-	sigs.k8s.io/controller-runtime v0.16.0
+	sigs.k8s.io/controller-runtime v0.16.1
 )
 
 require (
