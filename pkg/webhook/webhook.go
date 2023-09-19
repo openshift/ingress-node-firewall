@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"reflect"
 	"strings"
 
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
@@ -12,6 +13,7 @@ import (
 
 	"golang.org/x/sys/unix"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -70,7 +72,7 @@ func (r *IngressNodeFirewallWebhook) ValidateDelete(_ context.Context, _ runtime
 }
 
 func validateIngressNodeFirewall(ctx context.Context, inf *ingressnodefwv1alpha1.IngressNodeFirewall, kubeClient client.Client) error {
-	if allErrs := validateINFRules(ctx, inf.Spec.Ingress, inf.Name, kubeClient); len(allErrs) > 0 {
+	if allErrs := validateINFRules(ctx, inf.Spec.Ingress, inf.Name, inf.Spec.NodeSelector, kubeClient); len(allErrs) > 0 {
 		return apierrors.NewInvalid(
 			schema.GroupKind{Group: ingressnodefwv1alpha1.GroupVersion.Group, Kind: ingressnodefwv1alpha1.IngressNodeFirewall{}.Kind},
 			inf.Name, allErrs)
@@ -106,7 +108,8 @@ func validateINFInterfaces(ctx context.Context, infInterfaces []string, infName 
 	return allErrs
 }
 
-func validateINFRules(ctx context.Context, infRules []ingressnodefwv1alpha1.IngressNodeFirewallRules, infName string, kubeClient client.Client) field.ErrorList {
+func validateINFRules(ctx context.Context, infRules []ingressnodefwv1alpha1.IngressNodeFirewallRules, infName string,
+	nodeSelector v1.LabelSelector, kubeClient client.Client) field.ErrorList {
 	var allErrs field.ErrorList
 
 	infList, newErr := getINFList(ctx, kubeClient)
@@ -125,7 +128,7 @@ func validateINFRules(ctx context.Context, infRules []ingressnodefwv1alpha1.Ingr
 		}
 
 		if newErrs := validateAgainstExistingINFs(allErrs, infList, infRule.SourceCIDRs, infRule.FirewallProtocolRules,
-			infRulesIndex, infName); len(newErrs) > 0 {
+			infRulesIndex, infName, nodeSelector); len(newErrs) > 0 {
 			allErrs = append(allErrs, newErrs...)
 		}
 	}
@@ -325,19 +328,22 @@ func getINFList(ctx context.Context, kubeClient client.Client) (*ingressnodefwv1
 }
 
 func validateAgainstExistingINFs(allErrs field.ErrorList, infList *ingressnodefwv1alpha1.IngressNodeFirewallList, newSourceCIDRs []string,
-	newRules []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule, newINFRulesIndex int, newINFName string) field.ErrorList {
+	newRules []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule, newINFRulesIndex int, newINFName string, newNodeSelector v1.LabelSelector) field.ErrorList {
 
 	for _, existingINF := range infList.Items {
 		existingINFName := existingINF.Name
-		for _, existingRules := range existingINF.Spec.Ingress {
-			for _, existingSourceCIDR := range existingRules.SourceCIDRs {
-				for _, newSourceCIDR := range newSourceCIDRs {
-					if strings.TrimSpace(newSourceCIDR) == strings.TrimSpace(existingSourceCIDR) {
-						if existingINFName != newINFName && isOrderOverlapping(existingRules.FirewallProtocolRules, newRules) {
-							allErrs = append(allErrs,
-								field.Invalid(field.NewPath("spec").Child("ingress").Index(newINFRulesIndex).Key("rules"),
-									newINFName, fmt.Sprintf("order is not unique for sourceCIDR %q and conflicts with "+
-										"IngressNodeFirewall %q", newSourceCIDR, existingINF.Name)))
+		// Need to validate rules only if they are applied to the same Nodes
+		if reflect.DeepEqual(existingINF.Spec.NodeSelector, newNodeSelector) {
+			for _, existingRules := range existingINF.Spec.Ingress {
+				for _, existingSourceCIDR := range existingRules.SourceCIDRs {
+					for _, newSourceCIDR := range newSourceCIDRs {
+						if strings.TrimSpace(newSourceCIDR) == strings.TrimSpace(existingSourceCIDR) {
+							if existingINFName != newINFName && isOrderOverlapping(existingRules.FirewallProtocolRules, newRules) {
+								allErrs = append(allErrs,
+									field.Invalid(field.NewPath("spec").Child("ingress").Index(newINFRulesIndex).Key("rules"),
+										newINFName, fmt.Sprintf("order is not unique for sourceCIDR %q and conflicts with "+
+											"IngressNodeFirewall %q", newSourceCIDR, existingINF.Name)))
+							}
 						}
 					}
 				}
