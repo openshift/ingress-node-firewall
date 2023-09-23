@@ -27,6 +27,7 @@ import (
 
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/pkg/failsaferules"
+	"github.com/openshift/ingress-node-firewall/test/consts"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -403,6 +404,39 @@ var _ = Describe("Rules", func() {
 			// again, create inf which has sourceCIRDR X order one and expect failure
 			inf2 := inf.DeepCopy()
 			inf2.Name = "meta-order-unique"
+			Expect(createIngressNodeFirewall(inf2)).ToNot(Succeed())
+			Expect(deleteIngressNodeFirewall(inf)).To(Succeed())
+		})
+		It("validate rules with different node selector", func() {
+			inf.Spec.NodeSelector = metav1.LabelSelector{
+				MatchLabels: map[string]string{consts.IngressNodeFirewallNodeLabel: "label1"},
+			}
+			configInterfaces(inf, []string{"eth0", "eth1"})
+			Expect(createIngressNodeFirewall(inf)).To(Succeed())
+			// again, create inf which has sourceCIRDR X order one and expect to succeed because its on different node
+			inf2 := inf.DeepCopy()
+			inf2.Name = "different-node-selectors"
+			inf2.ResourceVersion = ""
+			inf2.Spec.NodeSelector = metav1.LabelSelector{
+				MatchLabels: map[string]string{consts.IngressNodeFirewallNodeLabel: "label2"},
+			}
+			Expect(createIngressNodeFirewall(inf2)).To(Succeed())
+			Expect(deleteIngressNodeFirewall(inf2)).To(Succeed())
+			Expect(deleteIngressNodeFirewall(inf)).To(Succeed())
+		})
+		It("validate rules with the same node selector", func() {
+			inf.Spec.NodeSelector = metav1.LabelSelector{
+				MatchLabels: map[string]string{consts.IngressNodeFirewallNodeLabel: "label1"},
+			}
+			configInterfaces(inf, []string{"eth0", "eth1"})
+			Expect(createIngressNodeFirewall(inf)).To(Succeed())
+			// again, create inf which has sourceCIRDR X order one and expect failure
+			inf2 := inf.DeepCopy()
+			inf2.Name = "same-node-selectors"
+			inf2.ResourceVersion = ""
+			inf2.Spec.NodeSelector = metav1.LabelSelector{
+				MatchLabels: map[string]string{consts.IngressNodeFirewallNodeLabel: "label1"},
+			}
 			Expect(createIngressNodeFirewall(inf2)).ToNot(Succeed())
 			Expect(deleteIngressNodeFirewall(inf)).To(Succeed())
 		})

@@ -1042,7 +1042,10 @@ var _ = Describe("Ingress Node Firewall", func() {
 			defer cleanupPodsFn()
 			inf, err := getICMPEchoBlockINF(clientPod, testName, v4Enabled, v6Enabled, isSingleStack)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(infwutils.CreateIngressNodeFirewall(testclient.Client, inf, timeout)).ShouldNot(HaveOccurred())
+			Eventually(func() error {
+				err := infwutils.CreateIngressNodeFirewall(testclient.Client, inf, timeout)
+				return err
+			}, timeout, retryInterval).ShouldNot(HaveOccurred())
 			By("Confirm connectivity is affected by IngressNodeFirewall policy")
 			if v4Enabled {
 				Eventually(func() bool {
@@ -1094,7 +1097,10 @@ var _ = Describe("Ingress Node Firewall", func() {
 			defer cleanupPodsFn()
 			inf, err := getICMPEchoBlockINF(clientPod, testName, v4Enabled, v6Enabled, isSingleStack)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(infwutils.CreateIngressNodeFirewall(testclient.Client, inf, timeout)).ShouldNot(HaveOccurred())
+			Eventually(func() error {
+				err := infwutils.CreateIngressNodeFirewall(testclient.Client, inf, timeout)
+				return err
+			}, timeout, retryInterval).ShouldNot(HaveOccurred())
 			By("Confirm connectivity is affected by IngressNodeFirewall policy")
 			if v4Enabled {
 				Eventually(func() bool {
