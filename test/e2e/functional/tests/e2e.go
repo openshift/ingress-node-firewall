@@ -1170,7 +1170,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 		})
 
 		It("should expose at least one endpoint via a daemon metrics service", func() {
-			err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, 10*time.Second, true, func(ctx context.Context) (done bool, err error) {
+			err := wait.PollImmediate(1*time.Second, 10*time.Second, func() (done bool, err error) {
 				endpointSliceList, err := testclient.Client.Endpoints(OperatorNameSpace).List(context.TODO(), metav1.ListOptions{
 					LabelSelector: "app=ingress-node-firewall-daemon",
 				})
@@ -1296,7 +1296,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			var stdOut, stdError string
 			var metrics testutil.Metrics
-			err = wait.PollUntilContextTimeout(context.Background(), 1*time.Second, 30*time.Second, true, func(ctx context.Context) (done bool, err error) {
+			err = wait.PollImmediate(1*time.Second, 30*time.Second, func() (done bool, err error) {
 				stdOut, stdError, err = exec.RunExecCommand(testclient.Client, daemonSetPod, "/usr/bin/curl", "127.0.0.1:39301/metrics")
 				if err != nil {
 					return false, err

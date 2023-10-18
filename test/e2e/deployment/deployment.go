@@ -23,7 +23,7 @@ func GetDeployment(client *testclient.ClientSet, namespace, name string, timeout
 
 func GetDeploymentWithRetry(client *testclient.ClientSet, namespace, name string, retryInterval, timeout time.Duration) (*appsv1.Deployment, error) {
 	var deployment *appsv1.Deployment
-	err := wait.PollUntilContextTimeout(context.Background(), retryInterval, timeout, true, func(ctx context.Context) (done bool, err error) {
+	err := wait.PollImmediate(retryInterval, timeout, func() (done bool, err error) {
 		if deployment, err = GetDeployment(client, namespace, name, timeout); err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
@@ -39,7 +39,7 @@ func GetDeploymentWithRetry(client *testclient.ClientSet, namespace, name string
 func WaitForDeploymentSetReady(client *testclient.ClientSet, deployment *appsv1.Deployment, retryInterval,
 	timeout time.Duration) error {
 
-	err := wait.PollUntilContextTimeout(context.Background(), retryInterval, timeout, true, func(ctx context.Context) (done bool, err error) {
+	err := wait.PollImmediate(retryInterval, timeout, func() (done bool, err error) {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		err = client.Get(ctx, types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, deployment)

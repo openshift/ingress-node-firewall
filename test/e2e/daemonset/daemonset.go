@@ -25,7 +25,7 @@ func GetDaemonSet(client *testclient.ClientSet, namespace, name string, timeout 
 
 func GetDaemonSetWithRetry(client *testclient.ClientSet, namespace, name string, retryInterval, timeout time.Duration) (*appsv1.DaemonSet, error) {
 	var daemonSet *appsv1.DaemonSet
-	err := wait.PollUntilContextTimeout(context.Background(), retryInterval, timeout, true, func(ctx context.Context) (done bool, err error) {
+	err := wait.PollImmediate(retryInterval, timeout, func() (done bool, err error) {
 		if daemonSet, err = GetDaemonSet(client, namespace, name, timeout); err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
@@ -38,7 +38,7 @@ func GetDaemonSetWithRetry(client *testclient.ClientSet, namespace, name string,
 }
 
 func WaitForDaemonSetReady(client *testclient.ClientSet, ds *appsv1.DaemonSet, retryInterval, timeout time.Duration) error {
-	err := wait.PollUntilContextTimeout(context.Background(), retryInterval, timeout, true, func(ctx context.Context) (done bool, err error) {
+	err := wait.PollImmediate(retryInterval, timeout, func() (done bool, err error) {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		err = client.Get(ctx, types.NamespacedName{Name: ds.Name, Namespace: ds.Namespace}, ds)
@@ -63,7 +63,7 @@ func WaitForDaemonSetReady(client *testclient.ClientSet, ds *appsv1.DaemonSet, r
 
 func GetDaemonSetOnNode(client *testclient.ClientSet, namespace, nodeName string) (*corev1.Pod, error) {
 	var podList *corev1.PodList
-	err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, 10*time.Second, true, func(ctx context.Context) (done bool, err error) {
+	err := wait.PollImmediate(1*time.Second, 10*time.Second, func() (done bool, err error) {
 		podList, err = client.Pods(namespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: "app=ingress-node-firewall-daemon",
 			FieldSelector: fmt.Sprintf("spec.nodeName=%s", nodeName),

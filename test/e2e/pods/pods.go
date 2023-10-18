@@ -25,7 +25,7 @@ func EnsureRunning(client *testclient.ClientSet, pod *corev1.Pod, namespace stri
 		}
 	}
 
-	err = wait.PollUntilContextTimeout(context.Background(), retryInterval, timeout, true, func(ctx context.Context) (done bool, err error) {
+	err = wait.PollImmediate(retryInterval, timeout, func() (done bool, err error) {
 		testPod, err = client.Pods(namespace).Get(context.Background(), created.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
@@ -43,7 +43,7 @@ func EnsureDeleted(client *testclient.ClientSet, pod *corev1.Pod, retryInterval,
 	if err != nil {
 		return err
 	}
-	err = wait.PollUntilContextTimeout(context.Background(), retryInterval, timeout, true, func(ctx context.Context) (done bool, err error) {
+	err = wait.PollImmediate(retryInterval, timeout, func() (done bool, err error) {
 		_, err = client.Pods(pod.Namespace).Get(context.Background(), pod.Name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return true, nil
