@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"os"
 
@@ -36,6 +37,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	webctrl "sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
 var (
@@ -54,12 +56,14 @@ func main() {
 	var enableLeaderElection bool
 	var enableWebhook bool
 	var probeAddr string
+	var enableHTTP2 bool
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":39201", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableWebhook, "enable-webhook", false, "Enable deployment of webhook to validate CR IngressNodeFirewall")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.BoolVar(&enableHTTP2, "enable-http2", enableHTTP2, "If HTTP/2 should be enabled for the metrics and webhook servers.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -69,6 +73,12 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	setupLog.Info("Version", "version.Version", version.Version)
+	disableHTTP2 := func(c *tls.Config) {
+		if enableHTTP2 {
+			return
+		}
+		c.NextProtos = []string{"http/1.1"}
+	}
 
 	if _, ok := os.LookupEnv("DAEMONSET_IMAGE"); !ok {
 		setupLog.Error(nil, "DAEMONSET_IMAGE env variable must be set")
@@ -102,6 +112,9 @@ func main() {
 		// if you are doing or is intended to do any operation such as perform cleanups
 		// after the manager stops then its usage might be unsafe.
 		// LeaderElectionReleaseOnCancel: true,
+		WebhookServer: &webctrl.Server{
+			TLSOpts: []func(*tls.Config){disableHTTP2},
+		},
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
