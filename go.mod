@@ -17,15 +17,15 @@ require (
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/sys v0.13.0
 	gopkg.in/mcuadros/go-syslog.v2 v2.3.0
-	k8s.io/api v0.28.2
-	k8s.io/apiextensions-apiserver v0.28.2
+	k8s.io/api v0.28.3
+	k8s.io/apiextensions-apiserver v0.28.3
 	k8s.io/apimachinery v0.28.3
-	k8s.io/client-go v0.28.2
-	k8s.io/component-base v0.28.2
+	k8s.io/client-go v0.28.3
+	k8s.io/component-base v0.28.3
 	k8s.io/klog v1.0.0
 	k8s.io/kubernetes v1.15.0-alpha.0
 	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2
-	sigs.k8s.io/controller-runtime v0.16.2
+	sigs.k8s.io/controller-runtime v0.16.3
 )
 
 require (
@@ -35,7 +35,7 @@ require (
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
+	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-logr/zapr v1.2.4 // indirect
