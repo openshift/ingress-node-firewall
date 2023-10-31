@@ -6,7 +6,7 @@ metadata:
     capabilities: Basic Install
     categories: Networking
     certified: "false"
-    containerImage: quay.io/openshift/ingress-node-firewall-operator:4.14
+    containerImage: quay.io/openshift/origin-ingress-node-firewall:latest
     createdAt: "2022-10-28 00:00:00"
     olm.skipRange: '>=4.11.0 <4.14.0'
     operatorframework.io/suggested-namespace: openshift-ingress-node-firewall
