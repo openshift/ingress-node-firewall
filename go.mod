@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
-	github.com/cilium/ebpf v0.12.2
+	github.com/cilium/ebpf v0.12.3
 	github.com/go-logr/logr v1.3.0
 	github.com/golang/glog v1.1.2
 	github.com/google/gopacket v1.1.19
@@ -15,7 +15,7 @@ require (
 	github.com/prometheus/client_golang v1.17.0
 	github.com/prometheus/common v0.45.0
 	github.com/vishvananda/netlink v1.1.0
-	golang.org/x/sys v0.13.0
+	golang.org/x/sys v0.14.1-0.20231108175955-e4099bfacb8c
 	gopkg.in/mcuadros/go-syslog.v2 v2.3.0
 	k8s.io/api v0.28.3
 	k8s.io/apiextensions-apiserver v0.28.3
