@@ -155,12 +155,12 @@ type IngressNodeFirewallSpec struct {
 	// ingress is a list of ingress firewall policy rules.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems:=1
-	Ingress []IngressNodeFirewallRules `json:"ingress,omitempty"`
+	Ingress []IngressNodeFirewallRules `json:"ingress"`
 
 	// interfaces is a list of interfaces where the ingress firewall policy will be applied on.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems:=1
-	Interfaces []string `json:"interfaces,omitempty"`
+	Interfaces []string `json:"interfaces"`
 }
 
 type IngressNodeFirewallSyncStatus string
