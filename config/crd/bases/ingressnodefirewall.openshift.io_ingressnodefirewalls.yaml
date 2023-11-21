@@ -264,6 +264,9 @@ spec:
                       are ANDed.
                     type: object
                 type: object
+            required:
+            - ingress
+            - interfaces
             type: object
           status:
             description: IngressNodeFirewallStatus defines the observed state of IngressNodeFirewall.
