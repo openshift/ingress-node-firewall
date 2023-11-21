@@ -159,19 +159,23 @@ var _ = Describe("Interfaces", func() {
 
 	Context("ingress node firewall interfaces validation", func() {
 		It("interfaces config with valid interfaces name", func() {
+			initCIDRICMPRule(inf, ipv4CIDR, validOrder, false, icmpTypeEchoReply, icmpTypeEchoReply, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
 			configInterfaces(inf, []string{"eth0", "eth1"})
 			Expect(createIngressNodeFirewall(inf)).To(Succeed())
 			Expect(deleteIngressNodeFirewall(inf)).To(Succeed())
 		})
 		It("interfaces config with empty strings", func() {
+			initCIDRICMPRule(inf, ipv4CIDR, validOrder, false, icmpTypeEchoReply, icmpTypeEchoReply, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
 			configInterfaces(inf, []string{""})
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 		It("interfaces config with too long interface name", func() {
+			initCIDRICMPRule(inf, ipv4CIDR, validOrder, false, icmpTypeEchoReply, icmpTypeEchoReply, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
 			configInterfaces(inf, []string{"abcd123459$%&ABDC44555555555"})
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 		It("interfaces config with interface name starts with number", func() {
+			initCIDRICMPRule(inf, ipv4CIDR, validOrder, false, icmpTypeEchoReply, icmpTypeEchoReply, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
 			configInterfaces(inf, []string{"0th"})
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
@@ -184,6 +188,7 @@ var _ = Describe("Rules", func() {
 
 		BeforeEach(func() {
 			inf = getIngressNodeFirewall("rulesicmpv4")
+			configInterfaces(inf, []string{"eth0"})
 			initCIDRICMPRule(inf, ipv4CIDR, validOrder, false, icmpTypeEchoReply, icmpTypeEchoReply, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
 		})
 
@@ -216,6 +221,7 @@ var _ = Describe("Rules", func() {
 		BeforeEach(func() {
 			inf = getIngressNodeFirewall("rulesicmpv6")
 			initCIDRICMPRule(inf, ipv6CIDR, validOrder, true, icmpTypeEchoReply, icmpTypeEchoReply, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			configInterfaces(inf, []string{"eth0"})
 		})
 
 		It("allows valid rule", func() {
@@ -245,6 +251,7 @@ var _ = Describe("Rules", func() {
 		var inf *ingressnodefwv1alpha1.IngressNodeFirewall
 		BeforeEach(func() {
 			inf = getIngressNodeFirewall("rulestcp")
+			configInterfaces(inf, []string{"eth0"})
 		})
 
 		It("accepts rule with port range defined", func() {
@@ -289,6 +296,7 @@ var _ = Describe("Rules", func() {
 		var inf *ingressnodefwv1alpha1.IngressNodeFirewall
 		BeforeEach(func() {
 			inf = getIngressNodeFirewall("ruleudp")
+			configInterfaces(inf, []string{"eth0"})
 		})
 
 		It("accepts rule with port range defined", func() {
@@ -333,6 +341,7 @@ var _ = Describe("Rules", func() {
 		var inf *ingressnodefwv1alpha1.IngressNodeFirewall
 		BeforeEach(func() {
 			inf = getIngressNodeFirewall("rulessctp")
+			configInterfaces(inf, []string{"eth0"})
 		})
 
 		It("accepts rule with port range defined", func() {
@@ -379,6 +388,7 @@ var _ = Describe("Rules", func() {
 		BeforeEach(func() {
 			inf = getIngressNodeFirewall("meta")
 			initCIDRTransportRule(inf, ipv4CIDR, validOrder, ingressnodefwv1alpha1.ProtocolTypeTCP, validPort, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			configInterfaces(inf, []string{"eth0"})
 		})
 
 		It("restricts rule count", func() {
@@ -448,6 +458,7 @@ var _ = Describe("sourceCIDRs", func() {
 
 	BeforeEach(func() {
 		inf = getIngressNodeFirewall("sourcecidrs")
+		configInterfaces(inf, []string{"eth0"})
 	})
 
 	Context("and its IPV4", func() {
@@ -482,6 +493,7 @@ var _ = Describe("Pin holes", func() {
 
 	BeforeEach(func() {
 		inf = getIngressNodeFirewall("pinholes")
+		configInterfaces(inf, []string{"eth0"})
 	})
 
 	Context("will block", func() {
@@ -534,6 +546,7 @@ var _ = Describe("Pin holes", func() {
 	Context("will allow", func() {
 		It("rules which are close API server address", func() {
 			initCIDRTransportRule(inf, ipv4CIDR, 1, ingressnodefwv1alpha1.ProtocolTypeTCP, "6441-6442", ingressnodefwv1alpha1.IngressNodeFirewallDeny)
+			configInterfaces(inf, []string{"eth0"})
 			Expect(createIngressNodeFirewall(inf)).To(Succeed())
 			Expect(deleteIngressNodeFirewall(inf)).To(Succeed())
 		})
