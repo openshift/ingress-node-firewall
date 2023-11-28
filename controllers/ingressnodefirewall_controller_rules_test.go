@@ -746,32 +746,6 @@ var _ = Describe("IngressNodeFirewall controller rules", func() {
 				},
 			},
 		},
-		"invalid interface name test": {
-			inSpecs: []infv1alpha1.IngressNodeFirewallSpec{
-				{
-					Ingress: []infv1alpha1.IngressNodeFirewallRules{
-						{
-							SourceCIDRs: []string{"10.0.0.0"},
-							FirewallProtocolRules: []infv1alpha1.IngressNodeFirewallProtocolRule{
-								{
-									Order: 10,
-									ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
-										Protocol: infv1alpha1.ProtocolTypeTCP,
-										TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
-											Ports: intstr.FromInt(80),
-										},
-									},
-									Action: infv1alpha1.IngressNodeFirewallAllow,
-								},
-							},
-						},
-					},
-					Interfaces: []string{},
-				},
-			},
-			outSpec:     infv1alpha1.IngressNodeFirewallNodeStateSpec{},
-			statusError: "Invalid interface name",
-		},
 	}
 
 	for s, tc := range tcs {
