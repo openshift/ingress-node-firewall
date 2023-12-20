@@ -1,5 +1,9 @@
 # Troubleshooting Ingress Node Firewall
 
+![logo](./infw_debug.png)
+
+By: Mohamed S. Mahmoud
+
 ## Install dependencies
 
 ```shell
@@ -93,7 +97,7 @@ bpftool map list
 
 Now, inspect the rules inside the Longest Prefix Match (LPM) table:
 
-```json lines
+```shell
 bpftool map dump id 431 -p
  "formatted": {
             "key": {
@@ -188,7 +192,7 @@ Inspect the precise Longest Prefix Match (LPM) key build by Ingress Node Firewal
     prog/xdp id 626 name ingress_node_fi tag 29d9ba3daeaf54b2 jited
 ```
 
-```json lines
+```shell
 
 [root@kind-worker /]# bpftool map dump id 501
 [{
@@ -220,7 +224,7 @@ values associated with ingress node firewall.
 Lastly, there is perCPU array containing statistics index by `ruleId` and it also
 can be read by `bpftool`
 
-```json lines
+```shell
 [root@kind-worker /]# bpftool map dump id 503 -p
 ....
  "formatted": {
