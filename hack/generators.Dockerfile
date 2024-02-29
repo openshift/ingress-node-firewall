@@ -1,9 +1,10 @@
-FROM fedora:35
+FROM fedora:37
 
-ARG GOVERSION="1.17.9"
+ARG GOVERSION="1.21.3"
 
 # Installs dependencies that are required to compile eBPF programs
-RUN dnf install -y kernel-devel make llvm clang glibc-devel.i686 unzip
+RUN dnf install -y git kernel-devel make llvm clang glibc-devel.i686 unzip
+
 RUN dnf clean all
 
 VOLUME ["/src"]
@@ -27,5 +28,6 @@ COPY Makefile Makefile
 RUN make prereqs
 
 WORKDIR /src
+RUN git config --global --add safe.directory '*'
 
-ENTRYPOINT ["make", "generate"]
+ENTRYPOINT ["make", "ebpf-generate"]

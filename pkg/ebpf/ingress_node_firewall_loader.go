@@ -235,17 +235,26 @@ func (infc *IngNodeFwController) IngressNodeFwAttach(ifacesName ...string) error
 
 		// Attach the program.
 		l, err := link.AttachXDP(link.XDPOptions{
-			Program:   objs.IngressNodeFirewallProcess,
+			Program:   objs.XdpIngressNodeFirewallProcess,
 			Interface: int(ifID),
 		})
 		if err != nil {
-			// Check if the XDM program was already attached in case the daemonset restarted
+			// Check if the XDP program was already attached in case the daemonset restarted
 			if strings.Contains(err.Error(), xdpEBUSYErr) {
 				log.Printf("Interface %s is already attached", ifaceName)
 				continue
 			}
-			errors = append(errors, fmt.Errorf("could not attach XDP program: %s", err))
-			continue
+			// we can't attach XDP lets try to attach TCX as a fallback
+			klog.Infof("Can't attach XDP on interface %s, err %s try using TCX ingress instead", ifaceName, err)
+			l, err = link.AttachTCX(link.TCXOptions{
+				Program:   objs.TcxIngressNodeFirewallProcess,
+				Attach:    ebpf.AttachTCXIngress,
+				Interface: int(ifID),
+			})
+			if err != nil {
+				errors = append(errors, fmt.Errorf("could not attach XDP or TCX program: %s", err))
+				continue
+			}
 		}
 		// Pin the XDP program.
 		lPinDir := path.Join(infc.pinPath, ifaceName+linkSuffix)

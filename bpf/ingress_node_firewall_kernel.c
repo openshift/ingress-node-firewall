@@ -81,10 +81,10 @@ static volatile const __u32 debug_lookup = 0;
  * ip_extract_l4info(): extracts L4 info for the supported protocols from
  * the incoming packet's headers.
  * Input:
- * struct xdp_md *ctx: pointer to XDP context which contains packet pointer and input interface index.
+ * void *data: pointer to the packet data.
+ * void *data_end: pointer to the end of the packet data.
  * bool is_v4: true for ipv4 and false for ipv6.
  * Output:
- * __u8 *proto: L4 protocol type supported types are TCP/UDP/SCTP/ICMP/ICMPv6.
  * __u16 *dstPort: pointer to L4 destination port for TCP/UDP/SCTP protocols.
  * __u8 *icmpType: pointer to ICMP or ICMPv6's type value.
  * __u8 *icmpCode: pointer to ICMP or ICMPv6's code value.
@@ -93,10 +93,8 @@ static volatile const __u32 debug_lookup = 0;
  * -1 for Failure.
  */
 __attribute__((__always_inline__)) static inline int
-ip_extract_l4info(struct xdp_md *ctx, __u8 *proto, __u16 *dstPort,
+ip_extract_l4info(void *data, void *dataEnd, __u8 *proto, __u16 *dstPort,
                   __u8 *icmpType, __u8 *icmpCode, __u8 is_v4) {
-    void *data = (void *)(long)ctx->data;
-    void *dataEnd = (void *)(long)ctx->data_end;
     void *dataStart = data + sizeof(struct ethhdr);
 
     if (likely(is_v4)) {
@@ -178,7 +176,8 @@ ip_extract_l4info(struct xdp_md *ctx, __u8 *proto, __u16 *dstPort,
  * match L4 headers with the result rules in order and return the action.
  * if there is no match it will return UNDEF action.
  * Input:
- * struct xdp_md *ctx: pointer to XDP context which contains packet pointer and input interface index.
+ * void *data: pointer to the packet data.
+ * void *data_end: pointer to the end of the packet data.
  * __u32 ifID: ingress interface index where the packet is received from.
  * Output:
  * none.
@@ -187,8 +186,7 @@ ip_extract_l4info(struct xdp_md *ctx, __u8 *proto, __u16 *dstPort,
  * from the matching rule, in case of no match it returns UNDEF.
  */
 __attribute__((__always_inline__)) static inline __u32
-ipv4_firewall_lookup(struct xdp_md *ctx, __u32 ifId) {
-    void *data = (void *)(long)ctx->data;
+ipv4_firewall_lookup(void *data, void *data_end, __u32 ifId) {
     struct iphdr *iph = data + sizeof(struct ethhdr);
     struct lpm_ip_key_st key;
     __u32 srcAddr = 0;
@@ -196,7 +194,8 @@ ipv4_firewall_lookup(struct xdp_md *ctx, __u32 ifId) {
     __u8 icmpCode = 0, icmpType = 0, proto = 0;
     int i;
 
-    if (unlikely(ip_extract_l4info(ctx, &proto, &dstPort, &icmpType, &icmpCode, 1) < 0)) {
+    if (unlikely(ip_extract_l4info(data, data_end,
+                                    &proto, &dstPort, &icmpType, &icmpCode, 1) < 0)) {
         ingress_node_firewall_printk("failed to extract l4 info");
         return SET_ACTION(UNDEF);
     }
@@ -266,7 +265,8 @@ ipv4_firewall_lookup(struct xdp_md *ctx, __u32 ifId) {
  * match L4 headers with the result rules in order and return the action.
  * if there is no rule match it will return UNDEF action.
  * Input:
- * struct xdp_md *ctx: pointer to XDP context which contains packet pointer and input interface index.
+ * void *data: pointer to the packet data.
+ * void *data_end: pointer to the end of the packet data.
  * __u32 ifID: ingress interface index where the packet is received from.
  * Output:
  * none.
@@ -275,8 +275,7 @@ ipv4_firewall_lookup(struct xdp_md *ctx, __u32 ifId) {
  * from the matching rule, in case of no match it returns UNDEF.
  */
 __attribute__((__always_inline__)) static inline __u32
-ipv6_firewall_lookup(struct xdp_md *ctx, __u32 ifId) {
-    void *data = (void *)(long)ctx->data;
+ipv6_firewall_lookup(void *data, void *data_end, __u32 ifId) {
     struct ipv6hdr *iph = data + sizeof(struct ethhdr);
     struct lpm_ip_key_st key;
     __u8 *srcAddr = NULL;
@@ -284,7 +283,8 @@ ipv6_firewall_lookup(struct xdp_md *ctx, __u32 ifId) {
     __u8 icmpCode = 0, icmpType = 0, proto = 0;
     int i;
 
-    if (unlikely(ip_extract_l4info(ctx, &proto, &dstPort, &icmpType, &icmpCode, 0) < 0)) {
+    if (unlikely(ip_extract_l4info(data, data_end,
+                                    &proto, &dstPort, &icmpType, &icmpCode, 0) < 0)) {
         ingress_node_firewall_printk("failed to extract l4 info");
         return SET_ACTION(UNDEF);
     }
@@ -359,7 +359,7 @@ ipv6_firewall_lookup(struct xdp_md *ctx, __u32 ifId) {
  * none.
  */
 __attribute__((__always_inline__)) static inline void
-generate_event_and_update_statistics(struct xdp_md *ctx, __u64 packet_len, __u8 action, __u16 ruleId, __u8 generateEvent, __u32 ifId) {
+generate_event_and_update_statistics(void *ctx, __u64 packet_len, __u8 action, __u16 ruleId, __u8 generateEvent, __u32 ifId) {
     struct ruleStatistics_st *statistics, initialStats;
     struct event_hdr_st hdr;
     __u64 flags = BPF_F_CURRENT_CPU;
@@ -400,7 +400,7 @@ generate_event_and_update_statistics(struct xdp_md *ctx, __u64 packet_len, __u8 
 }
 
 /*
- * ingress_node_firewall_main(): is the entry point for the XDP program to do
+ * xdp_ingress_node_firewall_main(): is the entry point for the XDP program to do
  * ingress node firewall.
  * Input:
  * struct xdp_md *ctx: pointer to XDP context which contains packet pointer and input interface index.
@@ -410,7 +410,7 @@ generate_event_and_update_statistics(struct xdp_md *ctx, __u64 packet_len, __u8 
  * int XDP action: valid values XDP_DROP and XDP_PASS.
  */
 __attribute__((__always_inline__)) static inline int
-ingress_node_firewall_main(struct xdp_md *ctx) {
+xdp_ingress_node_firewall_main(struct xdp_md *ctx) {
     void *data = (void *)(long)ctx->data;
     void *dataEnd = (void *)(long)ctx->data_end;
     struct ethhdr *eth = data;
@@ -418,23 +418,23 @@ ingress_node_firewall_main(struct xdp_md *ctx) {
     __u32 result = UNDEF;
     __u32 ifId = ctx->ingress_ifindex;
 
-    ingress_node_firewall_printk("Ingress node firewall start processing a packet on %d", ifId);
+    ingress_node_firewall_printk("XDP: Ingress node firewall start processing a packet on %d", ifId);
 
     if (unlikely(dataStart > dataEnd)) {
-        ingress_node_firewall_printk("Ingress node firewall bad packet XDP_DROP");
+        ingress_node_firewall_printk("XDP: Ingress node firewall bad packet XDP_DROP");
         return XDP_DROP;
     }
     switch (eth->h_proto) {
     case bpf_htons(ETH_P_IP):
-        ingress_node_firewall_printk("Ingress node firewall process IPv4 packet");
-        result = ipv4_firewall_lookup(ctx, ifId);
+        ingress_node_firewall_printk("XDP: Ingress node firewall process IPv4 packet");
+        result = ipv4_firewall_lookup(data, dataEnd, ifId);
         break;
     case bpf_htons(ETH_P_IPV6):
-        ingress_node_firewall_printk("Ingress node firewall process IPv6 packet");
-        result = ipv6_firewall_lookup(ctx, ifId);
+        ingress_node_firewall_printk("XDP: Ingress node firewall process IPv6 packet");
+        result = ipv6_firewall_lookup(data, dataEnd, ifId);
         break;
     default:
-        ingress_node_firewall_printk("Ingress node firewall unknown L3 protocol XDP_PASS");
+        ingress_node_firewall_printk("XDP: Ingress node firewall unknown L3 protocol XDP_PASS");
         return XDP_PASS;
     }
 
@@ -444,21 +444,83 @@ ingress_node_firewall_main(struct xdp_md *ctx) {
     switch (action) {
     case DENY:
         generate_event_and_update_statistics(ctx, bpf_xdp_get_buff_len(ctx), DENY, ruleId, 1, ifId);
-        ingress_node_firewall_printk("Ingress node firewall action DENY -> XDP_DROP");
+        ingress_node_firewall_printk("XDP: Ingress node firewall action DENY -> XDP_DROP");
         return XDP_DROP;
     case ALLOW:
         generate_event_and_update_statistics(ctx, bpf_xdp_get_buff_len(ctx), ALLOW, ruleId, 0, ifId);
-        ingress_node_firewall_printk("Ingress node firewall action ALLOW -> XDP_PASS");
+        ingress_node_firewall_printk("XDP: Ingress node firewall action ALLOW -> XDP_PASS");
         return XDP_PASS;
     default:
-        ingress_node_firewall_printk("Ingress node firewall action UNDEF");
+        ingress_node_firewall_printk("XDP: Ingress node firewall action UNDEF");
         return XDP_PASS;
     }
 }
 
+/*
+ * tcx_ingress_node_firewall_main(): is the entry point for the TCX program to do
+ * ingress node firewall.
+ * Input:
+ * struct __sk_buff *ctx: pointer to sk_buff which contains packet pointer and input interface index.
+ * Output:
+ * none.
+ * Return:
+ * int TCX action: valid values TCX_DROP and TCX_NEXT.
+ */
+__attribute__((__always_inline__)) static inline int
+tcx_ingress_node_firewall_main(struct __sk_buff *ctx) {
+    void *data = (void *)(long)ctx->data;
+    void *dataEnd = (void *)(long)ctx->data_end;
+    struct ethhdr *eth = data;
+    void *dataStart = data + sizeof(struct ethhdr);
+    __u32 result = UNDEF;
+    __u32 ifId = ctx->ifindex;
+
+    ingress_node_firewall_printk("TCX: Ingress node firewall start processing a packet on %d", ifId);
+
+    if (unlikely(dataStart > dataEnd)) {
+        ingress_node_firewall_printk("TCX: Ingress node firewall bad packet TCX_DROP");
+        return TCX_DROP;
+    }
+    switch (eth->h_proto) {
+    case bpf_htons(ETH_P_IP):
+        ingress_node_firewall_printk("TCX: Ingress node firewall process IPv4 packet");
+        result = ipv4_firewall_lookup(data, dataEnd, ifId);
+        break;
+    case bpf_htons(ETH_P_IPV6):
+        ingress_node_firewall_printk("TCX: Ingress node firewall process IPv6 packet");
+        result = ipv6_firewall_lookup(data, dataEnd, ifId);
+        break;
+    default:
+        ingress_node_firewall_printk("TCX: Ingress node firewall unknown L3 protocol TCX_NEXT");
+        return TCX_NEXT;
+    }
+
+    __u16 ruleId = GET_RULE_ID(result);
+    __u8 action = GET_ACTION(result);
+
+    switch (action) {
+    case DENY:
+        generate_event_and_update_statistics(ctx, ctx->len, DENY, ruleId, 1, ifId);
+        ingress_node_firewall_printk("TCX: Ingress node firewall action DENY -> TCX_DROP");
+        return TCX_DROP;
+    case ALLOW:
+        generate_event_and_update_statistics(ctx, ctx->len, ALLOW, ruleId, 0, ifId);
+        ingress_node_firewall_printk("TCX: Ingress node firewall action ALLOW -> TCX_NEXT");
+        return TCX_NEXT;
+    default:
+        ingress_node_firewall_printk("TCX: Ingress node firewall action UNDEF");
+        return TCX_NEXT;
+    }
+}
+
 SEC("xdp.frags")
-int ingress_node_firewall_process(struct xdp_md *ctx) {
-    return ingress_node_firewall_main(ctx);
+int xdp_ingress_node_firewall_process(struct xdp_md *ctx) {
+    return xdp_ingress_node_firewall_main(ctx);
+}
+
+SEC("tcx_ingress_node_fw")
+int tcx_ingress_node_firewall_process(struct __sk_buff *skb) {
+    return tcx_ingress_node_firewall_main(skb);
 }
 
 char __license[] SEC("license") = "Dual BSD/GPL";
