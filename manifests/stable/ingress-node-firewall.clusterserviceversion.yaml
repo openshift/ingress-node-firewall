@@ -85,7 +85,7 @@ metadata:
     categories: Networking
     certified: "false"
     containerImage: quay.io/openshift/origin-ingress-node-firewall:latest
-    createdAt: "2022-10-28 00:00:00"
+    createdAt: "2024-03-13T12:36:01Z"
     features.operators.openshift.io/disconnected: "true"
     features.operators.openshift.io/fips-compliant: "true"
     features.operators.openshift.io/proxy-aware: "false"
@@ -95,7 +95,7 @@ metadata:
     features.operators.openshift.io/token-auth-gcp: "false"
     olm.skipRange: '>=4.11.0 <4.16.0'
     operatorframework.io/suggested-namespace: openshift-ingress-node-firewall
-    operators.operatorframework.io/builder: operator-sdk-v1.25.0-ocp
+    operators.operatorframework.io/builder: operator-sdk-v1.33.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/openshift/ingress-node-firewall
     support: Red Hat
