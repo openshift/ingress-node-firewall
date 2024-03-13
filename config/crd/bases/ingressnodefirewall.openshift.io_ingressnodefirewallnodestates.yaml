@@ -3,8 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: ingressnodefirewallnodestates.ingressnodefirewall.openshift.io
 spec:
   group: ingressnodefirewall.openshift.io
@@ -22,14 +21,19 @@ spec:
           API.
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -58,35 +62,32 @@ spec:
                               - Deny
                               type: string
                             order:
-                              description: order defines the order of execution of
-                                ingress firewall rules. The minimum order value is
-                                1 and the values must be unique.
+                              description: |-
+                                order defines the order of execution of ingress firewall rules.
+                                The minimum order value is 1 and the values must be unique.
                               format: int32
                               minimum: 1
                               type: integer
                             protocolConfig:
-                              description: protocolConfig is a discriminated union
-                                of a protocol's specific configuration for TCP, UDP,
-                                SCTP, ICMP and ICMPv6. If not specified, packet matching
-                                will be based on the protocol value and protocol configuration,
-                                such as dstPort/type/code, will be ignored
+                              description: |-
+                                protocolConfig is a discriminated union of a protocol's specific configuration for TCP, UDP, SCTP, ICMP and ICMPv6.
+                                If not specified, packet matching will be based on the protocol value and protocol configuration, such as dstPort/type/code, will be ignored
                               properties:
                                 icmp:
                                   description: icmp defines an ingress node firewall
                                     rule for ICMP protocol.
                                   properties:
                                     icmpCode:
-                                      description: icmpCode defines ICMP Code ID (RFC
-                                        792). if configured, this field matches against
-                                        the ICMP/ICMPv6 header otherwise its ignored.
+                                      description: |-
+                                        icmpCode defines ICMP Code ID (RFC 792).
+                                        if configured, this field matches against the ICMP/ICMPv6 header otherwise its ignored.
                                       maximum: 255
                                       minimum: 0
                                       type: integer
                                     icmpType:
-                                      description: imcpType defines ICMP Type Numbers
-                                        (RFC 792). if configured, this field matches
-                                        against the ICMP/ICMPv6 header otherwise its
-                                        ignored.
+                                      description: |-
+                                        imcpType defines ICMP Type Numbers (RFC 792).
+                                        if configured, this field matches against the ICMP/ICMPv6 header otherwise its ignored.
                                       maximum: 255
                                       minimum: 0
                                       type: integer
@@ -96,17 +97,16 @@ spec:
                                     rule for ICMPv6 protocol.
                                   properties:
                                     icmpCode:
-                                      description: icmpCode defines ICMP Code ID (RFC
-                                        792). if configured, this field matches against
-                                        the ICMP/ICMPv6 header otherwise its ignored.
+                                      description: |-
+                                        icmpCode defines ICMP Code ID (RFC 792).
+                                        if configured, this field matches against the ICMP/ICMPv6 header otherwise its ignored.
                                       maximum: 255
                                       minimum: 0
                                       type: integer
                                     icmpType:
-                                      description: imcpType defines ICMP Type Numbers
-                                        (RFC 792). if configured, this field matches
-                                        against the ICMP/ICMPv6 header otherwise its
-                                        ignored.
+                                      description: |-
+                                        imcpType defines ICMP Type Numbers (RFC 792).
+                                        if configured, this field matches against the ICMP/ICMPv6 header otherwise its ignored.
                                       maximum: 255
                                       minimum: 0
                                       type: integer
@@ -130,12 +130,10 @@ spec:
                                       anyOf:
                                       - type: integer
                                       - type: string
-                                      description: 'ports defines either a single
-                                        port or a range of ports to apply a protocol
-                                        rule too. To filter a single port, set a single
-                                        port as an integer value. For example ports:
-                                        80. To filter a range of ports, use a "start-end"
-                                        range, string format. For example ports: "80-100".'
+                                      description: |-
+                                        ports defines either a single port or a range of ports to apply a protocol rule too.
+                                        To filter a single port, set a single port as an integer value. For example ports: 80.
+                                        To filter a range of ports, use a "start-end" range, string format. For example ports: "80-100".
                                       x-kubernetes-int-or-string: true
                                   type: object
                                 tcp:
@@ -146,12 +144,10 @@ spec:
                                       anyOf:
                                       - type: integer
                                       - type: string
-                                      description: 'ports defines either a single
-                                        port or a range of ports to apply a protocol
-                                        rule too. To filter a single port, set a single
-                                        port as an integer value. For example ports:
-                                        80. To filter a range of ports, use a "start-end"
-                                        range, string format. For example ports: "80-100".'
+                                      description: |-
+                                        ports defines either a single port or a range of ports to apply a protocol rule too.
+                                        To filter a single port, set a single port as an integer value. For example ports: 80.
+                                        To filter a range of ports, use a "start-end" range, string format. For example ports: "80-100".
                                       x-kubernetes-int-or-string: true
                                   type: object
                                 udp:
@@ -162,12 +158,10 @@ spec:
                                       anyOf:
                                       - type: integer
                                       - type: string
-                                      description: 'ports defines either a single
-                                        port or a range of ports to apply a protocol
-                                        rule too. To filter a single port, set a single
-                                        port as an integer value. For example ports:
-                                        80. To filter a range of ports, use a "start-end"
-                                        range, string format. For example ports: "80-100".'
+                                      description: |-
+                                        ports defines either a single port or a range of ports to apply a protocol rule too.
+                                        To filter a single port, set a single port as an integer value. For example ports: 80.
+                                        To filter a range of ports, use a "start-end" range, string format. For example ports: "80-100".
                                       x-kubernetes-int-or-string: true
                                   type: object
                               required:
@@ -212,10 +206,10 @@ spec:
                     - sourceCIDRs
                     type: object
                   type: array
-                description: interfaceIngressRules is a map that matches interface
-                  names to ingress firewall policy rules that shall be applied on
-                  the given interface. An empty map indicates no ingress firewall
-                  rules shall be applied, i.e allow all incoming traffic.
+                description: |-
+                  interfaceIngressRules is a map that matches interface names to ingress firewall policy rules that shall be
+                  applied on the given interface.
+                  An empty map indicates no ingress firewall rules shall be applied, i.e allow all incoming traffic.
                 type: object
             required:
             - interfaceIngressRules
@@ -229,9 +223,9 @@ spec:
                   encountered synchronization error.
                 type: string
               syncStatus:
-                description: syncStatus indicates if this IngressNodeFirewallNodeState
-                  object could be successfully generated from the input IngressNodeFirewall
-                  objects or if any issues occurred during this object's generation.
+                description: |-
+                  syncStatus indicates if this IngressNodeFirewallNodeState object could be successfully generated
+                  from the input IngressNodeFirewall objects or if any issues occurred during this object's generation.
                 type: string
             type: object
         type: object
