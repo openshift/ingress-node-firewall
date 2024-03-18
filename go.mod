@@ -1,10 +1,11 @@
 module github.com/openshift/ingress-node-firewall
 
 go 1.21
+toolchain go1.22.1
 
 require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
-	github.com/cilium/ebpf v0.12.4-0.20240124115601-f95957d1669c
+	github.com/cilium/ebpf v0.13.2
 	github.com/go-logr/logr v1.4.1
 	github.com/golang/glog v1.2.0
 	github.com/google/gopacket v1.1.19
