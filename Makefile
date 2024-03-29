@@ -446,7 +446,7 @@ ebpf-generate: prereqs ## Generating BPF Go bindings.
 .PHONY: docker-generate
 docker-generate: ## Creating the container that generates the eBPF binaries
 	docker build . -f hack/generators.Dockerfile -t $(LOCAL_GENERATOR_IMAGE)
-	docker run --rm -v $(shell pwd):/src $(LOCAL_GENERATOR_IMAGE)
+	docker run --privileged --rm -v $(shell pwd):/src $(LOCAL_GENERATOR_IMAGE)
 
 .PHONY: ebpf-update-headers
 ebpf-update-headers: ## eBPF update libbpf headers.
