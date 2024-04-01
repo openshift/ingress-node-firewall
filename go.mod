@@ -5,7 +5,7 @@ toolchain go1.22.1
 
 require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
-	github.com/cilium/ebpf v0.13.2
+	github.com/cilium/ebpf v0.14.0
 	github.com/go-logr/logr v1.4.1
 	github.com/golang/glog v1.2.0
 	github.com/google/gopacket v1.1.19
