@@ -444,7 +444,6 @@ spec:
   maturity: alpha
   provider:
     name: Red Hat, Inc
-  replaces: ingress-node-firewall.v4.15.0
   version: 4.16.0
   webhookdefinitions:
   - admissionReviewVersions:
