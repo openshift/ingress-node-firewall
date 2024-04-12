@@ -442,6 +442,8 @@ ebpf-generate: export BPF_CFLAGS := $(CFLAGS)
 ebpf-generate: prereqs ## Generating BPF Go bindings.
 	@echo "### Generating BPF Go bindings"
 	go generate ./pkg/...
+	@echo "### Linting bpf C code"
+	find ./bpf -type f -not -path "./bpf/headers/*" -name "*.[ch]" | xargs clang-format --dry-run --
 
 .PHONY: docker-generate
 docker-generate: ## Creating the container that generates the eBPF binaries

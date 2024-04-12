@@ -81,7 +81,11 @@ func TestGetInterfaceIndices(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("bond interface index %d", bond.Attrs().Index)
-	defer netlink.LinkDel(bond)
+	defer func() {
+		if err := netlink.LinkDel(bond); err != nil {
+			t.Errorf("failed to delete bond link: %s", err)
+		}
+	}()
 	for _, inf := range testSlaveInterfaces {
 		slaveDummy := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: inf}}
 		if err := netlink.LinkAdd(slaveDummy); err != nil {
@@ -95,7 +99,9 @@ func TestGetInterfaceIndices(t *testing.T) {
 
 	defer func() {
 		for _, slave := range slaves {
-			netlink.LinkDel(slave)
+			if err := netlink.LinkDel(slave); err != nil {
+				t.Errorf("failed to delete bond member link: %s", err)
+			}
 		}
 	}()
 

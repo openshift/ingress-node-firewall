@@ -603,9 +603,7 @@ func (infc *IngNodeFwController) getStaleInterfaceKeys() ([]BpfLpmIpKeySt, error
 		if err != nil {
 			return nil, err
 		}
-		for _, ifID := range ifIDs {
-			validInterfaceIDs = append(validInterfaceIDs, ifID)
-		}
+		validInterfaceIDs = append(validInterfaceIDs, ifIDs...)
 	}
 
 	// Lookup all keys inside the map and find keys that should be deleted.

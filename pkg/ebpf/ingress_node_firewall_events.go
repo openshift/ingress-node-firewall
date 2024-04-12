@@ -2,6 +2,7 @@ package nodefwloader
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -36,7 +37,7 @@ func (infc *IngNodeFwController) ingressNodeFwEvents() error {
 
 	var eventsLogger *syslog.Writer
 
-	if err := wait.PollImmediate(time.Second, 30*time.Second, func() (done bool, err error) {
+	if err := wait.PollUntilContextTimeout(context.Background(), time.Second, 30*time.Second, true, func(ctx context.Context) (done bool, err error) {
 		if eventsLogger, err = syslog.New(syslog.LOG_INFO|syslog.LOG_DAEMON, "daemon"); err != nil {
 			log.Printf("failed to connect to syslog: %v; Retrying...", err)
 			return false, nil

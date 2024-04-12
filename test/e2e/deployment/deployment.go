@@ -40,9 +40,9 @@ func WaitForDeploymentSetReady(client *testclient.ClientSet, deployment *appsv1.
 	timeout time.Duration) error {
 
 	err := wait.PollUntilContextTimeout(context.Background(), retryInterval, timeout, true, func(ctx context.Context) (done bool, err error) {
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		nCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
-		err = client.Get(ctx, types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, deployment)
+		err = client.Get(nCtx, types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, deployment)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
