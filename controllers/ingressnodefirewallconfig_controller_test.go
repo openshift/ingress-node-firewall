@@ -12,7 +12,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 var _ = Describe("Ingress nodefirewall config Controller", func() {
@@ -25,7 +25,7 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 					Namespace: IngressNodeFwConfigTestNameSpace,
 				},
 				Spec: ingressnodefwv1alpha1.IngressNodeFirewallConfigSpec{
-					Debug: pointer.Bool(true),
+					Debug: ptr.To(true),
 				},
 			}
 			daemonContainers := map[string]string{

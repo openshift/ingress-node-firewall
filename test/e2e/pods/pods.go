@@ -12,7 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func EnsureRunning(client *testclient.ClientSet, pod *corev1.Pod, namespace string,
@@ -39,7 +39,7 @@ func EnsureRunning(client *testclient.ClientSet, pod *corev1.Pod, namespace stri
 }
 
 func EnsureDeleted(client *testclient.ClientSet, pod *corev1.Pod, retryInterval, timeout time.Duration) error {
-	err := client.Pods(pod.Namespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{GracePeriodSeconds: pointer.Int64(0)})
+	err := client.Pods(pod.Namespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{GracePeriodSeconds: ptr.To[int64](0)})
 	if err != nil {
 		return err
 	}

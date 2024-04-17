@@ -39,9 +39,9 @@ func GetDaemonSetWithRetry(client *testclient.ClientSet, namespace, name string,
 
 func WaitForDaemonSetReady(client *testclient.ClientSet, ds *appsv1.DaemonSet, retryInterval, timeout time.Duration) error {
 	err := wait.PollUntilContextTimeout(context.Background(), retryInterval, timeout, true, func(ctx context.Context) (done bool, err error) {
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		nCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
-		err = client.Get(ctx, types.NamespacedName{Name: ds.Name, Namespace: ds.Namespace}, ds)
+		err = client.Get(nCtx, types.NamespacedName{Name: ds.Name, Namespace: ds.Namespace}, ds)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil

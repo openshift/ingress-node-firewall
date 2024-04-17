@@ -92,7 +92,7 @@ func (e *ebpfSingleton) SyncInterfaceIngressRules(
 		// Wait for a SIGTERM
 		<-c
 		if e.c != nil {
-			e.resetAll()
+			_ = e.resetAll()
 		}
 	}(sigc)
 
