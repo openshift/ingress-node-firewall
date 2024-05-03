@@ -21,10 +21,6 @@ var tcp = []TransportProtoFailSafeRule{
 		2379,
 	},
 	{
-		"SSH",
-		22,
-	},
-	{
 		"Kubelet",
 		10250,
 	},
