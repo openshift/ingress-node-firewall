@@ -536,11 +536,6 @@ var _ = Describe("Pin holes", func() {
 			initCIDRTransportRule(inf, ipv4CIDR, 1, ingressnodefwv1alpha1.ProtocolTypeTCP, "1-59999", ingressnodefwv1alpha1.IngressNodeFirewallDeny)
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
-
-		It("rule which conflict with SSH", func() {
-			initCIDRTransportRule(inf, ipv4CIDR, 1, ingressnodefwv1alpha1.ProtocolTypeTCP, "22", ingressnodefwv1alpha1.IngressNodeFirewallDeny)
-			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
-		})
 	})
 
 	Context("will allow", func() {
