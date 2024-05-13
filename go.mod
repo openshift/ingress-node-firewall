@@ -14,8 +14,8 @@ require (
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.33.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.18.0
-	github.com/prometheus/common v0.47.0
+	github.com/prometheus/client_golang v1.19.1
+	github.com/prometheus/common v0.48.0
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/sys v0.19.0
 	gopkg.in/mcuadros/go-syslog.v2 v2.3.0
