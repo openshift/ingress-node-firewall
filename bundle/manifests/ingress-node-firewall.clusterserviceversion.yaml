@@ -85,7 +85,7 @@ metadata:
     categories: Networking
     certified: "false"
     containerImage: quay.io/openshift/origin-ingress-node-firewall:latest
-    createdAt: "2024-04-20T12:38:04Z"
+    createdAt: "2024-05-22T10:36:46Z"
     features.operators.openshift.io/disconnected: "true"
     features.operators.openshift.io/fips-compliant: "true"
     features.operators.openshift.io/proxy-aware: "false"
@@ -93,7 +93,7 @@ metadata:
     features.operators.openshift.io/token-auth-aws: "false"
     features.operators.openshift.io/token-auth-azure: "false"
     features.operators.openshift.io/token-auth-gcp: "false"
-    olm.skipRange: '>=4.11.0 <4.16.0'
+    olm.skipRange: '>=4.11.0 <4.17.0'
     operatorframework.io/suggested-namespace: openshift-ingress-node-firewall
     operators.operatorframework.io/builder: operator-sdk-v1.34.1
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -104,7 +104,7 @@ metadata:
     operatorframework.io/arch.arm64: supported
     operatorframework.io/arch.ppc64le: supported
     operatorframework.io/arch.s390x: supported
-  name: ingress-node-firewall.v4.16.0
+  name: ingress-node-firewall.v4.17.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -434,7 +434,7 @@ spec:
   - ingressnodefirewall
   labels:
     olm-owner-enterprise-app: ingress-node-firewall
-    olm-status-descriptors: ingress-node-firewall.v4.16.0
+    olm-status-descriptors: ingress-node-firewall.v4.17.0
   links:
   - name: Ingress Node Firewall
     url: https://github.com/openshift/ingress-node-firewall
@@ -444,7 +444,7 @@ spec:
   maturity: alpha
   provider:
     name: Red Hat, Inc
-  version: 4.16.0
+  version: 4.17.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
