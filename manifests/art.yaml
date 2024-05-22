@@ -6,8 +6,8 @@ updates:
       replace: "ingress-node-firewall.v{FULL_VER}"
     - search: "version: {MAJOR}.{MINOR}.0"
       replace: "version: {FULL_VER}"
-    - search: "olm.skipRange: '>=4.16.0-0 <{MAJOR}.{MINOR}.0'"
-      replace: "olm.skipRange: '>=4.16.0-0 <{FULL_VER}'"
+    - search: "olm.skipRange: '>=4.17.0-0 <{MAJOR}.{MINOR}.0'"
+      replace: "olm.skipRange: '>=4.17.0-0 <{FULL_VER}'"
   - file: "ingress-node-firewall.package.yaml"
     update_list:
     - search: "currentCSV: ingress-node-firewall.v{MAJOR}.{MINOR}.0"
