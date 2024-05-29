@@ -88,13 +88,13 @@ func (infc *IngNodeFwController) ingressNodeFwEvents() error {
 				continue
 			}
 			// Note position of the bytes in the buf slice depends on the layout of bpfEventHdrSt struct
-			eventHdr.IfId = binary.LittleEndian.Uint16(buf[0:2])
-			eventHdr.RuleId = binary.LittleEndian.Uint16(buf[2:4])
+			eventHdr.IfId = binary.NativeEndian.Uint16(buf[0:2])
+			eventHdr.RuleId = binary.NativeEndian.Uint16(buf[2:4])
 			eventHdr.Action = buf[4]
-			eventHdr.PktLength = binary.LittleEndian.Uint16(buf[6:8])
+			eventHdr.PktLength = binary.NativeEndian.Uint16(buf[6:8])
 			packet := make([]byte, eventHdr.PktLength)
 			// Parse the perf event entry into a bpfEvent structure.
-			if err := binary.Read(bytes.NewBuffer(record.RawSample[eventHdrSize:]), binary.LittleEndian, &packet); err != nil {
+			if err := binary.Read(bytes.NewBuffer(record.RawSample[eventHdrSize:]), binary.NativeEndian, &packet); err != nil {
 				log.Printf("Parsing perf event packet header : %v", err)
 				continue
 			}

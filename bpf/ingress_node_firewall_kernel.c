@@ -202,10 +202,7 @@ ipv4_firewall_lookup(void *data, void *data_end, __u32 ifId) {
 
   memset(&key, 0, sizeof(key));
   key.prefixLen = 64; // ipv4 address + ifId
-  key.ip_data[0] = srcAddr & 0xFF;
-  key.ip_data[1] = (srcAddr >> 8) & 0xFF;
-  key.ip_data[2] = (srcAddr >> 16) & 0xFF;
-  key.ip_data[3] = (srcAddr >> 24) & 0xFF;
+  memcpy(key.ip_data, &srcAddr, sizeof(srcAddr));
   key.ingress_ifindex = ifId;
 
   if (unlikely(debug_lookup != 0)) {
