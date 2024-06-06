@@ -2,7 +2,7 @@ module github.com/openshift/ingress-node-firewall
 
 go 1.21.0
 
-toolchain go1.22.2
+toolchain go1.21.7
 
 require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
