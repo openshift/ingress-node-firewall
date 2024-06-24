@@ -20,8 +20,10 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
+	bpf_mgr "github.com/openshift/ingress-node-firewall/pkg/bpf-mgr"
 
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
@@ -44,10 +46,13 @@ type IngressNodeFirewallReconciler struct {
 	Namespace string
 }
 
+const programAlreadyExistsErr = "already exists"
+
 //+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewalls,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewalls/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewalls/finalizers,verbs=update
 //+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+//+kubebuilder:rbac:groups=bpfman.io,resources=bpfapplications,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -98,6 +103,18 @@ func (r *IngressNodeFirewallReconciler) Reconcile(ctx context.Context, req ctrl.
 					"ingressNodeFirewallNodeState.Namespace", ingressNodeFirewallCurrentNodeState.Namespace,
 					"ingressNodeFirewallNodeState.Name", ingressNodeFirewallCurrentNodeState.Name)
 				return ctrl.Result{}, err
+			}
+			if yes, debugMode, err := r.isUsingBpfmanManager(ctx); yes && err == nil {
+				r.Log.Info("BPFMAN: Deleting ebpf program", "req.Name", req.Name)
+				interfaces := make([]string, 0,
+					len(ingressNodeFirewallCurrentNodeState.Spec.InterfaceIngressRules))
+				for intf := range ingressNodeFirewallCurrentNodeState.Spec.InterfaceIngressRules {
+					interfaces = append(interfaces, intf)
+				}
+				if err := bpf_mgr.BpfmanDetachNodeFirewall(ctx, r.Client, nil, debugMode); err != nil {
+					r.Log.Error(err, "Failed to delete ebpf program", "req.Name", req.Name)
+					return ctrl.Result{}, err
+				}
 			}
 			continue
 		}
@@ -331,6 +348,7 @@ func (r *IngressNodeFirewallReconciler) buildNodeStates(
 				if _, ok := state.Spec.InterfaceIngressRules[iface]; !ok {
 					state.Spec.InterfaceIngressRules[iface] = []infv1alpha1.IngressNodeFirewallRules{}
 				}
+
 				// Merge in rules.
 				state.Spec.InterfaceIngressRules[iface], err = mergeRuleSet(
 					state.Spec.InterfaceIngressRules[iface], firewallObj.Spec.Ingress)
@@ -345,6 +363,25 @@ func (r *IngressNodeFirewallReconciler) buildNodeStates(
 					continue withNextNode
 				}
 			}
+			if yes, debugMode, err := r.isUsingBpfmanManager(ctx); yes && err == nil {
+				// create bpfman app object and attach ingress firewall prog
+				r.Log.Info("BPFMAN: Creating application object and attach ingress firewall prog")
+				err = bpf_mgr.BpfmanAttachNodeFirewall(ctx, r.Client, firewallObj, debugMode)
+				if err != nil {
+					errMsg := fmt.Sprintf("BPFMAN: Failed to attach ingress firewall prog")
+					r.Log.Error(err, errMsg)
+					if !strings.Contains(err.Error(), programAlreadyExistsErr) {
+						state.Status = infv1alpha1.IngressNodeFirewallNodeStateStatus{
+							SyncStatus:       infv1alpha1.SyncError,
+							SyncErrorMessage: fmt.Sprintf("Failed to attach ingress firewall prog, err: %q", err),
+						}
+						// Write back the state to the map and then continue with the next node.
+						nodeStates[node.Name] = state
+						continue withNextNode
+					}
+				}
+			}
+
 			// Write back the state to the map.
 			nodeStates[node.Name] = state
 		}
@@ -422,4 +459,13 @@ func mergeFirewallProtocolRules(a, b []infv1alpha1.IngressNodeFirewallProtocolRu
 		a = append(a, itemB)
 	}
 	return a, nil
+}
+
+func (r *IngressNodeFirewallReconciler) isUsingBpfmanManager(ctx context.Context) (bool, bool, error) {
+	cfg := infv1alpha1.IngressNodeFirewallConfig{}
+	if err := r.Get(ctx, types.NamespacedName{Name: defaultIngressNodeFirewallCrName, Namespace: r.Namespace}, &cfg); err != nil {
+		return false, false, fmt.Errorf("failed to get ingress node firewall config: %w", err)
+	}
+
+	return *cfg.Spec.EBPFProgramManagerMode, *cfg.Spec.Debug, nil
 }

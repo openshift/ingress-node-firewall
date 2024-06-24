@@ -34,8 +34,10 @@ const (
 	linkSuffix                    = "_link"
 	ifIndexKeyLength              = 32 // Interface Index key length in bits
 	xdpEBUSYErr                   = "device or resource busy"
-	debugLookup                   = "debug_lookup" // constant defined in kernel hook to enable lPM lookup
+	debugLookup                   = "debug_lookup" // constant defined in kernel hook to enable LongPrefixMatch "LPM" lookup
 	debugLookupEnvVar             = "ENABLE_EBPF_LPM_LOOKUP_DBG"
+	ebpfProgramMangerEnvVar       = "EBPF_MANAGEMENT_MODE"
+	bpfManBpfFSPath               = "/run/ignfw/maps"
 )
 
 // IngNodeFwController structure is the object hold controls for starting
@@ -47,60 +49,115 @@ type IngNodeFwController struct {
 	links map[string]link.Link
 	// eBPF pingPath
 	pinPath string
+
+	// UseBpfManager indicates whether the eBPF program manager (e.g., bpfman) is used
+	// for managing eBPF programs. If true, bpfman manages the programs; if false,
+	// the system uses the default eBPF program management.
+	UseBpfManager bool
 }
 
 // $BPF_CLANG and $BPF_CFLAGS are set by the Makefile.
-//go:generate bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS -type ruleType_st -type event_hdr_st -type ruleStatistics_st Bpf ../../bpf/ingress_node_firewall_kernel.c -- -I ../../bpf/headers -I/usr/include/x86_64-linux-gnu/
+//go:generate bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS -target amd64,arm64,ppc64le,s390x -type ruleType_st -type event_hdr_st -type ruleStatistics_st Bpf ../../bpf/ingress_node_firewall_kernel.c -- -I ../../bpf/headers -I/usr/include/x86_64-linux-gnu/
 
 // NewIngNodeFwController creates new IngressNodeFirewall controller object.
 func NewIngNodeFwController() (*IngNodeFwController, error) {
-	// Allow the current process to lock memory for eBPF resources.
-	if err := rlimit.RemoveMemlock(); err != nil {
-		return nil, err
+	ebpfManager := false
+	ebpfManagerMode, ok := os.LookupEnv(ebpfProgramMangerEnvVar)
+	if ok {
+		val, err := strconv.ParseBool(ebpfManagerMode)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert %q to bool: %v", ebpfManagerMode, err)
+		}
+		ebpfManager = val
 	}
 
-	pinDir := path.Join(bpfFSPath, xdpIngressNodeFirewallProcess)
-	if err := os.MkdirAll(pinDir, os.ModePerm); err != nil {
-		return nil, fmt.Errorf("failed to create pinDir %s: %s", pinDir, err)
-	}
 	// Load pre-compiled programs into the kernel.
 	objs := BpfObjects{}
-	spec, err := LoadBpf()
-	if err != nil {
-		return nil, fmt.Errorf("failed loading BPF data: %w", err)
-	}
-	debugLookupVal, ok := os.LookupEnv(debugLookupEnvVar)
-	if ok {
-		val, err := strconv.Atoi(debugLookupVal)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert %q to integer: %v", debugLookupVal, err)
+	var pinDir string
+	if ebpfManager {
+		pinDir = bpfManBpfFSPath
+	} else {
+		// Allow the current process to lock memory for eBPF resources.
+		if err := rlimit.RemoveMemlock(); err != nil {
+			return nil, err
 		}
-		if err := spec.RewriteConstants(map[string]interface{}{
-			debugLookup: uint32(val),
-		}); err != nil {
-			return nil, fmt.Errorf("failed to rewrite BPF constants definition: %w", err)
+		pinDir = path.Join(bpfFSPath, xdpIngressNodeFirewallProcess)
+		if err := os.MkdirAll(pinDir, os.ModePerm); err != nil {
+			return nil, fmt.Errorf("failed to create pinDir %s: %s", pinDir, err)
+		}
+
+		spec, err := LoadBpf()
+		if err != nil {
+			return nil, fmt.Errorf("failed loading BPF data: %w", err)
+		}
+		debugLookupVal, ok := os.LookupEnv(debugLookupEnvVar)
+		if ok {
+			val, err := strconv.Atoi(debugLookupVal)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert %q to integer: %v", debugLookupVal, err)
+			}
+			if err := spec.RewriteConstants(map[string]interface{}{
+				debugLookup: uint32(val),
+			}); err != nil {
+				return nil, fmt.Errorf("failed to rewrite BPF constants definition: %w", err)
+			}
+		}
+
+		if err := spec.LoadAndAssign(&objs, &ebpf.CollectionOptions{Maps: ebpf.MapOptions{PinPath: pinDir}}); err != nil {
+			var ve *ebpf.VerifierError
+			if errors.As(err, &ve) {
+				// Using %+v will print the whole verifier error, not just the last
+				// few lines.
+				klog.Infof("Verifier error: %+v", ve)
+			}
+			return nil, fmt.Errorf("loading objects: pinDir:%s, err:%s", pinDir, err)
 		}
 	}
 
-	if err := spec.LoadAndAssign(&objs, &ebpf.CollectionOptions{Maps: ebpf.MapOptions{PinPath: pinDir}}); err != nil {
-		var ve *ebpf.VerifierError
-		if errors.As(err, &ve) {
-			// Using %+v will print the whole verifier error, not just the last
-			// few lines.
-			klog.Infof("Verifier error: %+v", ve)
-		}
-		return nil, fmt.Errorf("loading objects: pinDir:%s, err:%s", pinDir, err)
-	}
 	infc := &IngNodeFwController{
-		objs:    objs,
-		pinPath: pinDir,
-		links:   make(map[string]link.Link, 0),
+		objs:          objs,
+		pinPath:       pinDir,
+		links:         make(map[string]link.Link, 0),
+		UseBpfManager: ebpfManager,
 	}
-	// Load pinned links from /sys/fs/bpf/xdp_ingress_node_firewall_process on initialization.
-	// That way, the state in /sys/fs/bpf/xdp_ingress_node_firewall_process and the tracked list of links
-	// will be in sync.
-	if err := infc.loadPinnedLinks(); err != nil {
-		return nil, err
+
+	if ebpfManager {
+		var err error
+		opts := &ebpf.LoadPinOptions{
+			ReadOnly:  false,
+			WriteOnly: false,
+			Flags:     0,
+		}
+
+		klog.Info("BPFManager mode: loading ingress firewall pinned maps")
+		mPath := path.Join(pinDir, "ingress_node_firewall_events_map")
+		infc.objs.BpfMaps.IngressNodeFirewallEventsMap, err = ebpf.LoadPinnedMap(mPath, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load %s: %w", mPath, err)
+		}
+		mPath = path.Join(pinDir, "ingress_node_firewall_statistics_map")
+		infc.objs.BpfMaps.IngressNodeFirewallStatisticsMap, err = ebpf.LoadPinnedMap(mPath, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load %s: %w", mPath, err)
+		}
+		mPath = path.Join(pinDir, "ingress_node_firewall_table_map")
+		infc.objs.BpfMaps.IngressNodeFirewallTableMap, err = ebpf.LoadPinnedMap(mPath, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load %s: %w", mPath, err)
+		}
+		mPath = path.Join(pinDir, "ingress_node_firewall_dbg_map")
+		infc.objs.BpfMaps.IngressNodeFirewallDbgMap, err = ebpf.LoadPinnedMap(mPath, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load %s: %w", mPath, err)
+		}
+
+	} else {
+		// Load pinned links from /sys/fs/bpf/xdp_ingress_node_firewall_process on initialization.
+		// That way, the state in /sys/fs/bpf/xdp_ingress_node_firewall_process and the tracked list of links
+		// will be in sync.
+		if err := infc.loadPinnedLinks(); err != nil {
+			return nil, err
+		}
 	}
 
 	// Generate ingress node fw events
@@ -113,18 +170,18 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 
 // IngressNodeFwRulesLoader adds/updates/deletes ingress node firewall rules to the eBPF LPM MAP in an idempotent way.
 // IngressNodeFwRulesLoader executes the following actions in order:
-// i)   Get eBPF objs to create/update eBPF maps and get map info.
-// ii)  Build a map of valid ebpfKeys pointing to the ebpfRules that should be associated to them (built from
+// i)  Get eBPF objs to create/update eBPF maps and get map info.
+// ii) Build a map of valid ebpfKeys pointing to the ebpfRules that should be associated to them (built from
 //
 //	ifaceIngressRules).
 //
 // iii) Get stale keys (= keys inside the eBPF map but not inside the currently desired ruleset).
-// iv)  Purge all stale keys from the eBPF map.
-// v)   Add/update all keys. This is an idempotent action and non-existing keys are added whereas existing keys
+// iv) Purge all stale keys from the eBPF map.
+// v) Add/update all keys. This is an idempotent action and non-existing keys are added whereas existing keys
 //
 //	are updated.
 //
-// vi)  Generate ingress node firewall events.
+// vi) Generate ingress node firewall events.
 // In the context of this method, stale keys are keys that figure inside the eBPF map but that are not generated
 // during step ii) from the provided ingressRules slice.
 func (infc *IngNodeFwController) IngressNodeFwRulesLoader(
@@ -145,7 +202,7 @@ func (infc *IngNodeFwController) IngressNodeFwRulesLoader(
 			continue
 		}
 		// Look up the network interface by name.
-		// Note: for bond interface we use the slaves interfaces indices instead of the bond interface index
+		// Note: for bond interfaces, we use the indices of the slave interfaces instead of the bond interface index.
 		ifIDs, err := interfaces.GetInterfaceIndices(interfaceName)
 		if err != nil {
 			return err
@@ -214,8 +271,8 @@ func (infc *IngNodeFwController) GetStatisticsMap() *ebpf.Map {
 
 // IngressNodeFwAttach attaches the eBPF program to a given list of interfaces and pins them to different pinDirs.
 // For each provided interface name:
-// i)   Look up the network interface by name.
-// ii)  Attach the program to the interface.
+// i) Look up the network interface by name.
+// ii) Attach the program to the interface.
 // iii) Pin the XDP program.
 func (infc *IngNodeFwController) IngressNodeFwAttach(ifacesName ...string) error {
 	var errors []error
@@ -315,24 +372,37 @@ func (infc *IngNodeFwController) GetBPFMapContentForTest() (map[BpfLpmIpKeySt]Bp
 func (infc *IngNodeFwController) Close() error {
 	var errors []error
 
-	klog.Info("Removing all pins")
-	if err := infc.removeAllPins(); err != nil {
-		errors = append(errors, fmt.Errorf("could not remove all eBPF pins, err: %q", err))
+	ebpfManager := false
+	ebpfManagerMode, ok := os.LookupEnv(ebpfProgramMangerEnvVar)
+	if ok {
+		val, err := strconv.ParseBool(ebpfManagerMode)
+		if err != nil {
+			return fmt.Errorf("failed to convert %q to bool: %v", ebpfManagerMode, err)
+		}
+		ebpfManager = val
 	}
+	klog.Infof("eBPF manager mode is set to %v", ebpfManager)
+	if !ebpfManager {
 
-	klog.Info("Removing table map")
-	if err := infc.removeTableMap(); err != nil {
-		errors = append(errors, fmt.Errorf("could not remove eBPF table map, err: %q", err))
-	}
+		klog.Info("Removing all pins")
+		if err := infc.removeAllPins(); err != nil {
+			errors = append(errors, fmt.Errorf("could not remove all eBPF pins, err: %q", err))
+		}
 
-	klog.Info("Running cleanup of eBPF objects")
-	if err := infc.cleaneBPFObjs(); err != nil {
-		errors = append(errors, fmt.Errorf("could not clean eBPF objects, err: %q", err))
-	}
+		klog.Info("Removing table map")
+		if err := infc.removeTableMap(); err != nil {
+			errors = append(errors, fmt.Errorf("could not remove eBPF table map, err: %q", err))
+		}
 
-	klog.Infof("Removing Ingress node firewall instance pin path %s", infc.pinPath)
-	if err := os.RemoveAll(infc.pinPath); err != nil {
-		errors = append(errors, fmt.Errorf("could not delete ingress node firewall pin path, err: %q", err))
+		klog.Info("Running cleanup of eBPF objects")
+		if err := infc.cleaneBPFObjs(); err != nil {
+			errors = append(errors, fmt.Errorf("could not clean eBPF objects, err: %q", err))
+		}
+
+		klog.Infof("Removing Ingress node firewall instance pin path %s", infc.pinPath)
+		if err := os.RemoveAll(infc.pinPath); err != nil {
+			errors = append(errors, fmt.Errorf("could not delete ingress node firewall pin path, err: %q", err))
+		}
 	}
 
 	if len(errors) > 0 {
@@ -389,7 +459,7 @@ func (infc *IngNodeFwController) removeTableMap() error {
 // exists yet.
 func (infc *IngNodeFwController) loadPinnedLinks() error {
 	klog.Info("Loading interfaces from pinned dir into memory")
-	files, err := ioutil.ReadDir(infc.pinPath)
+	files, err := os.ReadDir(infc.pinPath)
 	if err != nil {
 		return err
 	}

@@ -128,6 +128,48 @@ hack/set-daemon-image.sh <some-registry>/ingress-node-firewall-daemon:latest
 ```sh
 make deploy-kind IMG=<some-registry>/ingress-node-firewall-controller:latest
 ```
+#### Deploying using Bpfman for eBPF programs management
+
+After completing all the steps in the previous section and deploying the ingress node firewall operator,
+you must deploy the bpfman-operator:
+
+```shell
+git clone https://github.com/bpfman/bpfman-operator.git
+cd bpfman-operator
+make deploy
+```
+
+This will deploy the `bpfman-operator` and start the `bpfman-daemon` pods.
+
+```shell
+oc get pods -n bpfman
+NAME                               READY   STATUS    RESTARTS   AGE
+bpfman-daemon-45jtk                3/3     Running   0          63s
+bpfman-daemon-8x9j7                3/3     Running   0          63s
+bpfman-daemon-c9td4                3/3     Running   0          63s
+bpfman-operator-7f67bc7c57-5cpqr   2/2     Running   0          75s
+
+```
+
+To select bpfman to manage INFW programs, set `ebpfProgramManagerMode` to true in `IngressNodeFirewallConfig`.
+
+```yaml
+apiVersion: ingressnodefirewall.openshift.io/v1alpha1
+kind: IngressNodeFirewallConfig
+metadata:
+  name: ingressnodefirewallconfig
+  namespace: ingress-node-firewall-system
+spec:
+  nodeSelector:
+    node-role.kubernetes.io/worker: ""
+  ebpfProgramManagerMode: true
+```
+
+If there are any updates to eBPF programs, then we need to build and push bytecode images
+
+```shell
+make build-and-push-bc-image
+```
 
 #### Removing the operator from the kind cluster
 
@@ -272,7 +314,7 @@ kubectl exec -n ${OPERATOR_NAMESPACE} -it ${NODE_DAEMON_NAME} sh
 ```
 2. Retrieve the Prometheus formatted metrics
 ```sh
-Curl 127.0.0.1:39301/metrics
+Curl 127.0.0.1:39401/metrics
 ```
 
 Within OCP, you may use the OCP console to access the promql console to search for the following metrics:

@@ -18,3 +18,5 @@ bin/*
 testbin/*
 kubeconfig
 
+#misc
+.vscode

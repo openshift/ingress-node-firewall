@@ -39,18 +39,10 @@ spec:
               value: "30"
             - name: ENABLE_EBPF_LPM_LOOKUP_DBG
               value: '{{.Debug}}'
-          securityContext:
-            privileged: true
-            runAsUser: 0
-            capabilities:
-              add:
-                - CAP_BPF
-                - CAP_NET_ADMIN
+            - name: EBPF_MANAGEMENT_MODE
+              value: '{{.EBPFProgramManagerMode}}'
           terminationMessagePolicy: FallbackToLogsOnError
           volumeMounts:
-            - name: bpf-maps
-              mountPath: /sys/fs/bpf
-              mountPropagation: Bidirectional
             - name: syslog-socket
               mountPath: /var/run
         - name: events
@@ -96,7 +88,7 @@ spec:
               echo $(date -Iseconds) INFO: ingress-node-firewall-daemon-metrics-certs mounted, starting kube-rbac-proxy
               exec /usr/bin/kube-rbac-proxy --secure-listen-address=:9301 \
                 --tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256 \
-                --upstream=http://127.0.0.1:39301 \
+                --upstream=http://127.0.0.1:39401 \
                 --tls-private-key-file=${TLS_PK} \
                 --tls-cert-file=${TLS_CERT}
           ports:
@@ -112,10 +104,6 @@ spec:
               mountPath: /etc/pki/tls/metrics-certs
               readOnly: True
       volumes:
-        - name: bpf-maps
-          hostPath:
-            path: /sys/fs/bpf
-            type: DirectoryOrCreate
         # Must be optional because the ingress-node-firewall-daemon-metrics-certs is a service serving
         # certificate and those cannot be generated without the daemon running
         - name: ingress-node-firewall-daemon-metrics-certs

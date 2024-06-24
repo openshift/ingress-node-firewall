@@ -30,9 +30,11 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -40,6 +42,11 @@ import (
 const (
 	defaultIngressNodeFirewallCrName = "ingressnodefirewallconfig"
 	IngressNodeFirewallManifestPath  = "./bindata/manifests/daemon"
+	mapsVolumeName                   = "bpf-maps"
+	bpfmanMapsVolumeName             = "bpfman-maps"
+	bpfFsPath                        = "/sys/fs/bpf"
+	bpfManBpfFSPath                  = "/run/ignfw/maps"
+	daemonContainerName              = "daemon"
 )
 
 var ManifestPath = IngressNodeFirewallManifestPath
@@ -132,6 +139,8 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 	logger.Info("Start")
 	data := render.MakeRenderData()
 
+	var useBPFMan bool
+
 	data.Data["Image"] = os.Getenv("DAEMONSET_IMAGE")
 	data.Data["NameSpace"] = r.Namespace
 	data.Data["RBACProxyImage"] = os.Getenv("KUBE_RBAC_PROXY_IMAGE")
@@ -140,6 +149,14 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 		data.Data["Debug"] = "0"
 		if *config.Spec.Debug {
 			data.Data["Debug"] = "1"
+		}
+	}
+
+	if config.Spec.EBPFProgramManagerMode != nil {
+		data.Data["EBPFProgramManagerMode"] = "0"
+		if *config.Spec.EBPFProgramManagerMode {
+			data.Data["EBPFProgramManagerMode"] = "1"
+			useBPFMan = true
 		}
 	}
 
@@ -161,6 +178,68 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 			if len(config.Spec.NodeSelector) > 0 {
 				ds.Spec.Template.Spec.NodeSelector = config.Spec.NodeSelector
 			}
+			daemonContainer := -1
+			for idx, c := range ds.Spec.Template.Spec.Containers {
+				if c.Name == daemonContainerName {
+					daemonContainer = idx
+					break
+				}
+			}
+
+			if daemonContainer != -1 {
+				ds.Spec.Template.Spec.Containers[daemonContainer].SecurityContext = &corev1.SecurityContext{
+					Privileged: ptr.To[bool](true),
+					RunAsUser:  ptr.To[int64](0),
+					Capabilities: &corev1.Capabilities{
+						Add: []corev1.Capability{
+							"CAP_BPF",
+							"CAP_NET_ADMIN",
+						},
+					},
+				}
+
+				if useBPFMan {
+					ds.Spec.Template.Spec.Containers[daemonContainer].VolumeMounts = append(
+						ds.Spec.Template.Spec.Containers[daemonContainer].VolumeMounts,
+						corev1.VolumeMount{
+							Name:             bpfmanMapsVolumeName,
+							MountPath:        bpfManBpfFSPath,
+							MountPropagation: newMountPropagationMode(corev1.MountPropagationBidirectional),
+						})
+					ds.Spec.Template.Spec.Volumes = append(ds.Spec.Template.Spec.Volumes,
+						corev1.Volume{
+							Name: bpfmanMapsVolumeName,
+							VolumeSource: corev1.VolumeSource{
+								CSI: &corev1.CSIVolumeSource{
+									Driver: "csi.bpfman.io",
+									VolumeAttributes: map[string]string{
+										"csi.bpfman.io/program": "ingress-node-firewall",
+										"csi.bpfman.io/maps":    "ingress_node_firewall_events_map,ingress_node_firewall_statistics_map,ingress_node_firewall_table_map,ingress_node_firewall_dbg_map",
+									},
+								},
+							},
+						})
+				} else {
+					ds.Spec.Template.Spec.Containers[daemonContainer].VolumeMounts = append(
+						ds.Spec.Template.Spec.Containers[daemonContainer].VolumeMounts,
+						corev1.VolumeMount{
+							Name:             mapsVolumeName,
+							MountPath:        bpfFsPath,
+							MountPropagation: newMountPropagationMode(corev1.MountPropagationBidirectional),
+						})
+					ds.Spec.Template.Spec.Volumes = append(ds.Spec.Template.Spec.Volumes,
+						corev1.Volume{
+							Name: mapsVolumeName,
+							VolumeSource: corev1.VolumeSource{
+								HostPath: &corev1.HostPathVolumeSource{
+									Path: bpfFsPath,
+									Type: newHostPathType(corev1.HostPathDirectoryOrCreate),
+								},
+							},
+						})
+				}
+			}
+
 			if err := ctrl.SetControllerReference(config, ds, r.Scheme); err != nil {
 				return errors.Wrapf(err, "Failed to set controller reference to %s %s", obj.GetNamespace(), obj.GetName())
 			}
@@ -176,4 +255,24 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 		}
 	}
 	return nil
+}
+
+// newHostPathType returns a pointer to a given corev1.HostPathType.
+// This utility function simplifies the creation of pointer references
+// to HostPathType constants, essential for Kubernetes API fields that
+// require pointers.
+func newHostPathType(pathType corev1.HostPathType) *corev1.HostPathType {
+	hostPathType := new(corev1.HostPathType)
+	*hostPathType = pathType
+	return hostPathType
+}
+
+// newMountPropagationMode returns a pointer to a given
+// corev1.MountPropagationMode. This utility function simplifies the
+// creation of pointer references to MountPropagationMode constants,
+// essential for Kubernetes API fields that require pointers.
+func newMountPropagationMode(m corev1.MountPropagationMode) *corev1.MountPropagationMode {
+	mode := new(corev1.MountPropagationMode)
+	*mode = m
+	return mode
 }

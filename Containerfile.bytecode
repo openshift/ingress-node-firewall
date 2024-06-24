@@ -1,0 +1,10 @@
+FROM scratch
+
+ARG BYTECODE_FILE
+ARG PROGRAMS
+ARG MAPS
+
+LABEL "io.ebpf.programs"=$PROGRAMS
+LABEL "io.ebpf.maps"=$MAPS
+
+COPY  $BYTECODE_FILE /
