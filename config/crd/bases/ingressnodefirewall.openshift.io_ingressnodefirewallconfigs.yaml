@@ -46,6 +46,11 @@ spec:
                 description: Debug enable debug mode for ingress node firewall ebpf
                   XDP lookup
                 type: boolean
+              ebpfProgramManagerMode:
+                default: false
+                description: eBPF program manager mode, can either be false for the
+                  default mode, or true for the eBPF program manager mode `bpfman`.
+                type: boolean
               nodeSelector:
                 additionalProperties:
                   type: string

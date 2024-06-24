@@ -39,6 +39,8 @@ spec:
               value: "30"
             - name: ENABLE_EBPF_LPM_LOOKUP_DBG
               value: '{{.Debug}}'
+            - name: EBPF_MANAGEMENT_MODE
+              value: '{{.Mode}}'
           securityContext:
             privileged: true
             runAsUser: 0

@@ -6,3 +6,5 @@ metadata:
 spec:
   nodeSelector:
     node-role.kubernetes.io/worker: ""
+  debug: false
+  ebpfProgramManagerMode: false
