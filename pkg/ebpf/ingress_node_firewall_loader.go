@@ -36,6 +36,7 @@ const (
 	xdpEBUSYErr                   = "device or resource busy"
 	debugLookup                   = "debug_lookup" // constant defined in kernel hook to enable lPM lookup
 	debugLookupEnvVar             = "ENABLE_EBPF_LPM_LOOKUP_DBG"
+	ebpfProgramMangerEnvVar       = "EBPF_MANAGEMENT_MODE"
 )
 
 // IngNodeFwController structure is the object hold controls for starting
@@ -47,6 +48,9 @@ type IngNodeFwController struct {
 	links map[string]link.Link
 	// eBPF pingPath
 	pinPath string
+
+	// eBPF programs manager mode
+	Mode bool
 }
 
 // $BPF_CLANG and $BPF_CFLAGS are set by the Makefile.
@@ -96,6 +100,16 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 		pinPath: pinDir,
 		links:   make(map[string]link.Link, 0),
 	}
+
+	ebpfManagerMode, ok := os.LookupEnv(ebpfProgramMangerEnvVar)
+	if ok {
+		val, err := strconv.ParseBool(ebpfManagerMode)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert %q to bool: %v", ebpfManagerMode, err)
+		}
+		infc.Mode = val
+	}
+
 	// Load pinned links from /sys/fs/bpf/xdp_ingress_node_firewall_process on initialization.
 	// That way, the state in /sys/fs/bpf/xdp_ingress_node_firewall_process and the tracked list of links
 	// will be in sync.
@@ -113,18 +127,18 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 
 // IngressNodeFwRulesLoader adds/updates/deletes ingress node firewall rules to the eBPF LPM MAP in an idempotent way.
 // IngressNodeFwRulesLoader executes the following actions in order:
-// i)   Get eBPF objs to create/update eBPF maps and get map info.
-// ii)  Build a map of valid ebpfKeys pointing to the ebpfRules that should be associated to them (built from
+// i)  Get eBPF objs to create/update eBPF maps and get map info.
+// ii) Build a map of valid ebpfKeys pointing to the ebpfRules that should be associated to them (built from
 //
 //	ifaceIngressRules).
 //
 // iii) Get stale keys (= keys inside the eBPF map but not inside the currently desired ruleset).
-// iv)  Purge all stale keys from the eBPF map.
-// v)   Add/update all keys. This is an idempotent action and non-existing keys are added whereas existing keys
+// iv) Purge all stale keys from the eBPF map.
+// v) Add/update all keys. This is an idempotent action and non-existing keys are added whereas existing keys
 //
 //	are updated.
 //
-// vi)  Generate ingress node firewall events.
+// vi) Generate ingress node firewall events.
 // In the context of this method, stale keys are keys that figure inside the eBPF map but that are not generated
 // during step ii) from the provided ingressRules slice.
 func (infc *IngNodeFwController) IngressNodeFwRulesLoader(
@@ -145,7 +159,7 @@ func (infc *IngNodeFwController) IngressNodeFwRulesLoader(
 			continue
 		}
 		// Look up the network interface by name.
-		// Note: for bond interface we use the slaves interfaces indices instead of the bond interface index
+		// Note: for bond interface we use the slave interfaces indices instead of the bond interface index
 		ifIDs, err := interfaces.GetInterfaceIndices(interfaceName)
 		if err != nil {
 			return err
@@ -214,8 +228,8 @@ func (infc *IngNodeFwController) GetStatisticsMap() *ebpf.Map {
 
 // IngressNodeFwAttach attaches the eBPF program to a given list of interfaces and pins them to different pinDirs.
 // For each provided interface name:
-// i)   Look up the network interface by name.
-// ii)  Attach the program to the interface.
+// i) Look up the network interface by name.
+// ii) Attach the program to the interface.
 // iii) Pin the XDP program.
 func (infc *IngNodeFwController) IngressNodeFwAttach(ifacesName ...string) error {
 	var errors []error
@@ -389,7 +403,7 @@ func (infc *IngNodeFwController) removeTableMap() error {
 // exists yet.
 func (infc *IngNodeFwController) loadPinnedLinks() error {
 	klog.Info("Loading interfaces from pinned dir into memory")
-	files, err := ioutil.ReadDir(infc.pinPath)
+	files, err := os.ReadDir(infc.pinPath)
 	if err != nil {
 		return err
 	}

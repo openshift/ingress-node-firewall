@@ -559,7 +559,7 @@ var _ = Describe("IngressNodeFirewall controller with multiple objects", func() 
 })
 
 // hasIngressNodeFirewallNodeStates is a helper function to reduce code duplication.
-// This function will list all IngressNodeFirewallNodeStates and it will make sure that eventually an object
+// This function will list all IngressNodeFirewallNodeStates, and it will make sure that eventually an object
 // with each of the expected names exists.
 func hasIngressNodeFirewallNodeStates(ctx context.Context, k8sClient client.Client, expectedObjectNames []string) {
 	nodeStateList := &infv1alpha1.IngressNodeFirewallNodeStateList{}

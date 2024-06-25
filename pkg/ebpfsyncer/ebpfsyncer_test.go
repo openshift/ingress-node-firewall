@@ -422,7 +422,7 @@ func TestSyncInterfaceIngressRulesWithHTTP(t *testing.T) {
 
 	for i, tc := range tcs {
 		t.Log("Running the ebpfsyncer's sync to update rules")
-		err := GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(tc.rules, tc.isDelete)
+		err := GetEbpfSyncer(ctx, l, nil, nil, nil).SyncInterfaceIngressRules(tc.rules, tc.isDelete)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -487,23 +487,23 @@ func TestSyncInterfaceIngressRulesAttachAndDetachSingleInterface(t *testing.T) {
 	ctx := context.Background()
 	l := zap.New()
 	t.Log("Running the ebpfsyncer's sync to attach rules")
-	err := GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(rules, false)
+	err := GetEbpfSyncer(ctx, l, nil, nil, nil).SyncInterfaceIngressRules(rules, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Log("Running ebpfsyncer's sync to delete rules")
-	err = GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(rules, true)
+	err = GetEbpfSyncer(ctx, l, nil, nil, nil).SyncInterfaceIngressRules(rules, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Log("Running the ebpfsyncer's sync to attach rules again")
-	err = GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(rules, false)
+	err = GetEbpfSyncer(ctx, l, nil, nil, nil).SyncInterfaceIngressRules(rules, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Log("Running ebpfsyncer's sync to delete rules again")
-	err = GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(rules, true)
+	err = GetEbpfSyncer(ctx, l, nil, nil, nil).SyncInterfaceIngressRules(rules, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -572,23 +572,23 @@ func TestSyncInterfaceIngressRulesAttachAndDetachMultiInterface(t *testing.T) {
 	ctx := context.Background()
 	l := zap.New()
 	t.Log("Running the ebpfsyncer's sync to attach rules")
-	err := GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(rules, false)
+	err := GetEbpfSyncer(ctx, l, nil, nil, nil).SyncInterfaceIngressRules(rules, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Log("Running ebpfsyncer's sync to delete rules")
-	err = GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(rules, true)
+	err = GetEbpfSyncer(ctx, l, nil, nil, nil).SyncInterfaceIngressRules(rules, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Log("Running the ebpfsyncer's sync to attach rules again")
-	err = GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(rules, false)
+	err = GetEbpfSyncer(ctx, l, nil, nil, nil).SyncInterfaceIngressRules(rules, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Log("Running ebpfsyncer's sync to delete rules again")
-	err = GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(rules, true)
+	err = GetEbpfSyncer(ctx, l, nil, nil, nil).SyncInterfaceIngressRules(rules, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -636,13 +636,13 @@ func TestResyncInterfaceIngressRulesSingleInterface(t *testing.T) {
 	ctx := context.Background()
 	t.Log("Running the ebpfsyncer's sync to attach rules")
 	l := zap.New()
-	err := GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(rules, false)
+	err := GetEbpfSyncer(ctx, l, nil, nil, nil).SyncInterfaceIngressRules(rules, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Log("Running the ebpfsyncer's sync to attach rules again")
-	err = GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(rules, false)
+	err = GetEbpfSyncer(ctx, l, nil, nil, nil).SyncInterfaceIngressRules(rules, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -710,13 +710,13 @@ func TestResyncInterfaceIngressRulesMultiInterface(t *testing.T) {
 	ctx := context.Background()
 	t.Log("Running the ebpfsyncer's sync to attach rules")
 	l := zap.New()
-	err := GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(rules, false)
+	err := GetEbpfSyncer(ctx, l, nil, nil, nil).SyncInterfaceIngressRules(rules, false)
 	if err != nil {
 		t.Fatalf("Failed attach operation, err: %q", err)
 	}
 
 	t.Log("Running the ebpfsyncer's sync to attach rules again")
-	err = GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(rules, false)
+	err = GetEbpfSyncer(ctx, l, nil, nil, nil).SyncInterfaceIngressRules(rules, false)
 	if err != nil {
 		t.Fatalf("Failed attach operation, err: %q", err)
 	}
@@ -959,12 +959,12 @@ func TestVerifyBPFKeysAfterInterfaceIngressRulesUpdate(t *testing.T) {
 	for i, tc := range tcs {
 		t.Logf("TestVerifyBPFKeysAfterInterfaceIngressRulesUpdate(%d): Running the ebpfsyncer's sync to attach rules", i)
 		l := zap.New()
-		err := GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(tc.rules, tc.isDelete)
+		err := GetEbpfSyncer(ctx, l, nil, nil, nil).SyncInterfaceIngressRules(tc.rules, tc.isDelete)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		ebpfRules, err := GetEbpfSyncer(ctx, l, nil, nil).(*ebpfSingleton).getBPFMapContentForTest()
+		ebpfRules, err := GetEbpfSyncer(ctx, l, nil, nil, nil).(*ebpfSingleton).getBPFMapContentForTest()
 		if err != nil {
 			// FIXME: This must be improved for tests with isDelete as we currently only check that the
 			// map is set to nil but with the current test methodology we aren't verifying that the map is gone.
@@ -1143,7 +1143,7 @@ func TestInterfaceAttachments(t *testing.T) {
 		}
 
 		t.Logf("TestInterfaceAttachments(%d): Running the ebpfsyncer's sync to attach rules to interfaces", i)
-		err := GetEbpfSyncer(ctx, l, nil, nil).SyncInterfaceIngressRules(tc.rules, tc.isDelete)
+		err := GetEbpfSyncer(ctx, l, nil, nil, nil).SyncInterfaceIngressRules(tc.rules, tc.isDelete)
 		if err != nil {
 			t.Fatalf("TestInterfaceAttachments(%d): SyncInterfaceIngressRules returned an error, err: %q", i, err)
 		}

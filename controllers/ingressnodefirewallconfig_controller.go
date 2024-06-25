@@ -143,6 +143,13 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 		}
 	}
 
+	if config.Spec.EBPFProgramManagerMode != nil {
+		data.Data["Mode"] = "0"
+		if *config.Spec.EBPFProgramManagerMode {
+			data.Data["Mode"] = "1"
+		}
+	}
+
 	objs, err := render.RenderDir(ManifestPath, &data)
 	if err != nil {
 		logger.Error(err, "Fail to render config daemon manifests")

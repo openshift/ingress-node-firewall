@@ -116,7 +116,7 @@ var mock ebpfsyncer.EbpfSyncer = nil
 // For mock tests, var mock can be overwritten.
 func (r *IngressNodeFirewallNodeStateReconciler) reconcileResource(
 	ctx context.Context, instance *infv1alpha1.IngressNodeFirewallNodeState, isDelete bool) (ctrl.Result, error) {
-	if err := ebpfsyncer.GetEbpfSyncer(ctx, r.Log, r.Stats, mock).SyncInterfaceIngressRules(instance.Spec.InterfaceIngressRules, isDelete); err != nil {
+	if err := ebpfsyncer.GetEbpfSyncer(ctx, r.Log, r.Stats, r.Client, mock).SyncInterfaceIngressRules(instance.Spec.InterfaceIngressRules, isDelete); err != nil {
 		return ctrl.Result{}, errors.Wrapf(err, "FailedToSyncIngressNodeFirewallResources")
 	}
 	return ctrl.Result{}, nil

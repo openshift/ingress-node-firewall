@@ -75,6 +75,8 @@ metadata:
             "namespace": "ingress-node-firewall-system"
           },
           "spec": {
+            "debug": false,
+            "ebpfProgramManagerMode": false,
             "nodeSelector": {
               "node-role.kubernetes.io/worker": ""
             }
@@ -85,7 +87,7 @@ metadata:
     categories: Networking
     certified: "false"
     containerImage: quay.io/openshift/origin-ingress-node-firewall:latest
-    createdAt: "2024-05-22T10:36:46Z"
+    createdAt: "2024-06-24T19:02:53Z"
     features.operators.openshift.io/disconnected: "true"
     features.operators.openshift.io/fips-compliant: "true"
     features.operators.openshift.io/proxy-aware: "false"
