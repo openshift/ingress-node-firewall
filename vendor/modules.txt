@@ -262,6 +262,7 @@ golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/socks
 golang.org/x/net/proxy
+golang.org/x/net/websocket
 # golang.org/x/oauth2 v0.16.0
 ## explicit; go 1.18
 golang.org/x/oauth2
@@ -372,6 +373,7 @@ k8s.io/api/admission/v1beta1
 k8s.io/api/admissionregistration/v1
 k8s.io/api/admissionregistration/v1alpha1
 k8s.io/api/admissionregistration/v1beta1
+k8s.io/api/apidiscovery/v2
 k8s.io/api/apidiscovery/v2beta1
 k8s.io/api/apiserverinternal/v1alpha1
 k8s.io/api/apps/v1
@@ -421,8 +423,9 @@ k8s.io/api/scheduling/v1beta1
 k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
-# k8s.io/apiextensions-apiserver v0.29.3
-## explicit; go 1.21
+k8s.io/api/storagemigration/v1alpha1
+# k8s.io/apiextensions-apiserver v0.30.2
+## explicit; go 1.22.0
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1
@@ -466,6 +469,7 @@ k8s.io/apimachinery/pkg/util/errors
 k8s.io/apimachinery/pkg/util/framer
 k8s.io/apimachinery/pkg/util/httpstream
 k8s.io/apimachinery/pkg/util/httpstream/spdy
+k8s.io/apimachinery/pkg/util/httpstream/wsstream
 k8s.io/apimachinery/pkg/util/intstr
 k8s.io/apimachinery/pkg/util/json
 k8s.io/apimachinery/pkg/util/managedfields
@@ -473,6 +477,7 @@ k8s.io/apimachinery/pkg/util/managedfields/internal
 k8s.io/apimachinery/pkg/util/mergepatch
 k8s.io/apimachinery/pkg/util/naming
 k8s.io/apimachinery/pkg/util/net
+k8s.io/apimachinery/pkg/util/portforward
 k8s.io/apimachinery/pkg/util/proxy
 k8s.io/apimachinery/pkg/util/remotecommand
 k8s.io/apimachinery/pkg/util/runtime
@@ -489,8 +494,8 @@ k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/third_party/forked/golang/netutil
 k8s.io/apimachinery/third_party/forked/golang/reflect
-# k8s.io/client-go v0.29.3
-## explicit; go 1.21
+# k8s.io/client-go v0.30.2
+## explicit; go 1.22.0
 k8s.io/client-go/applyconfigurations/admissionregistration/v1
 k8s.io/client-go/applyconfigurations/admissionregistration/v1alpha1
 k8s.io/client-go/applyconfigurations/admissionregistration/v1beta1
@@ -539,8 +544,10 @@ k8s.io/client-go/applyconfigurations/scheduling/v1beta1
 k8s.io/client-go/applyconfigurations/storage/v1
 k8s.io/client-go/applyconfigurations/storage/v1alpha1
 k8s.io/client-go/applyconfigurations/storage/v1beta1
+k8s.io/client-go/applyconfigurations/storagemigration/v1alpha1
 k8s.io/client-go/discovery
 k8s.io/client-go/dynamic
+k8s.io/client-go/features
 k8s.io/client-go/kubernetes
 k8s.io/client-go/kubernetes/scheme
 k8s.io/client-go/kubernetes/typed/admissionregistration/v1
@@ -594,6 +601,7 @@ k8s.io/client-go/kubernetes/typed/scheduling/v1beta1
 k8s.io/client-go/kubernetes/typed/storage/v1
 k8s.io/client-go/kubernetes/typed/storage/v1alpha1
 k8s.io/client-go/kubernetes/typed/storage/v1beta1
+k8s.io/client-go/kubernetes/typed/storagemigration/v1alpha1
 k8s.io/client-go/metadata
 k8s.io/client-go/openapi
 k8s.io/client-go/pkg/apis/clientauthentication
@@ -636,8 +644,8 @@ k8s.io/client-go/util/homedir
 k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/retry
 k8s.io/client-go/util/workqueue
-# k8s.io/component-base v0.29.3
-## explicit; go 1.21
+# k8s.io/component-base v0.30.2
+## explicit; go 1.22.0
 k8s.io/component-base/config
 k8s.io/component-base/config/v1alpha1
 k8s.io/component-base/metrics
@@ -676,7 +684,6 @@ k8s.io/kubernetes/pkg/api/v1/pod
 k8s.io/utils/buffer
 k8s.io/utils/clock
 k8s.io/utils/clock/testing
-k8s.io/utils/integer
 k8s.io/utils/internal/third_party/forked/golang/net
 k8s.io/utils/net
 k8s.io/utils/pointer
