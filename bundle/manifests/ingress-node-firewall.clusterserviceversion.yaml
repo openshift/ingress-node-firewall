@@ -75,6 +75,8 @@ metadata:
             "namespace": "ingress-node-firewall-system"
           },
           "spec": {
+            "debug": false,
+            "ebpfProgramManagerMode": false,
             "nodeSelector": {
               "node-role.kubernetes.io/worker": ""
             }
@@ -85,7 +87,7 @@ metadata:
     categories: Networking
     certified: "false"
     containerImage: quay.io/openshift/origin-ingress-node-firewall:latest
-    createdAt: "2024-05-22T10:36:46Z"
+    createdAt: "2024-07-23T17:17:45Z"
     features.operators.openshift.io/disconnected: "true"
     features.operators.openshift.io/fips-compliant: "true"
     features.operators.openshift.io/proxy-aware: "false"
@@ -141,6 +143,18 @@ spec:
           - apps
           resources:
           - daemonsets
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - bpfman.io
+          resources:
+          - bpfapplications
           verbs:
           - create
           - delete
@@ -246,7 +260,7 @@ spec:
               containers:
               - args:
                 - --health-probe-bind-address=:8081
-                - --metrics-bind-address=127.0.0.1:39300
+                - --metrics-bind-address=127.0.0.1:39400
                 - --leader-elect
                 - --enable-webhook
                 command:
@@ -318,7 +332,7 @@ spec:
                   echo $(date -Iseconds) INFO: ingress-node-firewall-controller-manager-metrics-certs mounted, starting kube-rbac-proxy
                   exec /usr/bin/kube-rbac-proxy --secure-listen-address=:9300 \
                     --tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256 \
-                    --upstream=http://127.0.0.1:39300 \
+                    --upstream=http://127.0.0.1:39400 \
                     --tls-private-key-file=${TLS_PK} \
                     --tls-cert-file=${TLS_CERT}
                 image: quay.io/openshift/origin-kube-rbac-proxy:latest

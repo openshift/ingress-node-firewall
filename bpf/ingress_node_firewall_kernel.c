@@ -29,6 +29,7 @@ struct {
   __type(key, __u32);
   __type(value, __u32);
   __uint(max_entries, MAX_CPUS);
+  __uint(pinning, LIBBPF_PIN_BY_NAME);
 } ingress_node_firewall_events_map SEC(".maps");
 
 /*
@@ -41,6 +42,7 @@ struct {
   __type(key, __u32); // ruleId
   __type(value, struct ruleStatistics_st);
   __uint(max_entries, MAX_TARGETS);
+  __uint(pinning, LIBBPF_PIN_BY_NAME);
 } ingress_node_firewall_statistics_map SEC(".maps");
 
 /*
@@ -64,6 +66,7 @@ struct {
   __type(key, struct lpm_ip_key_st);
   __type(value, struct lpm_ip_key_st);
   __uint(max_entries, 16384);
+  __uint(pinning, LIBBPF_PIN_BY_NAME);
 } ingress_node_firewall_dbg_map SEC(".maps");
 
 /*
@@ -548,9 +551,8 @@ int xdp_ingress_node_firewall_process(struct xdp_md *ctx) {
   return xdp_ingress_node_firewall_main(ctx);
 }
 
-SEC("tcx_ingress_node_fw")
+SEC("classifier/tcx_ingress_node_fw")
 int tcx_ingress_node_firewall_process(struct __sk_buff *skb) {
   return tcx_ingress_node_firewall_main(skb);
 }
-
 char __license[] SEC("license") = "Dual BSD/GPL";

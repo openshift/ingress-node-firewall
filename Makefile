@@ -190,6 +190,8 @@ docker-push: ## Push docker image with the manager.
 podman-push: ## Push podman image with the manager.
 	podman push ${IMG}
 
+IMAGE_INFW_BC ?= quay.io/bpfman-bytecode/ingress-node-firewall:latest
+
 ##@ Deployment
 
 ifndef ignore-not-found
@@ -453,6 +455,10 @@ docker-generate: ## Creating the container that generates the eBPF binaries
 .PHONY: ebpf-update-headers
 ebpf-update-headers: ## eBPF update libbpf headers.
 	hack/update-bfp-headers.sh
+
+.PHONY: build-and-push-bc-image
+build-and-push-bc-image: generate ## Build and push bytecode image
+	IMAGE_INFW_BC=${IMAGE_INFW_BC} ./hack/build-bytecode-images-multi.sh
 
 ##@ Daemon development
 .PHONY: daemon

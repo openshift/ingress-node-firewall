@@ -31,6 +31,15 @@ type IngressNodeFirewallConfigSpec struct {
 	//+kubebuilder:default:=false
 	// +optional
 	Debug *bool `json:"debug,omitempty"`
+
+	// EBPFProgramManagerMode specifies the mode for managing eBPF programs.
+	// There are two modes: the default mode (false),
+	// where eBPF programs are not managed by `bpfman`, and the
+	// eBPF program manager mode (true), where eBPF programs are
+	// managed by `bpfman`.
+	// +kubebuilder:default:=false
+	// +optional
+	EBPFProgramManagerMode *bool `json:"ebpfProgramManagerMode,omitempty"`
 }
 
 // IngressNodeFirewallConfigStatus defines the observed state of IngressNodeFirewallConfig.
