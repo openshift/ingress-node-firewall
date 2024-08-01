@@ -9,6 +9,7 @@ import (
 
 	bpfmaniov1alpha1 "github.com/bpfman/bpfman-operator/apis/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -34,7 +35,15 @@ func BpfmanDetachNodeFirewall(ctx context.Context, client client.Client, obj *v1
 
 func bpfmanCreateNodeFirewallApplication(ctx context.Context, c client.Client, obj *v1alpha1.IngressNodeFirewall, dbg, isDelete bool) error {
 	var err error
-	bpfApp := bpfmaniov1alpha1.BpfApplication{}
+	bpfApp := bpfmaniov1alpha1.BpfApplication{
+		ObjectMeta: v1.ObjectMeta{
+			Name: ingressNodeFirewallApp,
+		},
+		TypeMeta: v1.TypeMeta{
+			Kind: "BpfApplication",
+		},
+	}
+
 	key := client.ObjectKey{Name: ingressNodeFirewallApp}
 
 	if isDelete {
@@ -50,11 +59,10 @@ func bpfmanCreateNodeFirewallApplication(ctx context.Context, c client.Client, o
 		return nil
 	}
 
-	prepareBpfApplication(&bpfApp, obj, dbg)
-
 	err = c.Get(ctx, key, &bpfApp)
 	if err != nil {
 		if errors.IsNotFound(err) {
+			prepareBpfApplication(&bpfApp, obj, dbg)
 			err = createBpfApplication(ctx, c, &bpfApp, obj.Name)
 			if err != nil {
 				return fmt.Errorf("failed to create BpfApplication: %v for obj: %s", err, obj.Name)
@@ -63,6 +71,8 @@ func bpfmanCreateNodeFirewallApplication(ctx context.Context, c client.Client, o
 			return fmt.Errorf("failed to get BpfApplication: %v for obj: %s", err, obj.Name)
 		}
 	} else {
+		// object exists repopulate it with the new configuration and update it
+		prepareBpfApplication(&bpfApp, obj, dbg)
 		err = updateBpfApplication(ctx, c, &bpfApp, obj.Name)
 		if err != nil {
 			return fmt.Errorf("failed to update BpfApplication: %v for obj: %s", err, obj.Name)
@@ -86,8 +96,6 @@ func prepareBpfApplication(bpfApp *bpfmaniov1alpha1.BpfApplication, obj *v1alpha
 		debugLookup: debug,
 	}
 
-	bpfApp.Name = ingressNodeFirewallApp
-	bpfApp.Kind = "BpfApplication"
 	bpfApp.Labels = map[string]string{
 		"app": ingressNodeFirewallApp,
 	}
@@ -96,7 +104,7 @@ func prepareBpfApplication(bpfApp *bpfmaniov1alpha1.BpfApplication, obj *v1alpha
 	bpfApp.Spec.BpfAppCommon.ByteCode = bpfmaniov1alpha1.BytecodeSelector{
 		Image: &bpfmaniov1alpha1.BytecodeImage{
 			Url:             ingressNodeFirewallBCImage,
-			ImagePullPolicy: bpfmaniov1alpha1.PullAlways,
+			ImagePullPolicy: bpfmaniov1alpha1.PullIfNotPresent,
 		},
 	}
 	bpfApp.Spec.Programs = []bpfmaniov1alpha1.BpfApplicationProgram{
@@ -133,9 +141,9 @@ func createBpfApplication(ctx context.Context, c client.Client, bpfApp *bpfmanio
 	for _, p := range bpfApp.Spec.Programs {
 		switch p.Type {
 		case bpfmaniov1alpha1.ProgTypeXDP:
-			klog.Infof("Creating BpfApplicatopn for XDP Prog: %v for INFW obj: %v", *p.XDP, objName)
+			klog.Infof("Creating BpfApplication for XDP Prog: %v for INFW obj: %v", *p.XDP, objName)
 		case bpfmaniov1alpha1.ProgTypeTCX:
-			klog.Infof("Creating BpfApplicatopn for TCX Prog: %v for INFW obj: %v", *p.TCX, objName)
+			klog.Infof("Creating BpfApplication for TCX Prog: %v for INFW obj: %v", *p.TCX, objName)
 		}
 	}
 	return c.Create(ctx, bpfApp)
@@ -145,9 +153,9 @@ func updateBpfApplication(ctx context.Context, c client.Client, bpfApp *bpfmanio
 	for _, p := range bpfApp.Spec.Programs {
 		switch p.Type {
 		case bpfmaniov1alpha1.ProgTypeXDP:
-			klog.Infof("Updating BpfApplicatopn for XDP Prog: %v for INFW obj: %v", *p.XDP, objName)
+			klog.Infof("Updating BpfApplication for XDP Prog: %v for INFW obj: %v", *p.XDP, objName)
 		case bpfmaniov1alpha1.ProgTypeTCX:
-			klog.Infof("Updating BpfApplicatopn for TCX Prog: %v for INFW obj: %v", *p.TCX, objName)
+			klog.Infof("Updating BpfApplication for TCX Prog: %v for INFW obj: %v", *p.TCX, objName)
 		}
 	}
 	return c.Update(ctx, bpfApp)
