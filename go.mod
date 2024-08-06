@@ -7,7 +7,7 @@ toolchain go1.22.4
 require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/bpfman/bpfman-operator v0.0.0-20240620142733-4c3fa0b591c1
-	github.com/cilium/ebpf v0.15.0
+	github.com/cilium/ebpf v0.16.0
 	github.com/go-logr/logr v1.4.2
 	github.com/golang/glog v1.2.1
 	github.com/google/gopacket v1.1.19
@@ -18,7 +18,7 @@ require (
 	github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/common v0.47.0
 	github.com/vishvananda/netlink v1.1.0
-	golang.org/x/sys v0.19.0
+	golang.org/x/sys v0.20.0
 	gopkg.in/mcuadros/go-syslog.v2 v2.3.0
 	k8s.io/api v0.30.2
 	k8s.io/apiextensions-apiserver v0.30.1
