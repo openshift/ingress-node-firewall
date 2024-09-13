@@ -1,0 +1,20 @@
+apiVersion: ingressnodefirewall.openshift.io/v1alpha1
+kind: IngressNodeFirewall
+metadata:
+  name: ingressnodefirewall-demo2
+spec:
+  interfaces:
+  - genev_sys_6081
+  nodeSelector:
+    matchLabels:
+      node-role.kubernetes.io/worker: ""
+  ingress:
+  - sourceCIDRs:
+       - 10.129.2.0/24
+    rules:
+    - order: 20
+      protocolConfig:
+        protocol: TCP
+        tcp:
+          ports: 5201
+      action: Deny
