@@ -1,0 +1,14 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: ingress-node-firewall-dev-catalog
+  namespace: openshift-marketplace
+spec:
+  sourceType: grpc
+  image: <IMAGE>
+  displayName: Ingress node firewall Operator development catalog
+  publisher: Me
+  updateStrategy:
+    registryPoll:
+      interval: 1m
+
