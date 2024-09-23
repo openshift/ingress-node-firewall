@@ -13,12 +13,12 @@ require (
 	github.com/google/gopacket v1.1.19
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/onsi/ginkgo v1.16.5
-	github.com/onsi/gomega v1.33.1
+	github.com/onsi/gomega v1.34.2
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.20.4
 	github.com/prometheus/common v0.59.1
 	github.com/vishvananda/netlink v1.3.0
-	golang.org/x/sys v0.23.0
+	golang.org/x/sys v0.24.0
 	gopkg.in/mcuadros/go-syslog.v2 v2.3.0
 	k8s.io/api v0.31.1
 	k8s.io/apiextensions-apiserver v0.31.0
