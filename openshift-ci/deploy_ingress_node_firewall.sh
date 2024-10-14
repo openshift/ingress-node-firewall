@@ -79,7 +79,7 @@ do
 done
 
 oc cp ingress-node-firewall-operator-deploy openshift-marketplace/buildindex:/tmp
-oc exec -n openshift-marketplace buildindex /tmp/ingress-node-firewall-operator-deploy/build_and_push_index.sh
+oc exec -n openshift-marketplace buildindex -- /tmp/ingress-node-firewall-operator-deploy/build_and_push_index.sh
 
 oc apply -f ingress-node-firewall-operator-deploy/install-resources.yaml
 
