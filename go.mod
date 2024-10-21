@@ -6,7 +6,7 @@ toolchain go1.22.4
 
 require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
-	github.com/bpfman/bpfman-operator v0.5.2
+	github.com/bpfman/bpfman-operator v0.5.4
 	github.com/cilium/ebpf v0.16.0
 	github.com/go-logr/logr v1.4.2
 	github.com/golang/glog v1.2.2
@@ -85,7 +85,7 @@ require (
 	golang.org/x/text v0.18.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
-	google.golang.org/protobuf v1.34.2 // indirect
+	google.golang.org/protobuf v1.35.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
