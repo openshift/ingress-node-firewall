@@ -73,6 +73,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&KprobeProgramList{},
 		&TcProgram{},
 		&TcProgramList{},
+		&TcxProgram{},
+		&TcxProgramList{},
 		&TracepointProgram{},
 		&TracepointProgramList{},
 		&UprobeProgram{},

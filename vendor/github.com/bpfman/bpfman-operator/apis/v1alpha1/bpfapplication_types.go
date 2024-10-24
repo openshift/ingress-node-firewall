@@ -84,10 +84,10 @@ type BpfApplicationProgram struct {
 	// +optional
 	TC *TcProgramInfo `json:"tc,omitempty"`
 
-	// tcx defines the desired state of the application's TcPrograms.
+	// tcx defines the desired state of the application's TcxPrograms.
 	// +unionMember
 	// +optional
-	TCX *TcProgramInfo `json:"tcx,omitempty"`
+	TCX *TcxProgramInfo `json:"tcx,omitempty"`
 
 	// fentry defines the desired state of the application's FentryPrograms.
 	// +unionMember
