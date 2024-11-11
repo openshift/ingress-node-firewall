@@ -117,18 +117,16 @@ func prepareBpfApplication(bpfApp *bpfmaniov1alpha1.BpfApplication, obj *v1alpha
 				InterfaceSelector: bpfmaniov1alpha1.InterfaceSelector{Interfaces: &interfaces},
 			},
 		},
-		/*
-			{
-				Type: bpfmaniov1alpha1.ProgTypeTCX,
-				TCX: &bpfmaniov1alpha1.TcProgramInfo{
-					BpfProgramCommon: bpfmaniov1alpha1.BpfProgramCommon{
-						BpfFunctionName: ingressNodeFirewallTCXHook,
-					},
-					InterfaceSelector: bpfmaniov1alpha1.InterfaceSelector{Interfaces: &[]string{intf}},
-					Direction:         ingressDirection,
+		{
+			Type: bpfmaniov1alpha1.ProgTypeTCX,
+			TCX: &bpfmaniov1alpha1.TcxProgramInfo{
+				BpfProgramCommon: bpfmaniov1alpha1.BpfProgramCommon{
+					BpfFunctionName: ingressNodeFirewallTCXHook,
 				},
+				InterfaceSelector: bpfmaniov1alpha1.InterfaceSelector{Interfaces: &interfaces},
+				Direction:         ingressDirection,
 			},
-		*/
+		},
 	}
 }
 
