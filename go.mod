@@ -16,7 +16,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/common v0.60.1
-	github.com/vishvananda/netlink v1.3.0
+	github.com/vishvananda/netlink v1.3.1-0.20240905180732-b1ce50cfa9be
 	golang.org/x/sys v0.28.0
 	gopkg.in/mcuadros/go-syslog.v2 v2.3.0
 	k8s.io/api v0.31.3
@@ -25,7 +25,7 @@ require (
 	k8s.io/client-go v0.31.3
 	k8s.io/component-base v0.31.3
 	k8s.io/klog v1.0.0
-	k8s.io/kubernetes v1.31.3
+	k8s.io/kubernetes v1.32.0
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
 	sigs.k8s.io/controller-runtime v0.19.4
 )
@@ -77,7 +77,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.31.0 // indirect
-	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8 // indirect
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
 	golang.org/x/term v0.27.0 // indirect
