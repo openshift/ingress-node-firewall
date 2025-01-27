@@ -8,7 +8,7 @@ require (
 	github.com/bpfman/bpfman-operator v0.5.5-0.20241023200650-3babb63e4af6
 	github.com/cilium/ebpf v0.16.0
 	github.com/go-logr/logr v1.4.2
-	github.com/golang/glog v1.2.3
+	github.com/golang/glog v1.2.4
 	github.com/google/gopacket v1.1.19
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/onsi/ginkgo v1.16.5
