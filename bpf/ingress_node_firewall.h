@@ -53,7 +53,7 @@ struct ruleStatistics_st {
   } deny_stats;
 };
 // Force emitting struct ruleStatistics_st into the ELF.
-const struct ruleStatistics_st *unused3 __attribute__((unused));
+static const struct ruleStatistics_st *unused3 __attribute__((unused));
 
 struct event_hdr_st {
   __u16 ifId;
@@ -76,7 +76,7 @@ struct ruleType_st {
   __u8 action;
 } __attribute__((packed));
 // Force emitting struct ruleType_st into the ELF.
-const struct ruleType_st *unused2 __attribute__((unused));
+static const struct ruleType_st *unused2 __attribute__((unused));
 
 // using Longest prefix match in case of overlapping CIDRs we need to match to
 // the more specific CIDR.

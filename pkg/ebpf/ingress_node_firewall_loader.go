@@ -96,13 +96,18 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert %q to integer: %v", debugLookupVal, err)
 			}
-			if err := spec.RewriteConstants(map[string]interface{}{
-				debugLookup: uint32(val),
-			}); err != nil {
-				return nil, fmt.Errorf("failed to rewrite BPF constants definition: %w", err)
+			variables := []struct {
+				key   string
+				value interface{}
+			}{
+				{debugLookup, uint32(val)},
+			}
+			for _, m := range variables {
+				if err := spec.Variables[m.key].Set(m.value); err != nil {
+					return nil, fmt.Errorf("failed to rewrite BPF constants key %s: %w", m.key, err)
+				}
 			}
 		}
-
 		if err := spec.LoadAndAssign(&objs, &ebpf.CollectionOptions{Maps: ebpf.MapOptions{PinPath: pinDir}}); err != nil {
 			var ve *ebpf.VerifierError
 			if errors.As(err, &ve) {
