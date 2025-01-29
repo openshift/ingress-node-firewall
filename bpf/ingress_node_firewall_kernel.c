@@ -81,7 +81,7 @@ struct {
 #endif
 
 // Global used to enable lookup debug hashmap
-static volatile const __u32 debug_lookup = 0;
+volatile const __u32 debug_lookup = 0;
 
 /*
  * ip_extract_l4info(): extracts L4 info for the supported protocols from

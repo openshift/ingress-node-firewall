@@ -109,9 +109,10 @@ type BpfMapSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type BpfVariableSpecs struct {
-	Unused1 *ebpf.VariableSpec `ebpf:"unused1"`
-	Unused2 *ebpf.VariableSpec `ebpf:"unused2"`
-	Unused3 *ebpf.VariableSpec `ebpf:"unused3"`
+	DebugLookup *ebpf.VariableSpec `ebpf:"debug_lookup"`
+	Unused1     *ebpf.VariableSpec `ebpf:"unused1"`
+	Unused2     *ebpf.VariableSpec `ebpf:"unused2"`
+	Unused3     *ebpf.VariableSpec `ebpf:"unused3"`
 }
 
 // BpfObjects contains all objects after they have been loaded into the kernel.
@@ -153,9 +154,10 @@ func (m *BpfMaps) Close() error {
 //
 // It can be passed to LoadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type BpfVariables struct {
-	Unused1 *ebpf.Variable `ebpf:"unused1"`
-	Unused2 *ebpf.Variable `ebpf:"unused2"`
-	Unused3 *ebpf.Variable `ebpf:"unused3"`
+	DebugLookup *ebpf.Variable `ebpf:"debug_lookup"`
+	Unused1     *ebpf.Variable `ebpf:"unused1"`
+	Unused2     *ebpf.Variable `ebpf:"unused2"`
+	Unused3     *ebpf.Variable `ebpf:"unused3"`
 }
 
 // BpfPrograms contains all programs after they have been loaded into the kernel.
