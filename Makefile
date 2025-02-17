@@ -419,7 +419,7 @@ catalog-build: opm ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
 
-CILIUM_EBPF_VERSION := v0.17.2
+CILIUM_EBPF_VERSION := v0.17.3
 GOLANGCI_LINT_VERSION = v1.54.2
 CLANG ?= clang
 CFLAGS := -O2 -g -Wall -Werror $(CFLAGS)
