@@ -4,18 +4,22 @@
 IMAGE_INFW_BC=${IMAGE_INFW_BC:-quay.io/bpfman-bytecode/ingress-node-firewall-multi}
 
 # PROGRAMS is a list of <program name>:<program type> tuples
-PROGRAMS="{\
-\"xdp_ingress_node_firewall_process\":\"xdp\",\
-\"tcx_ingress_node_firewall_process\":\"tc\"\
-}"
+PROGRAMS='{
+"xdp_ingress_node_firewall_process":"xdp",
+"tcx_ingress_node_firewall_process":"tcx"
+}'
+
+echo "$PROGRAMS" | jq empty || { echo "Invalid JSON in PROGRAMS"; exit 1; }
 
 # MAPS is a list of <map name>:<map type> tuples
-MAPS="{\
-\"ingress_node_firewall_dbg_map\":\"hash\",\
-\"ingress_node_firewall_events_map\":\"perf_event_array\",\
-\"ingress_node_firewall_statistics_map\":\"per_cpu_array\",\
-\"ingress_node_firewall_table_map\":\"lpm_trie\"\
-}"
+MAPS='{
+"ingress_node_firewall_dbg_map":"hash",
+"ingress_node_firewall_events_map":"perf_event_array",
+"ingress_node_firewall_statistics_map":"per_cpu_array",
+"ingress_node_firewall_table_map":"lpm_trie"
+}'
+
+echo "$MAPS" | jq empty || { echo "Invalid JSON in MAPS"; exit 1; }
 
 docker buildx create --use
 docker buildx inspect --bootstrap
