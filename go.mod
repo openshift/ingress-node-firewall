@@ -17,7 +17,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.21.1
 	github.com/prometheus/common v0.63.0
-	github.com/vishvananda/netlink v1.3.1-0.20240905180732-b1ce50cfa9be
+	github.com/vishvananda/netlink v1.3.1-0.20250206174618-62fb240731fa
 	golang.org/x/sys v0.31.0
 	gopkg.in/mcuadros/go-syslog.v2 v2.3.0
 	k8s.io/api v0.31.3
@@ -26,7 +26,7 @@ require (
 	k8s.io/client-go v0.31.3
 	k8s.io/component-base v0.31.3
 	k8s.io/klog v1.0.0
-	k8s.io/kubernetes v1.32.2
+	k8s.io/kubernetes v1.32.3
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
 	sigs.k8s.io/controller-runtime v0.19.4
 )
