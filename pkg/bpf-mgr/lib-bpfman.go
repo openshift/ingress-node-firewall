@@ -35,7 +35,7 @@ func BpfmanDetachNodeFirewall(ctx context.Context, client client.Client, obj *v1
 
 func bpfmanCreateNodeFirewallApplication(ctx context.Context, c client.Client, obj *v1alpha1.IngressNodeFirewall, dbg, isDelete bool) error {
 	var err error
-	bpfApp := bpfmaniov1alpha1.BpfApplication{
+	bpfApp := bpfmaniov1alpha1.ClusterBpfApplication{
 		ObjectMeta: v1.ObjectMeta{
 			Name: ingressNodeFirewallApp,
 		},
@@ -82,7 +82,7 @@ func bpfmanCreateNodeFirewallApplication(ctx context.Context, c client.Client, o
 	return err
 }
 
-func prepareBpfApplication(bpfApp *bpfmaniov1alpha1.BpfApplication, obj *v1alpha1.IngressNodeFirewall, dbg bool) {
+func prepareBpfApplication(bpfApp *bpfmaniov1alpha1.ClusterBpfApplication, obj *v1alpha1.IngressNodeFirewall, dbg bool) {
 	interfaces := obj.Spec.Interfaces
 
 	debug := make([]byte, 4)
@@ -101,41 +101,45 @@ func prepareBpfApplication(bpfApp *bpfmaniov1alpha1.BpfApplication, obj *v1alpha
 	}
 	bpfApp.Spec.NodeSelector = obj.Spec.NodeSelector
 
-	bpfApp.Spec.BpfAppCommon.ByteCode = bpfmaniov1alpha1.BytecodeSelector{
-		Image: &bpfmaniov1alpha1.BytecodeImage{
+	bpfApp.Spec.BpfAppCommon.ByteCode = bpfmaniov1alpha1.ByteCodeSelector{
+		Image: &bpfmaniov1alpha1.ByteCodeImage{
 			Url:             ingressNodeFirewallBCImage,
 			ImagePullPolicy: bpfmaniov1alpha1.PullIfNotPresent,
 		},
 	}
-	bpfApp.Spec.Programs = []bpfmaniov1alpha1.BpfApplicationProgram{
+	bpfApp.Spec.Programs = []bpfmaniov1alpha1.ClBpfApplicationProgram{
 		{
 			Type: bpfmaniov1alpha1.ProgTypeXDP,
-			XDP: &bpfmaniov1alpha1.XdpProgramInfo{
-				BpfProgramCommon: bpfmaniov1alpha1.BpfProgramCommon{
-					BpfFunctionName: ingressNodeFirewallXDPHook,
+			Name: ingressNodeFirewallXDPHook,
+			XDP: &bpfmaniov1alpha1.ClXdpProgramInfo{
+				Links: []bpfmaniov1alpha1.ClXdpAttachInfo{
+					{
+						InterfaceSelector: bpfmaniov1alpha1.InterfaceSelector{Interfaces: &interfaces},
+					},
 				},
-				InterfaceSelector: bpfmaniov1alpha1.InterfaceSelector{Interfaces: &interfaces},
 			},
 		},
 		{
 			Type: bpfmaniov1alpha1.ProgTypeTCX,
-			TCX: &bpfmaniov1alpha1.TcxProgramInfo{
-				BpfProgramCommon: bpfmaniov1alpha1.BpfProgramCommon{
-					BpfFunctionName: ingressNodeFirewallTCXHook,
+			Name: ingressNodeFirewallTCXHook,
+			TCX: &bpfmaniov1alpha1.ClTcxProgramInfo{
+				Links: []bpfmaniov1alpha1.ClTcxAttachInfo{
+					{
+						InterfaceSelector: bpfmaniov1alpha1.InterfaceSelector{Interfaces: &interfaces},
+						Direction:         ingressDirection,
+					},
 				},
-				InterfaceSelector: bpfmaniov1alpha1.InterfaceSelector{Interfaces: &interfaces},
-				Direction:         ingressDirection,
 			},
 		},
 	}
 }
 
-func deleteBpfApplication(ctx context.Context, c client.Client, bpfApp *bpfmaniov1alpha1.BpfApplication) error {
+func deleteBpfApplication(ctx context.Context, c client.Client, bpfApp *bpfmaniov1alpha1.ClusterBpfApplication) error {
 	klog.Info("Deleting BpfApplication Object")
 	return c.Delete(ctx, bpfApp)
 }
 
-func createBpfApplication(ctx context.Context, c client.Client, bpfApp *bpfmaniov1alpha1.BpfApplication, objName string) error {
+func createBpfApplication(ctx context.Context, c client.Client, bpfApp *bpfmaniov1alpha1.ClusterBpfApplication, objName string) error {
 	for _, p := range bpfApp.Spec.Programs {
 		switch p.Type {
 		case bpfmaniov1alpha1.ProgTypeXDP:
@@ -147,7 +151,7 @@ func createBpfApplication(ctx context.Context, c client.Client, bpfApp *bpfmanio
 	return c.Create(ctx, bpfApp)
 }
 
-func updateBpfApplication(ctx context.Context, c client.Client, bpfApp *bpfmaniov1alpha1.BpfApplication, objName string) error {
+func updateBpfApplication(ctx context.Context, c client.Client, bpfApp *bpfmaniov1alpha1.ClusterBpfApplication, objName string) error {
 	for _, p := range bpfApp.Spec.Programs {
 		switch p.Type {
 		case bpfmaniov1alpha1.ProgTypeXDP:
