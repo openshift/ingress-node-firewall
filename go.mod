@@ -2,7 +2,7 @@ module github.com/openshift/ingress-node-firewall
 
 go 1.23.0
 
-toolchain go1.23.4
+toolchain go1.24.1
 
 require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
@@ -28,7 +28,7 @@ require (
 	k8s.io/klog v1.0.0
 	k8s.io/kubernetes v1.32.3
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
-	sigs.k8s.io/controller-runtime v0.20.3
+	sigs.k8s.io/controller-runtime v0.20.4
 )
 
 require (
