@@ -7,7 +7,7 @@ toolchain go1.24.1
 require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/bpfman/bpfman-operator v0.5.7-0.20250318195503-7377aa509673
-	github.com/cilium/ebpf v0.17.3
+	github.com/cilium/ebpf v0.18.0
 	github.com/go-logr/logr v1.4.2
 	github.com/golang/glog v1.2.4
 	github.com/google/gopacket v1.1.19
