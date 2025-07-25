@@ -9,7 +9,7 @@ require (
 	github.com/bpfman/bpfman-operator v0.0.0-20240620142733-4c3fa0b591c1
 	github.com/cilium/ebpf v0.16.0
 	github.com/go-logr/logr v1.4.2
-	github.com/golang/glog v1.2.1
+	github.com/golang/glog v1.2.4
 	github.com/google/gopacket v1.1.19
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/onsi/ginkgo v1.16.5
