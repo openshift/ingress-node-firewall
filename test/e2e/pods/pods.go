@@ -18,7 +18,7 @@ func EnsureRunning(client *testclient.ClientSet, pod *corev1.Pod, namespace stri
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	pod, err = client.Pods(namespace).Create(ctx, pod, metav1.CreateOptions{})
+	created, err := client.Pods(namespace).Create(context.Background(), pod, metav1.CreateOptions{})
 	if err != nil {
 		if !errors.IsAlreadyExists(err) {
 			return pod, err
@@ -26,7 +26,7 @@ func EnsureRunning(client *testclient.ClientSet, pod *corev1.Pod, namespace stri
 	}
 
 	err = wait.PollImmediate(retryInterval, timeout, func() (done bool, err error) {
-		pod, err = client.Pods(namespace).Get(ctx, pod.Name, metav1.GetOptions{})
+		pod, err = client.Pods(namespace).Get(ctx, created.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
