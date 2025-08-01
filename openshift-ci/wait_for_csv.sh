@@ -26,7 +26,7 @@ if ! $csv_created; then
 fi
 
 ATTEMPTS=0
-MAX_ATTEMPTS=60
+MAX_ATTEMPTS=150
 csv_succeeded=false
 until $csv_succeeded || [ $ATTEMPTS -eq $MAX_ATTEMPTS ]
 do
