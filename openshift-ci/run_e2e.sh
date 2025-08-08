@@ -16,7 +16,7 @@ export NODE_INTERFACE=genev_sys_6081
 # CoreOS nodes, by default, have SCTP kernel module unloaded.
 export ENABLE_SCTP=false
 
-go version
+yum install -y go
 
 mkdir -p "${TESTS_REPORTS_PATH}"
 go test --tags=validationtests -v ../test/e2e/validation -ginkgo.v -junit "${TESTS_REPORTS_PATH}" -report "${TESTS_REPORTS_PATH}"
