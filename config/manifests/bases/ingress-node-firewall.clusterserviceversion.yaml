@@ -15,7 +15,7 @@ metadata:
     features.operators.openshift.io/token-auth-aws: "false"
     features.operators.openshift.io/token-auth-azure: "false"
     features.operators.openshift.io/token-auth-gcp: "false"
-    olm.skipRange: '>=4.11.0 <4.19.0'
+    olm.skipRange: '>=4.11.0 <4.21.0'
     operatorframework.io/suggested-namespace: openshift-ingress-node-firewall
     repository: https://github.com/openshift/ingress-node-firewall
     support: Red Hat
@@ -71,7 +71,7 @@ spec:
   - ingressnodefirewall
   labels:
     olm-owner-enterprise-app: ingress-node-firewall
-    olm-status-descriptors: ingress-node-firewall.v4.19.0
+    olm-status-descriptors: ingress-node-firewall.v4.21.0
   links:
   - name: Ingress Node Firewall
     url: https://github.com/openshift/ingress-node-firewall

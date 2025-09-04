@@ -1,4 +1,4 @@
 packageName: ingress-node-firewall
 channels:
 - name: "stable"
-  currentCSV: ingress-node-firewall.v4.19.0
+  currentCSV: ingress-node-firewall.v4.21.0
