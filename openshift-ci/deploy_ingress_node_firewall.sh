@@ -35,6 +35,8 @@ buildindexpod="apiVersion: v1
 kind: Pod
 metadata:
   name: buildindex
+  labels:
+    name: buildindex
   namespace: openshift-marketplace
 spec:
   restartPolicy: Never
@@ -62,6 +64,33 @@ spec:
 "
 
 echo "$buildindexpod" | oc apply -f -
+
+###Found from 4.20,  there is networkpolicy default-deny-all by default in openshift-marketplace namespace, which caused pod buildindex cannot access internet to intall wget, jq etc. 
+# oc get networkpolicy -n openshift-marketplace default-deny-all 
+# NAME               POD-SELECTOR   AGE
+# default-deny-all   <none>         16m
+
+# here create another networkpolicy to let buildindex allow access internet
+
+networkpolicy_for_build="apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-external
+  namespace: openshift-marketplace
+spec:
+  podSelector:
+     matchLabels:
+       name: buildindex
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+"
+
+echo "$networkpolicy_for_build" | oc apply -f -
+
 
 success=0
 iterations=0

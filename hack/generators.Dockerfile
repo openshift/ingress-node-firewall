@@ -1,6 +1,6 @@
 FROM fedora:40
 
-ARG GOVERSION="1.23.5"
+ARG GOVERSION="1.24.7"
 
 # Installs dependencies that are required to compile eBPF programs
 RUN dnf install -y git kernel-devel make llvm clang glibc-devel.i686 unzip clang-tools-extra
