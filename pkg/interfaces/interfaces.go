@@ -90,7 +90,14 @@ func GetInterfaceIndices(interfaceName string) ([]uint32, error) {
 		return nil, err
 	}
 
-	if link.Type() != "bond" {
+	// check if the link has a parent e.g. vlan on bond
+	pIdx := link.Attrs().ParentIndex
+	var pLink netlink.Link
+	if pIdx != 0 {
+		pLink, _ = netlink.LinkByIndex(pIdx)
+	}
+
+	if link.Type() != "bond" && (pLink != nil && pLink.Type() != "bond") {
 		index, err := GetInterfaceIndex(interfaceName)
 		if err != nil {
 			return nil, err
@@ -99,7 +106,12 @@ func GetInterfaceIndices(interfaceName string) ([]uint32, error) {
 		return membersList, nil
 	}
 
-	idx := link.Attrs().Index
+	var idx int
+	if pLink != nil {
+		idx = pIdx
+	} else {
+		idx = link.Attrs().Index
+	}
 
 	links, err := netlink.LinkList()
 	if err != nil {

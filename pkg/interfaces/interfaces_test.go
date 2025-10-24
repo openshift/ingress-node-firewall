@@ -3,6 +3,7 @@ package interfaces
 import (
 	"net"
 	"os/user"
+	"strconv"
 	"testing"
 
 	"github.com/vishvananda/netlink"
@@ -66,6 +67,8 @@ func TestIsValidInterfaceNameAndState(t *testing.T) {
 func TestGetInterfaceIndices(t *testing.T) {
 	var slaves []*netlink.Dummy
 	bondInterfaceName := "bond"
+	vlanId := 100
+	vlanInterfaceName := bondInterfaceName + "." + strconv.Itoa(vlanId)
 	testSlaveInterfaces := []string{"packet1", "packet2", "packet3", "packet4"}
 	user, err := user.Current()
 	if err != nil {
@@ -84,6 +87,24 @@ func TestGetInterfaceIndices(t *testing.T) {
 	defer func() {
 		if err := netlink.LinkDel(bond); err != nil {
 			t.Errorf("failed to delete bond link: %s", err)
+		}
+	}()
+	t.Log("By creating vlan interface over bond")
+	vlan := &netlink.Vlan{
+		LinkAttrs: netlink.LinkAttrs{
+			Name:        vlanInterfaceName,
+			ParentIndex: bond.Attrs().Index,
+		},
+		VlanId: vlanId,
+	}
+
+	if err := netlink.LinkAdd(vlan); err != nil {
+		t.Fatalf("unable to add VLAN interface: %v", err)
+	}
+
+	defer func() {
+		if err := netlink.LinkDel(vlan); err != nil {
+			t.Errorf("failed to delete vlan link: %s", err)
 		}
 	}()
 	for _, inf := range testSlaveInterfaces {
@@ -105,16 +126,17 @@ func TestGetInterfaceIndices(t *testing.T) {
 		}
 	}()
 
-	list, err := GetInterfaceIndices(bondInterfaceName)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(list) != len(testSlaveInterfaces) {
-		t.Errorf("expected to get %d members for the bond interface but got %d", len(testSlaveInterfaces), len(list))
-	}
+	for _, ifName := range []string{bondInterfaceName, vlanInterfaceName} {
+		list, err := GetInterfaceIndices(ifName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(list) != len(testSlaveInterfaces) {
+			t.Errorf("expected to get %d members for the interface but got %d", len(testSlaveInterfaces), len(list))
+		}
 
-	for idx, i := range list {
-		t.Logf("%s interface index %d", testSlaveInterfaces[idx], i)
+		for idx, i := range list {
+			t.Logf("%s interface index %d", testSlaveInterfaces[idx], i)
+		}
 	}
-
 }
