@@ -16,6 +16,7 @@ import (
 
 	"github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	ingressnodefwiov1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
+	"github.com/openshift/ingress-node-firewall/pkg/constants"
 	"github.com/openshift/ingress-node-firewall/pkg/interfaces"
 	"github.com/openshift/ingress-node-firewall/pkg/utils"
 
@@ -319,7 +320,7 @@ func (infc *IngNodeFwController) IngressNodeFwAttach(ifacesName ...string) error
 			}
 		}
 		// Pin the XDP program.
-		lPinDir := path.Join(infc.pinPath, ifaceName+linkSuffix)
+		lPinDir := sanitizePinDir(path.Join(infc.pinPath, ifaceName+linkSuffix))
 		if err := l.Pin(lPinDir); err != nil {
 			errors = append(errors, fmt.Errorf("failed to pin link to pinDir %s: %s", lPinDir, err))
 			continue
@@ -477,6 +478,7 @@ func (infc *IngNodeFwController) loadPinnedLinks() error {
 	for _, file := range files {
 		if re.Match([]byte(file.Name())) {
 			interfaceName := strings.TrimSuffix(file.Name(), linkSuffix)
+			interfaceName = sanitizePinDir(interfaceName)
 			if _, ok := infc.links[interfaceName]; !ok {
 				l, err := link.LoadPinnedLink(path.Join(infc.pinPath, file.Name()), nil)
 				if err != nil {
@@ -728,4 +730,15 @@ func (infc *IngNodeFwController) purgeKeys(keys []BpfLpmIpKeySt) error {
 		return apierrors.NewAggregate(errors)
 	}
 	return nil
+}
+
+// bpffs does not allow dots in filenames: https://github.com/torvalds/linux/blob/6146a0f1dfae5d37442a9ddcba012add260bceb0/kernel/bpf/inode.c#L371-L381
+// sanitizePinDir converts dots with a placeholder and vice-versa to support subinterface
+func sanitizePinDir(filename string) string {
+
+	if strings.Contains(filename, ".") {
+		return strings.ReplaceAll(filename, ".", constants.PinDirDotPlaceholder)
+	}
+
+	return strings.ReplaceAll(filename, constants.PinDirDotPlaceholder, ".")
 }
