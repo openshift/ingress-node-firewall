@@ -18,7 +18,7 @@ COPY bindata/manifests/ bindata/manifests/
 # Build
 RUN CGO_ENABLED=0 GO111MODULE=on go build -a -mod=vendor -o manager main.go
 
-FROM registry.ci.openshift.org/ocp/4.22:base-rhel9
+FROM registry.ci.openshift.org/ocp/4.22:base-rhel9-minimal
 WORKDIR /
 COPY --from=builder /workspace/manager .
 COPY --from=builder /workspace/bindata/manifests /bindata/manifests
