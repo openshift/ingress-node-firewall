@@ -38,7 +38,7 @@ func main() {
 		for _, loc := range spec.CodeLocations {
 			// Include tests from test/e2e/functional/tests/ and test/e2e/validation/tests/
 			if (strings.Contains(loc, "/test/e2e/functional/tests/") || strings.Contains(loc, "/test/e2e/validation/tests/")) &&
-			   !strings.Contains(loc, "/go/pkg/mod/") && !strings.Contains(loc, "/vendor/") {
+				!strings.Contains(loc, "/go/pkg/mod/") && !strings.Contains(loc, "/vendor/") {
 				return true
 			}
 		}

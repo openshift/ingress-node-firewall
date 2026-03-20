@@ -14,8 +14,9 @@ import (
 	"github.com/openshift/ingress-node-firewall/test/e2e/k8sreporter"
 	_ "github.com/openshift/ingress-node-firewall/test/e2e/validation/tests"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/reporters"
+	. "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2/reporters"
+	"github.com/onsi/ginkgo/v2/types"
 	. "github.com/onsi/gomega"
 )
 
@@ -36,17 +37,20 @@ func init() {
 func TestValidation(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	rr := []Reporter{}
 	if *junitPath != "" {
 		junitFile := path.Join(*junitPath, "validation_junit.xml")
-		rr = append(rr, reporters.NewJUnitReporter(junitFile))
+		ReportAfterSuite("generate JUnit report", func(report types.Report) {
+			reporters.GenerateJUnitReport(report, junitFile)
+		})
 	}
-
-	clients := testclient.New("")
 
 	if *reportPath != "" {
-		rr = append(rr, k8sreporter.New(clients, OperatorNameSpace, *reportPath))
+		// TODO: k8sreporter needs migration to Ginkgo v2 API
+		// For now, k8sreporter is disabled
+		clients := testclient.New("")
+		_ = clients
+		_ = k8sreporter.New
 	}
 
-	RunSpecsWithDefaultAndCustomReporters(t, "Ingress Node Firewall Operator Validation Suite", rr)
+	RunSpecs(t, "Ingress Node Firewall Operator Validation Suite")
 }
