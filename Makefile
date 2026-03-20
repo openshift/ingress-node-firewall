@@ -480,3 +480,23 @@ podman-build-daemon: ## Build the daemon image with podman. To change location, 
 .PHONY: podman-push-daemon
 podman-push-daemon: ## Push the daemon image with docker. To change location, specify DAEMON_IMG=<image>.
 	podman push ${DAEMON_IMG}
+
+##@ OTE Test Extension
+TESTS_EXT_BINARY := bin/ingress-node-firewall-tests-ext
+
+.PHONY: tests-ext-build
+tests-ext-build: ## Build OTE test extension binary
+	@echo "Building OTE test extension binary..."
+	@$(MAKE) -f bindata.mk update-bindata
+	@mkdir -p bin
+	GOTOOLCHAIN=local go build -o $(TESTS_EXT_BINARY) ./cmd/extension
+	@echo "✅ Extension binary built: $(TESTS_EXT_BINARY)"
+
+.PHONY: extension
+extension: tests-ext-build ## Alias for tests-ext-build
+
+.PHONY: clean-extension
+clean-extension: ## Clean extension binary and bindata
+	@echo "Cleaning extension binary..."
+	@rm -f $(TESTS_EXT_BINARY)
+	@$(MAKE) -f bindata.mk clean-bindata 2>/dev/null || true

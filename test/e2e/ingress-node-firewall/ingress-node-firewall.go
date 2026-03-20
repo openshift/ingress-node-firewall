@@ -50,7 +50,7 @@ func LoadIngressNodeFirewallConfigFromFile(config *ingressnodefwv1alpha1.Ingress
 }
 
 func loadFromFile(obj interface{}, fileName string) error {
-	f, err := os.Open(fmt.Sprintf("../../../config/samples/%s", fileName))
+	f, err := os.Open(fmt.Sprintf("../../../../config/samples/%s", fileName))
 	if err != nil {
 		return err
 	}

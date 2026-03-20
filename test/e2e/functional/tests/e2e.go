@@ -24,8 +24,8 @@ import (
 	"github.com/openshift/ingress-node-firewall/test/e2e/pods"
 	"github.com/openshift/ingress-node-firewall/test/e2e/transport"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	ginkgo "github.com/onsi/ginkgo/v2"
+	gomega "github.com/onsi/gomega"
 	prommodel "github.com/prometheus/common/model"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -122,16 +122,16 @@ func init() {
 	}
 }
 
-var _ = Describe("Ingress Node Firewall", func() {
-	// Because we don't fully use BeforeAll / AfterAll to setup/teardown test infrastructure and if an error or interrupt occurs,
-	// we ensure a clean cluster using AfterSuite. This normally is a no-op and is only valid when user sends interrupt or test failure.
-	AfterSuite(func() {
-		Expect(pods.EnsureDeletedWithLabel(testclient.Client, OperatorNameSpace, testArtifactsLabelString, retryInterval, timeout)).Should(Succeed())
-		Expect(infwutils.DeleteIngressNodeFirewallsWithLabels(testclient.Client, OperatorNameSpace,
-			testArtifactsLabelString, timeout)).Should(Succeed())
-	})
+// Because we don't fully use BeforeAll / AfterAll to setup/teardown test infrastructure and if an error or interrupt occurs,
+// we ensure a clean cluster using AfterSuite. This normally is a no-op and is only valid when user sends interrupt or test failure.
+var _ = ginkgo.AfterSuite(func() {
+	gomega.Expect(pods.EnsureDeletedWithLabel(testclient.Client, OperatorNameSpace, testArtifactsLabelString, retryInterval, timeout)).Should(gomega.Succeed())
+	gomega.Expect(infwutils.DeleteIngressNodeFirewallsWithLabels(testclient.Client, OperatorNameSpace,
+		testArtifactsLabelString, timeout)).Should(gomega.Succeed())
+})
 
-	Context("IngressNodeFirewall", func() {
+var _ = ginkgo.Describe("Ingress Node Firewall", func() {
+	ginkgo.Context("IngressNodeFirewall", func() {
 		var (
 			config             *ingressnodefwv1alpha1.IngressNodeFirewallConfig
 			serverOnePort      = "80"
@@ -830,30 +830,30 @@ var _ = Describe("Ingress Node Firewall", func() {
 			},
 		}
 
-		BeforeEach(func() {
+		ginkgo.BeforeEach(func() {
 			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
 			err := infwutils.LoadIngressNodeFirewallConfigFromFile(config, inftestconsts.IngressNodeFirewallConfigCRFile)
-			Expect(err).ShouldNot(HaveOccurred())
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 			config.SetNamespace(OperatorNameSpace)
 			config.SetLabels(testArtifactsLabelMap)
 			err = infwutils.EnsureIngressNodeFirewallConfigExists(testclient.Client, config, timeout)
-			Expect(err).ShouldNot(HaveOccurred())
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 			//wait for daemonset to be rolled out
 			infDaemonSet := &appsv1.DaemonSet{}
 			infDaemonSet.SetName("ingress-node-firewall-daemon")
 			infDaemonSet.SetNamespace(OperatorNameSpace)
 			err = daemonset.WaitForDaemonSetReady(testclient.Client, infDaemonSet, retryInterval, timeout)
-			Expect(err).ShouldNot(HaveOccurred())
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 		})
 
-		AfterEach(func() {
+		ginkgo.AfterEach(func() {
 			infwutils.DeleteIngressNodeFirewallConfig(testclient.Client, config, retryInterval, timeout)
 		})
 
 		for _, entry := range table {
 			entry := entry
 
-			It(entry.it, func() {
+			ginkgo.It(entry.it, func() {
 				var testINFs []*ingressnodefwv1alpha1.IngressNodeFirewall
 				var nodeStateList *ingressnodefwv1alpha1.IngressNodeFirewallNodeStateList
 				nextSourceCIDRsOrder := make(map[string]uint32)
@@ -861,13 +861,13 @@ var _ = Describe("Ingress Node Firewall", func() {
 				var cleanupFn func()
 				var err error
 
-				Eventually(func() bool {
+				gomega.Eventually(func() bool {
 					podNameObj, cleanupFn, err = getTestPods(entry.getTestPods)
 					if err == nil && podNameObj != nil {
 						return true
 					}
 					return false
-				}, time.Minute, time.Second).Should(BeTrue(), "Failed to setup test pods")
+				}, time.Minute, time.Second).Should(gomega.BeTrue(), "Failed to setup test pods")
 				defer cleanupFn()
 				// confirm initial connectivity conditions for all protocols defined before IngressNodeFirewall policy application
 				for _, reach := range entry.reachables {
@@ -899,7 +899,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 									nextSourceCIDRsOrder[v4CIDR] = 1
 								}
 								_, cidr, err := net.ParseCIDR(v4CIDR)
-								Expect(err).ShouldNot(HaveOccurred())
+								gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 								sourceCIDRs = append(sourceCIDRs, cidr.String())
 							}
 
@@ -909,7 +909,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 									nextSourceCIDRsOrder[v6CIDR] = 1
 								}
 								_, cidr, err := net.ParseCIDR(v6CIDR)
-								Expect(err).ShouldNot(HaveOccurred())
+								gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 								sourceCIDRs = append(sourceCIDRs, cidr.String())
 							}
 						}
@@ -949,13 +949,13 @@ var _ = Describe("Ingress Node Firewall", func() {
 				nodeStateList = &ingressnodefwv1alpha1.IngressNodeFirewallNodeStateList{}
 				for _, testINF := range testINFs {
 					testINF := testINF
-					By(fmt.Sprintf("Creating Ingress node firewall rules %+v", testINF))
-					Eventually(func() error {
+					ginkgo.By(fmt.Sprintf("Creating Ingress node firewall rules %+v", testINF))
+					gomega.Eventually(func() error {
 						err := infwutils.CreateIngressNodeFirewall(testclient.Client, testINF, timeout)
 						return err
-					}, timeout, retryInterval).ShouldNot(HaveOccurred())
+					}, timeout, retryInterval).ShouldNot(gomega.HaveOccurred())
 
-					Eventually(func() bool {
+					gomega.Eventually(func() bool {
 						fw := &ingressnodefwv1alpha1.IngressNodeFirewall{}
 						if err := infwutils.GetIngressNodeFirewallObj(testclient.Client, testINF.Name, fw, timeout); err != nil {
 							return false
@@ -964,7 +964,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 							return true
 						}
 						return false
-					}, timeout, retryInterval).Should(BeTrue(), "failed to sync IngressNodeFirewall rule")
+					}, timeout, retryInterval).Should(gomega.BeTrue(), "failed to sync IngressNodeFirewall rule")
 				}
 				checkNodeStateCreate(testclient.Client, nodeStateList)
 
@@ -979,7 +979,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 		}
 	})
 
-	Context("Disruption", func() {
+	ginkgo.Context("Disruption", func() {
 		var (
 			testName         = "e2e-disruption"
 			clientOnePodName = "e2e-disruption-client-one"
@@ -992,190 +992,190 @@ var _ = Describe("Ingress Node Firewall", func() {
 			clientPodLabel   = map[string]string{clientLabelKey: clientLabelValue, testArtifactsLabelKey: testArtifactsLabelValue}
 		)
 
-		It("controller manager functions after deletion", func() {
+		ginkgo.It("controller manager functions after deletion", func() {
 			infConfigs, err := infwutils.GetIngressNodeFirewallConfigs(testclient.Client, timeout)
-			Expect(err).ShouldNot(HaveOccurred())
-			By("Ensure IngressNodeFirewallConfigs doesn't exist")
-			Expect(len(infConfigs)).Should(BeZero())
-			By("Delete controller manager pods")
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+			ginkgo.By("Ensure IngressNodeFirewallConfigs doesn't exist")
+			gomega.Expect(len(infConfigs)).Should(gomega.BeZero())
+			ginkgo.By("Delete controller manager pods")
 			controllerManagerDeployment, err := deployment.GetDeploymentWithRetry(testclient.Client, OperatorNameSpace,
 				inftestconsts.IngressNodeFirewallOperatorDeploymentName, retryInterval, timeout)
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(deployment.WaitForDeploymentSetReady(testclient.Client, controllerManagerDeployment, retryInterval,
-				timeout)).ShouldNot(HaveOccurred())
-			Expect(pods.EnsureDeletedWithLabel(testclient.Client, OperatorNameSpace,
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+			gomega.Expect(deployment.WaitForDeploymentSetReady(testclient.Client, controllerManagerDeployment, retryInterval,
+				timeout)).ShouldNot(gomega.HaveOccurred())
+			gomega.Expect(pods.EnsureDeletedWithLabel(testclient.Client, OperatorNameSpace,
 				fmt.Sprintf("control-plane=%s", inftestconsts.IngressNodeFirewallOperatorDeploymentLabel),
-				retryInterval, timeout)).ShouldNot(HaveOccurred())
-			Expect(deployment.WaitForDeploymentSetReady(testclient.Client, controllerManagerDeployment, retryInterval,
-				timeout)).ShouldNot(HaveOccurred())
-			By("Ensure controller manager reacts to new IngressNodeFirewallConfig object")
+				retryInterval, timeout)).ShouldNot(gomega.HaveOccurred())
+			gomega.Expect(deployment.WaitForDeploymentSetReady(testclient.Client, controllerManagerDeployment, retryInterval,
+				timeout)).ShouldNot(gomega.HaveOccurred())
+			ginkgo.By("Ensure controller manager reacts to new IngressNodeFirewallConfig object")
 			config := &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
 			err = infwutils.LoadIngressNodeFirewallConfigFromFile(config, inftestconsts.IngressNodeFirewallConfigCRFile)
-			Expect(err).ToNot(HaveOccurred())
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			config.SetNamespace(OperatorNameSpace)
-			Expect(infwutils.EnsureIngressNodeFirewallConfigExists(testclient.Client, config, timeout)).ShouldNot(HaveOccurred())
+			gomega.Expect(infwutils.EnsureIngressNodeFirewallConfigExists(testclient.Client, config, timeout)).ShouldNot(gomega.HaveOccurred())
 			defer infwutils.DeleteIngressNodeFirewallConfig(testclient.Client, config, retryInterval, timeout)
 			_, err = daemonset.GetDaemonSetWithRetry(testclient.Client, OperatorNameSpace,
 				inftestconsts.IngressNodeFirewallDaemonsetName, retryInterval, timeout)
-			Expect(err).ShouldNot(HaveOccurred())
-			By("Ensure no controller manager restarts occurred")
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+			ginkgo.By("Ensure no controller manager restarts occurred")
 			restartCount, err := pods.GetPodWithLabelRestartCount(testclient.Client, OperatorNameSpace,
 				fmt.Sprintf("control-plane=%s", inftestconsts.IngressNodeFirewallOperatorDeploymentLabel), timeout)
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(restartCount).Should(BeZero())
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+			gomega.Expect(restartCount).Should(gomega.BeZero())
 		})
 
-		It("Existing IngresNodeFirewall policy persists after daemon deletion", func() {
+		ginkgo.It("Existing IngresNodeFirewall policy persists after daemon deletion", func() {
 			config := &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
 			err := infwutils.LoadIngressNodeFirewallConfigFromFile(config, inftestconsts.IngressNodeFirewallConfigCRFile)
-			Expect(err).ToNot(HaveOccurred())
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			config.SetNamespace(OperatorNameSpace)
-			Expect(infwutils.EnsureIngressNodeFirewallConfigExists(testclient.Client, config, timeout)).ShouldNot(HaveOccurred())
+			gomega.Expect(infwutils.EnsureIngressNodeFirewallConfigExists(testclient.Client, config, timeout)).ShouldNot(gomega.HaveOccurred())
 			defer infwutils.DeleteIngressNodeFirewallConfig(testclient.Client, config, retryInterval, timeout)
 			daemonSetDeployment, err := daemonset.GetDaemonSetWithRetry(testclient.Client, OperatorNameSpace,
 				inftestconsts.IngressNodeFirewallDaemonsetName, retryInterval, timeout)
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(daemonset.WaitForDaemonSetReady(testclient.Client, daemonSetDeployment, retryInterval, timeout)).ShouldNot(HaveOccurred())
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+			gomega.Expect(daemonset.WaitForDaemonSetReady(testclient.Client, daemonSetDeployment, retryInterval, timeout)).ShouldNot(gomega.HaveOccurred())
 			clientPod, serverPod, cleanupPodsFn, err := getClientServerTestPods(testclient.Client,
 				OperatorNameSpace, clientOnePodName, clientPodLabel, serverOnePodName, serverPodLabel)
-			Expect(err).ShouldNot(HaveOccurred())
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 			defer cleanupPodsFn()
 			inf, err := getICMPEchoBlockINF(clientPod, testName, v4Enabled, v6Enabled, isSingleStack)
-			Expect(err).ShouldNot(HaveOccurred())
-			Eventually(func() error {
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+			gomega.Eventually(func() error {
 				err := infwutils.CreateIngressNodeFirewall(testclient.Client, inf, timeout)
 				return err
-			}, timeout, retryInterval).ShouldNot(HaveOccurred())
-			By("Confirm connectivity is affected by IngressNodeFirewall policy")
+			}, timeout, retryInterval).ShouldNot(gomega.HaveOccurred())
+			ginkgo.By("Confirm connectivity is affected by IngressNodeFirewall policy")
 			if v4Enabled {
-				Eventually(func() bool {
+				gomega.Eventually(func() bool {
 					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP, clientPod, pods.GetIPV4(serverPod.Status.PodIPs))
-				}, timeout, retryInterval).Should(BeFalse())
+				}, timeout, retryInterval).Should(gomega.BeFalse())
 			}
 
 			if !isSingleStack && v6Enabled {
-				Eventually(func() bool {
+				gomega.Eventually(func() bool {
 					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP6, clientPod, pods.GetIPV6(serverPod.Status.PodIPs))
-				}, timeout, retryInterval).Should(BeFalse())
+				}, timeout, retryInterval).Should(gomega.BeFalse())
 
 			}
-			By("Delete node daemon on node where policy will be applied")
+			ginkgo.By("Delete node daemon on node where policy will be applied")
 			daemonSetPod, err := daemonset.GetDaemonSetOnNode(testclient.Client, OperatorNameSpace, serverPod.Spec.NodeName)
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(pods.EnsureDeleted(testclient.Client, daemonSetPod, retryInterval, timeout)).ShouldNot(HaveOccurred())
-			Expect(daemonset.WaitForDaemonSetReady(testclient.Client, daemonSetDeployment, retryInterval, timeout)).ShouldNot(HaveOccurred())
-			By("Confirm IngressNodeFirewall policy is unaffected after daemon restart")
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+			gomega.Expect(pods.EnsureDeleted(testclient.Client, daemonSetPod, retryInterval, timeout)).ShouldNot(gomega.HaveOccurred())
+			gomega.Expect(daemonset.WaitForDaemonSetReady(testclient.Client, daemonSetDeployment, retryInterval, timeout)).ShouldNot(gomega.HaveOccurred())
+			ginkgo.By("Confirm IngressNodeFirewall policy is unaffected after daemon restart")
 			if v4Enabled {
-				Eventually(func() bool {
+				gomega.Eventually(func() bool {
 					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP, clientPod, pods.GetIPV4(serverPod.Status.PodIPs))
-				}, timeout, retryInterval).Should(BeFalse())
+				}, timeout, retryInterval).Should(gomega.BeFalse())
 			}
 
 			if !isSingleStack && v6Enabled {
-				Eventually(func() bool {
+				gomega.Eventually(func() bool {
 					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP6, clientPod, pods.GetIPV6(serverPod.Status.PodIPs))
-				}, timeout, retryInterval).Should(BeFalse())
+				}, timeout, retryInterval).Should(gomega.BeFalse())
 
 			}
-			Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).ShouldNot(HaveOccurred())
+			gomega.Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).ShouldNot(gomega.HaveOccurred())
 		})
 
-		It("IngressNodeFirewall policy is configurable after daemon deletion", func() {
+		ginkgo.It("IngressNodeFirewall policy is configurable after daemon deletion", func() {
 			config := &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
 			err := infwutils.LoadIngressNodeFirewallConfigFromFile(config, inftestconsts.IngressNodeFirewallConfigCRFile)
-			Expect(err).ToNot(HaveOccurred())
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			config.SetNamespace(OperatorNameSpace)
-			Expect(infwutils.EnsureIngressNodeFirewallConfigExists(testclient.Client, config, timeout)).ShouldNot(HaveOccurred())
+			gomega.Expect(infwutils.EnsureIngressNodeFirewallConfigExists(testclient.Client, config, timeout)).ShouldNot(gomega.HaveOccurred())
 			defer infwutils.DeleteIngressNodeFirewallConfig(testclient.Client, config, retryInterval, timeout)
 			daemonSetDeployment, err := daemonset.GetDaemonSetWithRetry(testclient.Client, OperatorNameSpace,
 				inftestconsts.IngressNodeFirewallDaemonsetName, retryInterval, timeout)
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(daemonset.WaitForDaemonSetReady(testclient.Client, daemonSetDeployment, retryInterval, timeout)).ShouldNot(HaveOccurred())
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+			gomega.Expect(daemonset.WaitForDaemonSetReady(testclient.Client, daemonSetDeployment, retryInterval, timeout)).ShouldNot(gomega.HaveOccurred())
 			clientPod, serverPod, cleanupPodsFn, err := getClientServerTestPods(testclient.Client,
 				OperatorNameSpace, clientOnePodName, clientPodLabel, serverOnePodName, serverPodLabel)
-			Expect(err).ShouldNot(HaveOccurred())
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 			defer cleanupPodsFn()
 			inf, err := getICMPEchoBlockINF(clientPod, testName, v4Enabled, v6Enabled, isSingleStack)
-			Expect(err).ShouldNot(HaveOccurred())
-			Eventually(func() error {
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+			gomega.Eventually(func() error {
 				err := infwutils.CreateIngressNodeFirewall(testclient.Client, inf, timeout)
 				return err
-			}, timeout, retryInterval).ShouldNot(HaveOccurred())
-			By("Confirm connectivity is affected by IngressNodeFirewall policy")
+			}, timeout, retryInterval).ShouldNot(gomega.HaveOccurred())
+			ginkgo.By("Confirm connectivity is affected by IngressNodeFirewall policy")
 			if v4Enabled {
-				Eventually(func() bool {
+				gomega.Eventually(func() bool {
 					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP, clientPod, pods.GetIPV4(serverPod.Status.PodIPs))
-				}, timeout, retryInterval).Should(BeFalse())
+				}, timeout, retryInterval).Should(gomega.BeFalse())
 			}
 
 			if !isSingleStack && v6Enabled {
-				Eventually(func() bool {
+				gomega.Eventually(func() bool {
 					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP6, clientPod, pods.GetIPV6(serverPod.Status.PodIPs))
-				}, timeout, retryInterval).Should(BeFalse())
+				}, timeout, retryInterval).Should(gomega.BeFalse())
 
 			}
-			By("Delete node daemon on node where policy will be applied")
+			ginkgo.By("Delete node daemon on node where policy will be applied")
 			daemonSetPod, err := daemonset.GetDaemonSetOnNode(testclient.Client, OperatorNameSpace, serverPod.Spec.NodeName)
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(pods.EnsureDeleted(testclient.Client, daemonSetPod, retryInterval, timeout)).ShouldNot(HaveOccurred())
-			Expect(daemonset.WaitForDaemonSetReady(testclient.Client, daemonSetDeployment, retryInterval, timeout)).ShouldNot(HaveOccurred())
-			By("Delete IngressNodeFirewall removes policy")
-			Eventually(func() bool {
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+			gomega.Expect(pods.EnsureDeleted(testclient.Client, daemonSetPod, retryInterval, timeout)).ShouldNot(gomega.HaveOccurred())
+			gomega.Expect(daemonset.WaitForDaemonSetReady(testclient.Client, daemonSetDeployment, retryInterval, timeout)).ShouldNot(gomega.HaveOccurred())
+			ginkgo.By("Delete IngressNodeFirewall removes policy")
+			gomega.Eventually(func() bool {
 				err := infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)
 				return errors.IsNotFound(err)
-			}, timeout, retryInterval).Should(BeTrue(), "Failed to delete IngressNodeFirewall rules")
+			}, timeout, retryInterval).Should(gomega.BeTrue(), "Failed to delete IngressNodeFirewall rules")
 
 			if v4Enabled {
-				Eventually(func() bool {
+				gomega.Eventually(func() bool {
 					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP, clientPod, pods.GetIPV4(serverPod.Status.PodIPs))
-				}, timeout, retryInterval).Should(BeTrue())
+				}, timeout, retryInterval).Should(gomega.BeTrue())
 			}
 
 			if !isSingleStack && v6Enabled {
-				Eventually(func() bool {
+				gomega.Eventually(func() bool {
 					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP6, clientPod, pods.GetIPV6(serverPod.Status.PodIPs))
-				}, timeout, retryInterval).Should(BeTrue())
+				}, timeout, retryInterval).Should(gomega.BeTrue())
 
 			}
 		})
 	})
 
-	Context("Statistics", func() {
+	ginkgo.Context("Statistics", func() {
 		var config *ingressnodefwv1alpha1.IngressNodeFirewallConfig
 		var configCRExisted bool
 
-		BeforeEach(func() {
+		ginkgo.BeforeEach(func() {
 			var err error
 			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
 			err = infwutils.LoadIngressNodeFirewallConfigFromFile(config, inftestconsts.IngressNodeFirewallConfigCRFile)
-			Expect(err).ToNot(HaveOccurred())
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			config.SetNamespace(OperatorNameSpace)
 			configCRExisted = true
 			err = testclient.Client.Get(context.Background(), goclient.ObjectKey{Namespace: config.Namespace, Name: config.Name}, config)
 			if errors.IsNotFound(err) {
 				configCRExisted = false
-				Expect(testclient.Client.Create(context.Background(), config)).Should(Succeed())
+				gomega.Expect(testclient.Client.Create(context.Background(), config)).Should(gomega.Succeed())
 			} else {
-				Expect(err).ToNot(HaveOccurred())
+				gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			}
 		})
 
-		AfterEach(func() {
+		ginkgo.AfterEach(func() {
 			if !configCRExisted {
 				daemonset, err := testclient.Client.DaemonSets(config.Namespace).Get(context.Background(), inftestconsts.IngressNodeFirewallDaemonsetName, metav1.GetOptions{})
 				if err != nil {
 					if !errors.IsNotFound(err) {
-						Expect(err).ToNot(HaveOccurred())
+						gomega.Expect(err).ToNot(gomega.HaveOccurred())
 					}
 				} else {
-					Expect(daemonset.OwnerReferences).ToNot(BeNil())
-					Expect(daemonset.OwnerReferences[0].Kind).To(Equal("IngressNodeFirewallConfig"))
+					gomega.Expect(daemonset.OwnerReferences).ToNot(gomega.BeNil())
+					gomega.Expect(daemonset.OwnerReferences[0].Kind).To(gomega.Equal("IngressNodeFirewallConfig"))
 				}
 				infwutils.DeleteIngressNodeFirewallConfig(testclient.Client, config, retryInterval, timeout)
 			}
 		})
 
-		It("should expose at least one endpoint via a daemon metrics service", func() {
+		ginkgo.It("should expose at least one endpoint via a daemon metrics service", func() {
 			err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, 10*time.Second, true, func(ctx context.Context) (done bool, err error) {
 				endpointSliceList, err := testclient.Client.Endpoints(OperatorNameSpace).List(context.TODO(), metav1.ListOptions{
 					LabelSelector: "app=ingress-node-firewall-daemon",
@@ -1199,10 +1199,10 @@ var _ = Describe("Ingress Node Firewall", func() {
 				return false, nil
 			})
 
-			Expect(err).Should(BeNil())
+			gomega.Expect(err).Should(gomega.BeNil())
 		})
 
-		It("should expose daemon metrics", func() {
+		ginkgo.It("should expose daemon metrics", func() {
 			var (
 				inf                              = &ingressnodefwv1alpha1.IngressNodeFirewall{}
 				nodeStateList                    = &ingressnodefwv1alpha1.IngressNodeFirewallNodeStateList{}
@@ -1218,29 +1218,29 @@ var _ = Describe("Ingress Node Firewall", func() {
 				clientCleanupFn, serverCleanupFn func()
 				err                              error
 			)
-			Eventually(func() error {
+			gomega.Eventually(func() error {
 				clientPod, clientCleanupFn, err = transport.GetAndEnsureRunningClient(testclient.Client, clientOnePodName, OperatorNameSpace, clientPodLabel, clientPodLabel,
 					serverPodLabel, retryInterval, timeout)
 				return err
-			}, timeout, retryInterval).ShouldNot(HaveOccurred(), "Failed to setup daemon metrics client test pod")
+			}, timeout, retryInterval).ShouldNot(gomega.HaveOccurred(), "Failed to setup daemon metrics client test pod")
 			defer clientCleanupFn()
 			sourceCIDRs := make([]string, 0)
 			if v4Enabled {
 				_, v4CIDR, err := net.ParseCIDR(fmt.Sprintf("%s/%s", pods.GetIPV4(clientPod.Status.PodIPs), v4SubnetLen))
-				Expect(err).ShouldNot(HaveOccurred())
+				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				sourceCIDRs = append(sourceCIDRs, v4CIDR.String())
 			}
 			if !isSingleStack && v6Enabled {
 				// no-op if v6 tests are disabled
 				_, v6CIDR, err := net.ParseCIDR(fmt.Sprintf("%s/%s", pods.GetIPV6(clientPod.Status.PodIPs), v6SubnetLen))
-				Expect(err).ShouldNot(HaveOccurred())
+				gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 				sourceCIDRs = append(sourceCIDRs, v6CIDR.String())
 			}
-			Eventually(func() error {
+			gomega.Eventually(func() error {
 				serverPod, serverCleanupFn, err = transport.GetAndEnsureRunningTransportServer(testclient.Client, serverOnePodName, OperatorNameSpace,
 					serverPodLabel, serverPodLabel, clientPodLabel, retryInterval, timeout)
 				return err
-			}, timeout, retryInterval).ShouldNot(HaveOccurred(), "Failed to setup daemon metrics server test pod")
+			}, timeout, retryInterval).ShouldNot(gomega.HaveOccurred(), "Failed to setup daemon metrics server test pod")
 			defer serverCleanupFn()
 			inf.SetName("e2e-inf-daemon-metrics")
 			inf.SetLabels(testArtifactsLabelMap)
@@ -1259,11 +1259,11 @@ var _ = Describe("Ingress Node Firewall", func() {
 				FirewallProtocolRules: protoRules,
 			})
 
-			Eventually(func() error {
+			gomega.Eventually(func() error {
 				err := testclient.Client.Create(context.Background(), inf)
 				return err
-			}, timeout, retryInterval).ShouldNot(HaveOccurred())
-			Eventually(func() bool {
+			}, timeout, retryInterval).ShouldNot(gomega.HaveOccurred())
+			gomega.Eventually(func() bool {
 				fw := &ingressnodefwv1alpha1.IngressNodeFirewall{}
 				if err := infwutils.GetIngressNodeFirewallObj(testclient.Client, inf.Name, fw, timeout); err != nil {
 					return false
@@ -1272,16 +1272,16 @@ var _ = Describe("Ingress Node Firewall", func() {
 					return true
 				}
 				return false
-			}, timeout, retryInterval).Should(BeTrue(), "failed to sync IngressNodeFirewall rule")
+			}, timeout, retryInterval).Should(gomega.BeTrue(), "failed to sync IngressNodeFirewall rule")
 			checkNodeStateCreate(testclient.Client, nodeStateList)
 
 			defer func() {
-				Eventually(func() bool {
+				gomega.Eventually(func() bool {
 					err := testclient.Client.Delete(context.Background(), inf)
 					return errors.IsNotFound(err)
-				}, timeout, retryInterval).Should(BeTrue(), "Failed destination delete IngressNodeFirewall custom resource")
+				}, timeout, retryInterval).Should(gomega.BeTrue(), "Failed destination delete IngressNodeFirewall custom resource")
 			}()
-			Eventually(func() bool {
+			gomega.Eventually(func() bool {
 				if v4Enabled {
 					_, _, err = icmp.PingFromPod(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP, clientPod, pods.GetIPV4(serverPod.Status.PodIPs))
 					if err == nil {
@@ -1296,10 +1296,10 @@ var _ = Describe("Ingress Node Firewall", func() {
 					}
 				}
 				return true
-			}).WithTimeout(timeout).Should(BeTrue())
+			}).WithTimeout(timeout).Should(gomega.BeTrue())
 
 			daemonSetPod, err := daemonset.GetDaemonSetOnNode(testclient.Client, OperatorNameSpace, serverPod.Spec.NodeName)
-			Expect(err).ShouldNot(HaveOccurred())
+			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 			var stdOut, stdError string
 			var metrics testutil.Metrics
 			err = wait.PollUntilContextTimeout(context.Background(), 1*time.Second, 30*time.Second, true, func(ctx context.Context) (done bool, err error) {
@@ -1343,11 +1343,11 @@ var _ = Describe("Ingress Node Firewall", func() {
 				return false, nil
 			})
 
-			Expect(err).To(BeNil())
+			gomega.Expect(err).To(gomega.BeNil())
 			for _, metric := range infmetrics.GetPrometheusStatisticNames() {
 				sample, ok := metrics[metric]
-				Expect(ok).To(BeTrue())
-				Expect(sample.Len() > 0).To(BeTrue())
+				gomega.Expect(ok).To(gomega.BeTrue())
+				gomega.Expect(sample.Len() > 0).To(gomega.BeTrue())
 			}
 		})
 	})
@@ -1355,43 +1355,43 @@ var _ = Describe("Ingress Node Firewall", func() {
 	// Unit tests will be the primary location to validate the functionality of the webhook, the objective of e2e
 	// tests will be to ensure basic functionality of the webhook. Any additional test cases for functionality should
 	// be added to unit tests in order to aid test latency.
-	Context("Webhook", func() {
+	ginkgo.Context("Webhook", func() {
 		var config *ingressnodefwv1alpha1.IngressNodeFirewallConfig
 		var configCRExisted bool
 
-		BeforeEach(func() {
+		ginkgo.BeforeEach(func() {
 			var err error
 			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
 			config.SetLabels(testArtifactsLabelMap)
 			err = infwutils.LoadIngressNodeFirewallConfigFromFile(config, inftestconsts.IngressNodeFirewallConfigCRFile)
-			Expect(err).ToNot(HaveOccurred())
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			config.SetNamespace(OperatorNameSpace)
 			configCRExisted = true
 			err = testclient.Client.Get(context.Background(), goclient.ObjectKey{Namespace: config.Namespace, Name: config.Name}, config)
 			if errors.IsNotFound(err) {
 				configCRExisted = false
-				Expect(testclient.Client.Create(context.Background(), config)).Should(Succeed())
+				gomega.Expect(testclient.Client.Create(context.Background(), config)).Should(gomega.Succeed())
 			} else {
-				Expect(err).ToNot(HaveOccurred())
+				gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			}
 		})
 
-		AfterEach(func() {
+		ginkgo.AfterEach(func() {
 			if !configCRExisted {
 				daemonset, err := testclient.Client.DaemonSets(config.Namespace).Get(context.Background(), inftestconsts.IngressNodeFirewallDaemonsetName, metav1.GetOptions{})
 				if err != nil {
 					if !errors.IsNotFound(err) {
-						Expect(err).Should(Succeed())
+						gomega.Expect(err).Should(gomega.Succeed())
 					}
 				} else {
-					Expect(daemonset.OwnerReferences).ToNot(BeNil())
-					Expect(daemonset.OwnerReferences[0].Kind).To(Equal("IngressNodeFirewallConfig"))
+					gomega.Expect(daemonset.OwnerReferences).ToNot(gomega.BeNil())
+					gomega.Expect(daemonset.OwnerReferences[0].Kind).To(gomega.Equal("IngressNodeFirewallConfig"))
 				}
 				infwutils.DeleteIngressNodeFirewallConfig(testclient.Client, config, retryInterval, timeout)
 			}
 		})
 
-		It("should allow valid ingressnodefirewall TCP rule", func() {
+		ginkgo.It("should allow valid ingressnodefirewall TCP rule", func() {
 			inf := &ingressnodefwv1alpha1.IngressNodeFirewall{}
 			inf.SetName("e2e-webhook-valid-tcp")
 			inf.SetLabels(testArtifactsLabelMap)
@@ -1399,11 +1399,11 @@ var _ = Describe("Ingress Node Firewall", func() {
 			infwutils.DefineWithInterface(inf, testInterface)
 			infwutils.AppendIngress(inf, "1.1.1.1/32", infwutils.GetTCPRule(1, "40000",
 				ingressnodefwv1alpha1.IngressNodeFirewallDeny))
-			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
-			Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).To(Succeed())
+			gomega.Expect(testclient.Client.Create(context.Background(), inf)).To(gomega.Succeed())
+			gomega.Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).To(gomega.Succeed())
 		})
 
-		It("should allow valid ingressnodefirewall UDP rule", func() {
+		ginkgo.It("should allow valid ingressnodefirewall UDP rule", func() {
 			inf := &ingressnodefwv1alpha1.IngressNodeFirewall{}
 			inf.SetName("e2e-webhook-valid-udp")
 			inf.SetLabels(testArtifactsLabelMap)
@@ -1411,11 +1411,11 @@ var _ = Describe("Ingress Node Firewall", func() {
 			infwutils.DefineWithInterface(inf, testInterface)
 			infwutils.AppendIngress(inf, "1.1.1.1/32", infwutils.GetUDPRule(1, "40000",
 				ingressnodefwv1alpha1.IngressNodeFirewallDeny))
-			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
-			Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).To(Succeed())
+			gomega.Expect(testclient.Client.Create(context.Background(), inf)).To(gomega.Succeed())
+			gomega.Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).To(gomega.Succeed())
 		})
 
-		It("should allow valid ingressnodefirewall ICMPV4 rule", func() {
+		ginkgo.It("should allow valid ingressnodefirewall ICMPV4 rule", func() {
 			inf := &ingressnodefwv1alpha1.IngressNodeFirewall{}
 			inf.SetName("e2e-webhook-valid-icmpv4")
 			inf.SetLabels(testArtifactsLabelMap)
@@ -1423,11 +1423,11 @@ var _ = Describe("Ingress Node Firewall", func() {
 			infwutils.DefineWithInterface(inf, testInterface)
 			infwutils.AppendIngress(inf, "1.1.1.1/32", infwutils.GetICMPV4Rule(1, 0, 1,
 				ingressnodefwv1alpha1.IngressNodeFirewallDeny))
-			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
-			Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).To(Succeed())
+			gomega.Expect(testclient.Client.Create(context.Background(), inf)).To(gomega.Succeed())
+			gomega.Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).To(gomega.Succeed())
 		})
 
-		It("should allow valid ingressnodefirewall ICMPV6 rule", func() {
+		ginkgo.It("should allow valid ingressnodefirewall ICMPV6 rule", func() {
 			inf := &ingressnodefwv1alpha1.IngressNodeFirewall{}
 			inf.SetName("e2e-webhook-valid-icmpv6")
 			inf.SetLabels(testArtifactsLabelMap)
@@ -1435,11 +1435,11 @@ var _ = Describe("Ingress Node Firewall", func() {
 			infwutils.DefineWithInterface(inf, testInterface)
 			infwutils.AppendIngress(inf, "1:1:1::1/64", infwutils.GetICMPV4Rule(1, 0, 1,
 				ingressnodefwv1alpha1.IngressNodeFirewallDeny))
-			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
-			Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).To(Succeed())
+			gomega.Expect(testclient.Client.Create(context.Background(), inf)).To(gomega.Succeed())
+			gomega.Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).To(gomega.Succeed())
 		})
 
-		It("should allow valid ingressnodefirewall SCTP rule", func() {
+		ginkgo.It("should allow valid ingressnodefirewall SCTP rule", func() {
 			inf := &ingressnodefwv1alpha1.IngressNodeFirewall{}
 			inf.SetName("e2e-webhook-valid-sctp")
 			inf.SetLabels(testArtifactsLabelMap)
@@ -1447,11 +1447,11 @@ var _ = Describe("Ingress Node Firewall", func() {
 			infwutils.DefineWithInterface(inf, testInterface)
 			infwutils.AppendIngress(inf, "1.1.1.1/32", infwutils.GetSCTPRule(1, "40000",
 				ingressnodefwv1alpha1.IngressNodeFirewallDeny))
-			Expect(testclient.Client.Create(context.Background(), inf)).To(Succeed())
-			Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).To(Succeed())
+			gomega.Expect(testclient.Client.Create(context.Background(), inf)).To(gomega.Succeed())
+			gomega.Expect(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout)).To(gomega.Succeed())
 		})
 
-		It("should block any rules which conflict with failsafe rules", func() {
+		ginkgo.It("should block any rules which conflict with failsafe rules", func() {
 			for _, tcpFailSafeRule := range failsaferules.GetTCP() {
 				inf := &ingressnodefwv1alpha1.IngressNodeFirewall{}
 				inf.SetName(fmt.Sprintf("e2e-webhook-block-conflict-%s-tcp", tcpFailSafeRule.GetServiceName()))
@@ -1460,7 +1460,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 				infwutils.DefineWithInterface(inf, testInterface)
 				infwutils.AppendIngress(inf, "1.1.1.1/32", infwutils.GetTCPRule(1, fmt.Sprintf("%d", tcpFailSafeRule.GetPort()),
 					ingressnodefwv1alpha1.IngressNodeFirewallDeny))
-				Expect(testclient.Client.Create(context.Background(), inf)).ToNot(Succeed())
+				gomega.Expect(testclient.Client.Create(context.Background(), inf)).ToNot(gomega.Succeed())
 			}
 			for _, udpFailSafeRule := range failsaferules.GetUDP() {
 				inf := &ingressnodefwv1alpha1.IngressNodeFirewall{}
@@ -1470,7 +1470,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 				infwutils.DefineWithInterface(inf, testInterface)
 				infwutils.AppendIngress(inf, "1.1.1.1/32", infwutils.GetUDPRule(1, fmt.Sprintf("%d", udpFailSafeRule.GetPort()),
 					ingressnodefwv1alpha1.IngressNodeFirewallDeny))
-				Expect(testclient.Client.Create(context.Background(), inf)).ToNot(Succeed())
+				gomega.Expect(testclient.Client.Create(context.Background(), inf)).ToNot(gomega.Succeed())
 			}
 		})
 	})
@@ -1525,10 +1525,10 @@ func deleteAllTestRules(testINFs []*ingressnodefwv1alpha1.IngressNodeFirewall, c
 	nodeStateList *ingressnodefwv1alpha1.IngressNodeFirewallNodeStateList) {
 	for _, testINF := range testINFs {
 		testINF := testINF
-		Eventually(func() bool {
+		gomega.Eventually(func() bool {
 			err := infwutils.DeleteIngressNodeFirewall(client, testINF, timeout)
 			return errors.IsNotFound(err)
-		}, timeout, retryInterval).Should(BeTrue(), "Failed to delete IngressNodeFirewall rules")
+		}, timeout, retryInterval).Should(gomega.BeTrue(), "Failed to delete IngressNodeFirewall rules")
 	}
 }
 
@@ -1551,15 +1551,15 @@ func reachabilityCheck(reach reachable, podNameObj map[string]*corev1.Pod,
 				dbgMsg = fmt.Sprintf("[IPV4] Initial connectivity check for protocol %s from pod "+
 					"%q to destination pod %q", protocol, reach.source, reach.destination)
 			}
-			By(dbgMsg)
-			Eventually(func() bool {
+			ginkgo.By(dbgMsg)
+			gomega.Eventually(func() bool {
 				return isConnectivitySeen(testclient.Client, protocol, sourcePod, sourcePodV4IP, destinationPod,
 					destinationPodV4IP, reach.port, false)
-			}, timeout, retryInterval).Should(Equal(isReachable), "Failed: IPv4 connectivity checks")
+			}, timeout, retryInterval).Should(gomega.Equal(isReachable), "Failed: IPv4 connectivity checks")
 
 			// only expect drop events for dropped / blocked connections
 			if !isReachable {
-				By("[IPV4] Checking if drop events created")
+				ginkgo.By("[IPV4] Checking if drop events created")
 				var expectedEvent events.TestEvent
 				if infwutils.IsICMPProtocol(protocol) {
 					//TODO: Here we always expect icmp code and type values for V4. Remove hardcoded icmp code and types to allow test flexibility.
@@ -1569,14 +1569,14 @@ func reachabilityCheck(reach reachable, podNameObj map[string]*corev1.Pod,
 					expectedEvent = events.GetTransportTestEvent(protocol, testInterface, sourcePodV4IP,
 						destinationPodV4IP, reach.port)
 				}
-				Eventually(func() bool {
+				gomega.Eventually(func() bool {
 					result, err := events.DidEventOccur(testclient.Client, OperatorNameSpace,
 						destinationPodNodeName, expectedEvent, timeout)
 					if err != nil {
 						log.Printf("IPv4: failed check for events err %v", err)
 					}
 					return result
-				}, timeout, retryInterval).Should(BeTrue(), "Failed: IPv4 expected drop events didn't happen")
+				}, timeout, retryInterval).Should(gomega.BeTrue(), "Failed: IPv4 expected drop events didn't happen")
 			}
 		}
 
@@ -1590,14 +1590,14 @@ func reachabilityCheck(reach reachable, podNameObj map[string]*corev1.Pod,
 				dbgMsg = fmt.Sprintf("[IPV6] Initial connectivity check for protocol %s from pod "+
 					"%q to destination pod %q", protocol, reach.source, reach.destination)
 			}
-			By(dbgMsg)
-			Eventually(func() bool {
+			ginkgo.By(dbgMsg)
+			gomega.Eventually(func() bool {
 				return isConnectivitySeen(testclient.Client, protocol, sourcePod, sourcePodV6IP, destinationPod,
 					destinationPodV6IP, reach.port, true)
-			}, timeout, retryInterval).Should(Equal(isReachable), "Failed: IPv6 connectivity checks")
+			}, timeout, retryInterval).Should(gomega.Equal(isReachable), "Failed: IPv6 connectivity checks")
 			// only expect drop events for dropped / blocked connections
 			if !isReachable {
-				By("[IPV6] Checking if drop events created")
+				ginkgo.By("[IPV6] Checking if drop events created")
 				var expectedEvent events.TestEvent
 				if infwutils.IsICMPProtocol(protocol) {
 					//TODO: Here we always expect icmp code and type values for V6. Remove hardcoded icmp code and types to allow test flexibility.
@@ -1607,27 +1607,27 @@ func reachabilityCheck(reach reachable, podNameObj map[string]*corev1.Pod,
 					expectedEvent = events.GetTransportTestEvent(protocol, testInterface, sourcePodV6IP,
 						destinationPodV6IP, reach.port)
 				}
-				Eventually(func() bool {
+				gomega.Eventually(func() bool {
 					result, err := events.DidEventOccur(testclient.Client, OperatorNameSpace,
 						destinationPodNodeName, expectedEvent, timeout)
 					if err != nil {
 						log.Printf("IPv6: failed check for events err %v", err)
 					}
 					return result
-				}, timeout, retryInterval).Should(BeTrue(), "Failed: IPv6 expected drop events didn't happen")
+				}, timeout, retryInterval).Should(gomega.BeTrue(), "Failed: IPv6 expected drop events didn't happen")
 			}
 		}
 	}
 }
 
 func checkNodeStateCreate(client *testclient.ClientSet, nodeStateList *ingressnodefwv1alpha1.IngressNodeFirewallNodeStateList) {
-	Eventually(func() bool {
+	gomega.Eventually(func() bool {
 		err := client.List(context.Background(), nodeStateList)
 		if err != nil {
 			return false
 		}
 		return len(nodeStateList.Items) == node.GetNumOfNodesWithMatchingLabel(testclient.Client, timeout)
-	}, timeout, retryInterval).Should(BeTrue())
+	}, timeout, retryInterval).Should(gomega.BeTrue())
 }
 
 func getClientServerTestPods(client *testclient.ClientSet, namespace, clientName string, clientLabel map[string]string,
@@ -1636,23 +1636,23 @@ func getClientServerTestPods(client *testclient.ClientSet, namespace, clientName
 	var clientCleanupFn, serverCleanupFn func()
 	var err error
 
-	Eventually(func() bool {
+	gomega.Eventually(func() bool {
 		clientPod, clientCleanupFn, err = transport.GetAndEnsureRunningClient(client, clientName, namespace, clientLabel, clientLabel,
 			serverLabel, retryInterval, timeout)
 		if err == nil && clientPod != nil {
 			return true
 		}
 		return false
-	}, time.Minute, time.Second).Should(BeTrue(), "Failed to setup client test pod")
+	}, time.Minute, time.Second).Should(gomega.BeTrue(), "Failed to setup client test pod")
 
-	Eventually(func() bool {
+	gomega.Eventually(func() bool {
 		serverPod, serverCleanupFn, err = transport.GetAndEnsureRunningTransportServer(client, serverName,
 			OperatorNameSpace, serverLabel, serverLabel, clientLabel, retryInterval, timeout)
 		if err == nil && serverPod != nil {
 			return true
 		}
 		return false
-	}, time.Minute, time.Second).Should(BeTrue(), "Failed to setup server test pod")
+	}, time.Minute, time.Second).Should(gomega.BeTrue(), "Failed to setup server test pod")
 
 	return clientPod, serverPod, func() {
 		clientCleanupFn()
