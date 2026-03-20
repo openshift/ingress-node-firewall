@@ -21,5 +21,5 @@ export NETCAT_IMAGE="rhel8/support-tools:latest"
 go version
 
 mkdir -p "${TESTS_REPORTS_PATH}"
-go test --tags=validationtests -v ../test/e2e/validation -ginkgo.v -junit "${TESTS_REPORTS_PATH}" -report "${TESTS_REPORTS_PATH}"
-go test --tags=e2etests -v ../test/e2e/functional -ginkgo.v -junit "${TESTS_REPORTS_PATH}" -report "${TESTS_REPORTS_PATH}"
+go test --tags=validationtests -v ../test/e2e/validation -junit "${TESTS_REPORTS_PATH}" -report "${TESTS_REPORTS_PATH}"
+go test --tags=e2etests -v ../test/e2e/functional -junit "${TESTS_REPORTS_PATH}" -report "${TESTS_REPORTS_PATH}"
