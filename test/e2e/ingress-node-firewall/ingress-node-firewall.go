@@ -50,9 +50,16 @@ func LoadIngressNodeFirewallConfigFromFile(config *ingressnodefwv1alpha1.Ingress
 }
 
 func loadFromFile(obj interface{}, fileName string) error {
-	f, err := os.Open(fmt.Sprintf("../../../../config/samples/%s", fileName))
+	// Try relative path from test/e2e/functional (for go test)
+	filePath := fmt.Sprintf("../../../config/samples/%s", fileName)
+	f, err := os.Open(filePath)
 	if err != nil {
-		return err
+		// Try from repo root (for OTE binary)
+		filePath = fmt.Sprintf("config/samples/%s", fileName)
+		f, err = os.Open(filePath)
+		if err != nil {
+			return err
+		}
 	}
 	defer f.Close()
 
