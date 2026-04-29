@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 	"unsafe"
@@ -104,66 +105,44 @@ func (infc *IngNodeFwController) ingressNodeFwEvents() error {
 				log.Printf("lookup network iface %d: %s", eventHdr.IfId, err)
 				continue
 			}
-			if err := eventsLogger.Info(fmt.Sprintf("ruleId %d action %s len %d if %s\n",
-				eventHdr.RuleId, convertXdpActionToString(eventHdr.Action), eventHdr.PktLength, iface.Name)); err != nil {
-				log.Printf("syslog event logging failed %q", err)
-			}
+			// Build a complete log message with all packet details
+			var logMsg strings.Builder
+			fmt.Fprintf(&logMsg, "ruleId %d action %s len %d if %s",
+				eventHdr.RuleId, convertXdpActionToString(eventHdr.Action), eventHdr.PktLength, iface.Name)
+
 			decodePacket := gopacket.NewPacket(packet, layers.LayerTypeEthernet, gopacket.Default)
-			// check for IPv4
+
+			// Append IP layer information
 			if ip4Layer := decodePacket.Layer(layers.LayerTypeIPv4); ip4Layer != nil {
 				ip, _ := ip4Layer.(*layers.IPv4)
-				if err := eventsLogger.Info(fmt.Sprintf("\tipv4 src addr %s dst addr %s\n", ip.SrcIP.String(), ip.DstIP.String())); err != nil {
-					log.Printf("syslog event logging for ruleId %d on intrerface %s failed err: %q",
-						eventHdr.RuleId, iface.Name, err)
-				}
-			}
-			// check for IPv6
-			if ip6Layer := decodePacket.Layer(layers.LayerTypeIPv6); ip6Layer != nil {
+				fmt.Fprintf(&logMsg, " | ipv4 src %s dst %s", ip.SrcIP.String(), ip.DstIP.String())
+			} else if ip6Layer := decodePacket.Layer(layers.LayerTypeIPv6); ip6Layer != nil {
 				ip, _ := ip6Layer.(*layers.IPv6)
-				if err := eventsLogger.Info(fmt.Sprintf("\tipv6 src addr %s dst addr %s\n", ip.SrcIP.String(), ip.DstIP.String())); err != nil {
-					log.Printf("syslog event logging for ruleId %d on intrerface %s failed err: %q",
-						eventHdr.RuleId, iface.Name, err)
-				}
+				fmt.Fprintf(&logMsg, " | ipv6 src %s dst %s", ip.SrcIP.String(), ip.DstIP.String())
 			}
-			// check for TCP
+
+			// Append protocol-specific information
 			if tcpLayer := decodePacket.Layer(layers.LayerTypeTCP); tcpLayer != nil {
 				tcp, _ := tcpLayer.(*layers.TCP)
-				if err := eventsLogger.Info(fmt.Sprintf("\ttcp srcPort %d dstPort %d\n", tcp.SrcPort, tcp.DstPort)); err != nil {
-					log.Printf("syslog event logging for ruleId %d on intrerface %s failed err: %q",
-						eventHdr.RuleId, iface.Name, err)
-				}
-			}
-			// check for UDP
-			if udpLayer := decodePacket.Layer(layers.LayerTypeUDP); udpLayer != nil {
+				fmt.Fprintf(&logMsg, " | tcp srcPort %d dstPort %d", tcp.SrcPort, tcp.DstPort)
+			} else if udpLayer := decodePacket.Layer(layers.LayerTypeUDP); udpLayer != nil {
 				udp, _ := udpLayer.(*layers.UDP)
-				if err := eventsLogger.Info(fmt.Sprintf("\tudp srcPort %d dstPort %d\n", udp.SrcPort, udp.DstPort)); err != nil {
-					log.Printf("syslog event logging for ruleId %d on intrerface %s failed err: %q",
-						eventHdr.RuleId, iface.Name, err)
-				}
-			}
-			// check fo SCTP
-			if sctpLayer := decodePacket.Layer(layers.LayerTypeSCTP); sctpLayer != nil {
+				fmt.Fprintf(&logMsg, " | udp srcPort %d dstPort %d", udp.SrcPort, udp.DstPort)
+			} else if sctpLayer := decodePacket.Layer(layers.LayerTypeSCTP); sctpLayer != nil {
 				sctp, _ := sctpLayer.(*layers.SCTP)
-				if err := eventsLogger.Info(fmt.Sprintf("\tsctp srcPort %d dstPort %d\n", sctp.SrcPort, sctp.DstPort)); err != nil {
-					log.Printf("syslog event logging for ruleId %d on intrerface %s failed err: %q",
-						eventHdr.RuleId, iface.Name, err)
-				}
-			}
-			// check for ICMPv4
-			if icmpv4Layer := decodePacket.Layer(layers.LayerTypeICMPv4); icmpv4Layer != nil {
+				fmt.Fprintf(&logMsg, " | sctp srcPort %d dstPort %d", sctp.SrcPort, sctp.DstPort)
+			} else if icmpv4Layer := decodePacket.Layer(layers.LayerTypeICMPv4); icmpv4Layer != nil {
 				icmp, _ := icmpv4Layer.(*layers.ICMPv4)
-				if err := eventsLogger.Info(fmt.Sprintf("\ticmpv4 type %d code %d\n", icmp.TypeCode.Type(), icmp.TypeCode.Code())); err != nil {
-					log.Printf("syslog event logging for ruleId %d on intrerface %s failed err: %q",
-						eventHdr.RuleId, iface.Name, err)
-				}
-			}
-			// check for ICMPV6
-			if icmpv6Layer := decodePacket.Layer(layers.LayerTypeICMPv6); icmpv6Layer != nil {
+				fmt.Fprintf(&logMsg, " | icmpv4 type %d code %d", icmp.TypeCode.Type(), icmp.TypeCode.Code())
+			} else if icmpv6Layer := decodePacket.Layer(layers.LayerTypeICMPv6); icmpv6Layer != nil {
 				icmp, _ := icmpv6Layer.(*layers.ICMPv6)
-				if err := eventsLogger.Info(fmt.Sprintf("\ticmpv6 type %d code %d\n", icmp.TypeCode.Type(), icmp.TypeCode.Code())); err != nil {
-					log.Printf("syslog event logging for ruleId %d on intrerface %s failed err: %q",
-						eventHdr.RuleId, iface.Name, err)
-				}
+				fmt.Fprintf(&logMsg, " | icmpv6 type %d code %d", icmp.TypeCode.Type(), icmp.TypeCode.Code())
+			}
+
+			// Log the complete message as a single line
+			if err := eventsLogger.Info(logMsg.String()); err != nil {
+				log.Printf("syslog event logging for ruleId %d on interface %s failed err: %q",
+					eventHdr.RuleId, iface.Name, err)
 			}
 		}
 	}()
