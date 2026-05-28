@@ -68,9 +68,9 @@ make undeploy-samples
 
 You need to install the following packages:
 
-operator-sdk 1.22.0
+operator-sdk 1.33.0
 
-controller-gen v0.9.0+
+controller-gen v0.20.1+
 
 For fedora, you will need the following packages
 ```sh
