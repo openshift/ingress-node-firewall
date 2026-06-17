@@ -19,7 +19,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
@@ -30,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -233,7 +233,8 @@ func (r *IngressNodeFirewallReconciler) triggerReconciliation(ctx context.Contex
 	}
 
 	for _, fwobj := range ingressNodeFirewallList.Items {
-		if reflect.DeepEqual(fwobj.Spec.NodeSelector.MatchLabels, object.GetLabels()) {
+		selector := labels.SelectorFromSet(fwobj.Spec.NodeSelector.MatchLabels)
+		if selector.Matches(labels.Set(object.GetLabels())) {
 			nodeState := fwobj
 			req := reconcile.Request{
 				NamespacedName: types.NamespacedName{
