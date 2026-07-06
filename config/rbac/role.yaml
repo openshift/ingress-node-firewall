@@ -40,43 +40,7 @@ rules:
   - ingressnodefirewall.openshift.io
   resources:
   - ingressnodefirewallconfigs
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ingressnodefirewall.openshift.io
-  resources:
-  - ingressnodefirewallconfigs/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - ingressnodefirewall.openshift.io
-  resources:
-  - ingressnodefirewallconfigs/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ingressnodefirewall.openshift.io
-  resources:
   - ingressnodefirewallnodestates
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ingressnodefirewall.openshift.io
-  resources:
   - ingressnodefirewalls
   verbs:
   - create
@@ -89,12 +53,14 @@ rules:
 - apiGroups:
   - ingressnodefirewall.openshift.io
   resources:
+  - ingressnodefirewallconfigs/finalizers
   - ingressnodefirewalls/finalizers
   verbs:
   - update
 - apiGroups:
   - ingressnodefirewall.openshift.io
   resources:
+  - ingressnodefirewallconfigs/status
   - ingressnodefirewalls/status
   verbs:
   - get
