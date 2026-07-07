@@ -313,7 +313,7 @@ var _ = Describe("IngressNodeFirewall controller rules", func() {
 									Order: 10,
 									ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{
 										Protocol: infv1alpha1.ProtocolTypeUDP,
-										TCP: &infv1alpha1.IngressNodeFirewallProtoRule{
+										UDP: &infv1alpha1.IngressNodeFirewallProtoRule{
 											Ports: intstr.FromInt(80),
 										},
 									},
