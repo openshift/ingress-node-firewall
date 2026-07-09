@@ -1,16 +1,22 @@
 reviewers:
+  - arghosh93
+  - arkadeepsen
   - abhat
+  - bpickard22
   - danwinship
   - jcaamano
+  - kyrtapz
+  - marty-power
+  - mattedallo
+  - miheer
+  - pperiyasamy
+  - taanyas
   - tssurya
-  - martinkennelly
 approvers:
   - abhat
   - danwinship
-  - fepan
   - jcaamano
   - knobunc
-  - martinkennelly
   - tssurya
 
 # Bugzilla info
