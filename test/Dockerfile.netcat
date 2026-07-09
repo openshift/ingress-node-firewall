@@ -1,4 +1,10 @@
+# Image for the e2e client and server pods (test/e2e/transport).
+#
+# python3 backs the fragmented-packet sender in transport.SendFragmentedPacket. It
+# only needs an ordinary UDP socket from the stdlib, so no extra package is needed.
+# The CI image set by openshift-ci/run_e2e.sh (rhel8/support-tools) already ships
+# python3 and ncat; keep both present here so local runs behave the same.
 FROM alpine:latest
 
-RUN apk add --no-cache --update --verbose bash nmap-ncat && \
+RUN apk add --no-cache --update --verbose bash nmap-ncat python3 && \
     rm -rf /var/cache/apk/* /tmp/*
