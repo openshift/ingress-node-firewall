@@ -90,4 +90,29 @@ struct rulesVal_st {
   struct ruleType_st rules[MAX_RULES_PER_TARGET];
 } __attribute__((packed));
 
+// ip_extract_l4info return codes
+#define L4_OK             0  // extracted L4 info successfully
+#define L4_TRUNCATED     -1  // packet too short; pass to kernel for rejection
+#define L4_FRAGMENTED    -2  // fragmented packet; deny (INF cannot reassemble)
+#define L4_EXT_HDR_LIMIT -3  // IPv6 ext header chain too long to walk; deny
+
+// IPv4 fragmentation constants (RFC 791)
+#define IP_MF          0x2000  // More Fragments flag
+#define IP_OFFSET_MASK 0x1FFF  // Fragment offset mask (bits 0-12, in 8-byte units)
+#define IP_DF          0x4000  // Don't Fragment flag
+
+// IPv6 extension header next-header values (RFC 8200)
+#define NEXTHDR_HOP      0   // Hop-by-Hop Options
+#define NEXTHDR_ROUTING  43  // Routing
+#define NEXTHDR_FRAGMENT 44  // Fragment
+#define NEXTHDR_DEST     60  // Destination Options
+// bounded walk, raise if real traffic chains more than 6 ext headers
+#define MAX_IPV6_EXT_HDRS 6
+
+// Extension headers that carry a nexthdr/hdrlen pair the walk can step over.
+// NEXTHDR_FRAGMENT is deliberately absent: fragments are denied, not walked.
+#define IS_IPV6_EXT_HDR(nexthdr)                                               \
+  (((nexthdr) == NEXTHDR_HOP) || ((nexthdr) == NEXTHDR_ROUTING) ||             \
+   ((nexthdr) == NEXTHDR_DEST))
+
 #endif
