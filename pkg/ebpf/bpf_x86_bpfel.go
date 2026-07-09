@@ -86,7 +86,7 @@ type BpfSpecs struct {
 	BpfMapSpecs
 }
 
-// BpfSpecs contains programs before they are loaded into the kernel.
+// BpfProgramSpecs contains programs before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type BpfProgramSpecs struct {
