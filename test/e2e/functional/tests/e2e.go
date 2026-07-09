@@ -1515,7 +1515,14 @@ func isConnectivitySeen(client *testclient.ClientSet, protocol ingressnodefwv1al
 		// Connectivity will be confirmed with server output later and expecting server output to contain clients IP.
 		_, _, _ = transport.ConnectToPortFromPod(client, protocol, v6, sourcePod, sourceIP, destinationIP, destinationPort)
 		serverResult := <-serverResultsCh
-		return strings.Contains(serverResult, sourceIP)
+		ncatResult := strings.Contains(serverResult, sourceIP)
+
+		// hping3 connectivity test with IP fragmentation
+		_, hpingStderr, hpingErr := transport.HpingFragmentedConnect(client, protocol, v6, sourcePod, destinationIP, destinationPort)
+		hpingResult := transport.IsHpingResponseSeen(hpingStderr, hpingErr)
+		log.Printf("isConnectivitySeen from %s to %s:%s (hping3 = %v) && (ncat = %v)", sourceIP, destinationIP, destinationPort, hpingResult, ncatResult)
+
+		return ncatResult
 	} else {
 		panic("Unexpected protocol")
 	}
@@ -1616,6 +1623,43 @@ func reachabilityCheck(reach reachable, podNameObj map[string]*corev1.Pod,
 					return result
 				}, timeout, retryInterval).Should(BeTrue(), "Failed: IPv6 expected drop events didn't happen")
 			}
+		}
+	}
+}
+
+func reachabilityCheckFragmentation(reach reachable, podNameObj map[string]*corev1.Pod,
+	protocols []ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType) {
+	sourcePod := podNameObj[reach.source]
+	for _, protocol := range protocols {
+		if skipProtocol(protocol, !v6Enabled) {
+			continue
+		}
+		if !infwutils.IsTransportProtocol(protocol) || protocol == ingressnodefwv1alpha1.ProtocolTypeSCTP {
+			continue
+		}
+		// v4 fragmentation tests
+		if v4Enabled && protocol != ingressnodefwv1alpha1.ProtocolTypeICMP6 {
+			destinationPodV4IP := pods.GetIPV4(podNameObj[reach.destination].Status.PodIPs)
+			By(fmt.Sprintf("[IPV4] Fragmentation check for protocol %s from pod %q to %s:%s",
+				protocol, reach.source, destinationPodV4IP, reach.port))
+			Eventually(func() bool {
+				_, stderr, err := transport.HpingFragmentedConnect(
+					testclient.Client, protocol, false, sourcePod, destinationPodV4IP, reach.port)
+				return transport.IsHpingResponseSeen(stderr, err)
+			}, timeout, retryInterval).Should(BeFalse(),
+				"Failed: IPv4 fragmented packets should be denied")
+		}
+		// v6 fragmentation tests
+		if !isSingleStack && v6Enabled && protocol != ingressnodefwv1alpha1.ProtocolTypeICMP {
+			destinationPodV6IP := pods.GetIPV6(podNameObj[reach.destination].Status.PodIPs)
+			By(fmt.Sprintf("[IPV6] Fragmentation check for protocol %s from pod %q to %s:%s",
+				protocol, reach.source, destinationPodV6IP, reach.port))
+			Eventually(func() bool {
+				_, stderr, err := transport.HpingFragmentedConnect(
+					testclient.Client, protocol, true, sourcePod, destinationPodV6IP, reach.port)
+				return transport.IsHpingResponseSeen(stderr, err)
+			}, timeout, retryInterval).Should(BeFalse(),
+				"Failed: IPv6 fragmented packets should be denied")
 		}
 	}
 }
