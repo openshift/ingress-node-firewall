@@ -3,7 +3,6 @@ package nodefwloader
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -14,7 +13,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	ingressnodefwiov1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/pkg/constants"
 	"github.com/openshift/ingress-node-firewall/pkg/interfaces"
@@ -191,7 +189,7 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 // In the context of this method, stale keys are keys that figure inside the eBPF map but that are not generated
 // during step ii) from the provided ingressRules slice.
 func (infc *IngNodeFwController) IngressNodeFwRulesLoader(
-	ifaceIngressRules map[string][]v1alpha1.IngressNodeFirewallRules) error {
+	ifaceIngressRules map[string][]ingressnodefwiov1alpha1.IngressNodeFirewallRules) error {
 	// Get eBPF objs to create/update eBPF maps and get map info.
 	info, err := infc.objs.BpfMaps.IngressNodeFirewallTableMap.Info()
 	if err != nil {
@@ -264,7 +262,7 @@ func (infc *IngNodeFwController) addOrUpdateRules(ebpfKeyToRules map[BpfLpmIpKey
 	for ebpfKey, ebpfRules := range ebpfKeyToRules {
 		log.Printf("Adding or updating ingress firewall rules for key %v", ebpfKey)
 		if err := infc.objs.BpfMaps.IngressNodeFirewallTableMap.Update(ebpfKey, ebpfRules, ebpf.UpdateAny); err != nil {
-			return fmt.Errorf("Failed Adding/Updating ingress firewall rules: %v", err)
+			return fmt.Errorf("failed adding/updating ingress firewall rules: %v", err)
 		}
 	}
 	return nil
@@ -427,7 +425,7 @@ func (infc *IngNodeFwController) cleaneBPFObjs() error {
 
 // removeAllPins removes all pins for XDP.
 func (infc *IngNodeFwController) removeAllPins() error {
-	files, err := ioutil.ReadDir(infc.pinPath)
+	files, err := os.ReadDir(infc.pinPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -596,7 +594,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(
 		case ingressnodefwiov1alpha1.IngressNodeFirewallDeny:
 			rules.Rules[idx].Action = xdpDeny
 		default:
-			return keys, rules, fmt.Errorf("Failed invalid action %v", rule.Action)
+			return keys, rules, fmt.Errorf("failed invalid action %v", rule.Action)
 		}
 	}
 
@@ -618,7 +616,7 @@ func BuildEBPFKey(ifID uint32, cidr string) (BpfLpmIpKeySt, error) {
 
 	ip, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
-		return key, fmt.Errorf("Failed to parse SourceCIDRs: %v", err)
+		return key, fmt.Errorf("failed to parse SourceCIDRs: %v", err)
 	}
 	if ip.To4() != nil {
 		copy(key.IpData[:], ip.To4())
