@@ -57,7 +57,7 @@ endif
 IMG ?= quay.io/openshift/origin-ingress-node-firewall:latest
 DAEMON_IMG ?= quay.io/openshift/origin-ingress-node-firewall-daemon:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.32.x
+ENVTEST_K8S_VERSION = 1.36
 
 # Default namespace
 NAMESPACE ?= ingress-node-firewall-system
@@ -285,7 +285,7 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
-	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) GOFLAGS="" go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.20
+	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) GOFLAGS="" go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.24
 
 .PHONY: bundle
 bundle: operator-sdk manifests kustomize ## Generate bundle manifests and metadata, then validate generated files.
