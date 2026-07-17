@@ -9,6 +9,7 @@ linters:
         - fmt.Fprint
         - (io.Closer).Close
         - (*os.File).Close
+        - (*crypto/tls.Conn).Close
         - (*net.TCPConn).Close
         - (net.Conn).Close
         - (net.Listener).Close
@@ -22,3 +23,8 @@ linters:
         - "-ST1003"
         - "-ST1020"
         - "-ST1021"
+  exclusions:
+    rules:
+      - linters:
+          - staticcheck
+        text: "SA1019.*scheme.Builder is deprecated"
