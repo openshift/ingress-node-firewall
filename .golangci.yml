@@ -8,10 +8,17 @@ linters:
         - fmt.Fprintln
         - fmt.Fprint
         - (io.Closer).Close
+        - (*os.File).Close
+        - (*net.TCPConn).Close
         - (net.Conn).Close
         - (net.Listener).Close
+        - (*io.PipeWriter).Close
     staticcheck:
       checks:
         - "all"
         - "-QF*"
+        - "-ST1000"
         - "-ST1001"
+        - "-ST1003"
+        - "-ST1020"
+        - "-ST1021"

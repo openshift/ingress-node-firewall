@@ -77,7 +77,7 @@ func TestAddOrUpdateRules(t *testing.T) {
 		cleanup(t)
 		infc, err := NewIngNodeFwController()
 		if err != nil {
-			t.Fatalf("TestIngressNodeFirewallTableMapUpdate(%d): Failed to create nodefw controller instance, err: %q", i, err)
+			t.Fatalf("TestIngressNodeFirewallTableMapUpdate(%d): failed to create nodefw controller instance, err: %q", i, err)
 		}
 		if err := infc.addOrUpdateRules(tc.inputRules); err != nil {
 			t.Fatalf("TestIngressNodeFirewallTableMapUpdate(%d): Adding rules failed with err: %q", i, err)

@@ -968,7 +968,7 @@ func TestVerifyBPFKeysAfterInterfaceIngressRulesUpdate(t *testing.T) {
 		if err != nil {
 			// FIXME: This must be improved for tests with isDelete as we currently only check that the
 			// map is set to nil but with the current test methodology we aren't verifying that the map is gone.
-			if !(tc.isDelete && strings.Contains(err.Error(), "Nil pointer to node firewall loader")) {
+			if !(tc.isDelete && strings.Contains(err.Error(), "nil pointer to node firewall loader")) {
 				t.Fatalf("TestVerifyBPFKeysAfterInterfaceIngressRulesUpdate(%d): Could not get eBPF map content, err: %q", i, err)
 			}
 		}
