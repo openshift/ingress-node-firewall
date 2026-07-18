@@ -3,7 +3,6 @@ package nodefwloader
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -264,7 +263,7 @@ func (infc *IngNodeFwController) addOrUpdateRules(ebpfKeyToRules map[BpfLpmIpKey
 	for ebpfKey, ebpfRules := range ebpfKeyToRules {
 		log.Printf("Adding or updating ingress firewall rules for key %v", ebpfKey)
 		if err := infc.objs.BpfMaps.IngressNodeFirewallTableMap.Update(ebpfKey, ebpfRules, ebpf.UpdateAny); err != nil {
-			return fmt.Errorf("Failed Adding/Updating ingress firewall rules: %v", err)
+			return fmt.Errorf("failed adding/updating ingress firewall rules: %v", err)
 		}
 	}
 	return nil
@@ -427,7 +426,7 @@ func (infc *IngNodeFwController) cleaneBPFObjs() error {
 
 // removeAllPins removes all pins for XDP.
 func (infc *IngNodeFwController) removeAllPins() error {
-	files, err := ioutil.ReadDir(infc.pinPath)
+	entries, err := os.ReadDir(infc.pinPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -439,12 +438,12 @@ func (infc *IngNodeFwController) removeAllPins() error {
 	if err != nil {
 		return err
 	}
-	for _, file := range files {
-		if re.Match([]byte(file.Name())) {
+	for _, entry := range entries {
+		if re.Match([]byte(entry.Name())) {
 			// Note cilium Link unpin path also removes the pinPath, so avoid
 			// generating errors if the file has been already removed.
 			// https://github.com/cilium/ebpf/blob/master/internal/pinning.go#L72
-			if err := os.Remove(path.Join(infc.pinPath, file.Name())); err != nil && !os.IsNotExist(err) {
+			if err := os.Remove(path.Join(infc.pinPath, entry.Name())); err != nil && !os.IsNotExist(err) {
 				return err
 			}
 		}
@@ -596,7 +595,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(
 		case ingressnodefwiov1alpha1.IngressNodeFirewallDeny:
 			rules.Rules[idx].Action = xdpDeny
 		default:
-			return keys, rules, fmt.Errorf("Failed invalid action %v", rule.Action)
+			return keys, rules, fmt.Errorf("failed invalid action %v", rule.Action)
 		}
 	}
 
@@ -618,7 +617,7 @@ func BuildEBPFKey(ifID uint32, cidr string) (BpfLpmIpKeySt, error) {
 
 	ip, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
-		return key, fmt.Errorf("Failed to parse SourceCIDRs: %v", err)
+		return key, fmt.Errorf("failed to parse SourceCIDRs: %v", err)
 	}
 	if ip.To4() != nil {
 		copy(key.IpData[:], ip.To4())
