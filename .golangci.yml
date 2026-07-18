@@ -1,6 +1,19 @@
 version: "2"
 linters:
   default: standard
+  exclusions:
+    rules:
+      - linters: [staticcheck]
+        text: "SA1019: scheme.Builder is deprecated"
+      - linters: [staticcheck]
+        text: "QF1008"
+      - linters: [staticcheck]
+        text: "QF1001"
+      - linters: [staticcheck]
+        text: "QF1003"
+      - linters: [staticcheck]
+        text: "ST1001"
+        path: "test/"
   settings:
     errcheck:
       exclude-functions:
@@ -12,3 +25,5 @@ linters:
         - (io.Closer).Close
         - (*os.File).Close
         - (io.ReadCloser).Close
+        - (*crypto/tls.Conn).Close
+        - (*io.PipeWriter).Close
