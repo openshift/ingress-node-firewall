@@ -9,7 +9,6 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	nodefwloader "github.com/openshift/ingress-node-firewall/pkg/ebpf"
 	intfs "github.com/openshift/ingress-node-firewall/pkg/interfaces"
@@ -149,7 +148,7 @@ func (e *ebpfSingleton) createNewManager() error {
 
 // loadIngressNodeFirewallRules adds, updates and deletes rules from the ruleset.
 func (e *ebpfSingleton) loadIngressNodeFirewallRules(
-	ifaceIngressRules map[string][]v1alpha1.IngressNodeFirewallRules) error {
+	ifaceIngressRules map[string][]infv1alpha1.IngressNodeFirewallRules) error {
 	e.log.Info("Loading rules")
 	if err := e.c.IngressNodeFwRulesLoader(ifaceIngressRules); err != nil {
 		e.log.Error(err, "Failed loading ingress firewall rules")
@@ -186,7 +185,7 @@ func (e *ebpfSingleton) resetAll() error {
 // attachNewInterfaces attaches the eBPF program to the XDP hook of unmanaged interfaces.
 // It is possible that an attachment operation fails with "already attached" while a previous detach operation is
 // still in progress. Thus, if IngressNodeFwAttach fails, retry on error.
-func (e *ebpfSingleton) attachNewInterfaces(ifaceIngressRules map[string][]v1alpha1.IngressNodeFirewallRules) error {
+func (e *ebpfSingleton) attachNewInterfaces(ifaceIngressRules map[string][]infv1alpha1.IngressNodeFirewallRules) error {
 	for intf := range ifaceIngressRules {
 		// First, check if the interface name is valid.
 		if !isValidInterfaceNameAndState(intf) {
