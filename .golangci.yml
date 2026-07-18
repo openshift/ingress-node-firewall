@@ -1,0 +1,21 @@
+version: "2"
+linters:
+  default: standard
+  exclusions:
+    rules:
+      - linters: [staticcheck]
+        text: "QF1008:"
+      - linters: [staticcheck]
+        text: "QF1001:"
+      - linters: [staticcheck]
+        text: "QF1003:"
+      - linters: [staticcheck]
+        text: "ST1001:"
+        path: "test/"
+      - linters: [errcheck]
+        path: "test/"
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
