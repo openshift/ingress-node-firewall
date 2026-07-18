@@ -10,6 +10,6 @@ if [ "$#" -ne 1 ]; then
 fi
 
 $1 run --security-opt label=disable --rm -v $(pwd):/app -w /app -e GO111MODULE=on golangci/golangci-lint:${VERSION} \
-	golangci-lint run --verbose --print-resources-usage \
+	golangci-lint run --verbose --show-stats \
 	--modules-download-mode=vendor --timeout=15m0s && \
 	echo "lint OK!"
