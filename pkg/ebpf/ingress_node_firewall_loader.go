@@ -3,7 +3,6 @@ package nodefwloader
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -15,7 +14,6 @@ import (
 	"syscall"
 
 	"github.com/openshift/ingress-node-firewall/api/v1alpha1"
-	ingressnodefwiov1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/pkg/constants"
 	"github.com/openshift/ingress-node-firewall/pkg/interfaces"
 	"github.com/openshift/ingress-node-firewall/pkg/utils"
@@ -264,7 +262,7 @@ func (infc *IngNodeFwController) addOrUpdateRules(ebpfKeyToRules map[BpfLpmIpKey
 	for ebpfKey, ebpfRules := range ebpfKeyToRules {
 		log.Printf("Adding or updating ingress firewall rules for key %v", ebpfKey)
 		if err := infc.objs.BpfMaps.IngressNodeFirewallTableMap.Update(ebpfKey, ebpfRules, ebpf.UpdateAny); err != nil {
-			return fmt.Errorf("Failed Adding/Updating ingress firewall rules: %v", err)
+			return fmt.Errorf("failed adding/updating ingress firewall rules: %v", err)
 		}
 	}
 	return nil
@@ -427,7 +425,7 @@ func (infc *IngNodeFwController) cleaneBPFObjs() error {
 
 // removeAllPins removes all pins for XDP.
 func (infc *IngNodeFwController) removeAllPins() error {
-	files, err := ioutil.ReadDir(infc.pinPath)
+	files, err := os.ReadDir(infc.pinPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -513,7 +511,7 @@ func (infc *IngNodeFwController) cleanup(ifName string) error {
 // kernel hook will be using. It returns the valid keys and the rules associated to those keys, or an error in case
 // of issues. If multiple keys are returned then the rules must be attached to each of these keys.
 func (infc *IngNodeFwController) makeIngressFwRulesMap(
-	ingFirewallConfig ingressnodefwiov1alpha1.IngressNodeFirewallRules, ifID uint32) ([]BpfLpmIpKeySt, BpfRulesValSt, error) {
+	ingFirewallConfig v1alpha1.IngressNodeFirewallRules, ifID uint32) ([]BpfLpmIpKeySt, BpfRulesValSt, error) {
 	rules := BpfRulesValSt{}
 	var keys []BpfLpmIpKeySt
 
@@ -523,7 +521,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(
 		idx := rule.Order
 		rules.Rules[idx].RuleId = rule.Order
 		switch rule.ProtocolConfig.Protocol {
-		case ingressnodefwiov1alpha1.ProtocolTypeTCP:
+		case v1alpha1.ProtocolTypeTCP:
 			if utils.IsRange(rule.ProtocolConfig.TCP) {
 				start, end, err := utils.GetRange(rule.ProtocolConfig.TCP)
 				if err != nil {
@@ -542,7 +540,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(
 				rules.Rules[idx].DstPortEnd = 0
 			}
 			rules.Rules[idx].Protocol = syscall.IPPROTO_TCP
-		case ingressnodefwiov1alpha1.ProtocolTypeUDP:
+		case v1alpha1.ProtocolTypeUDP:
 			if utils.IsRange(rule.ProtocolConfig.UDP) {
 				start, end, err := utils.GetRange(rule.ProtocolConfig.UDP)
 				if err != nil {
@@ -561,7 +559,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(
 				rules.Rules[idx].DstPortEnd = 0
 			}
 			rules.Rules[idx].Protocol = syscall.IPPROTO_UDP
-		case ingressnodefwiov1alpha1.ProtocolTypeSCTP:
+		case v1alpha1.ProtocolTypeSCTP:
 			if utils.IsRange(rule.ProtocolConfig.SCTP) {
 				start, end, err := utils.GetRange(rule.ProtocolConfig.SCTP)
 				if err != nil {
@@ -580,23 +578,23 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(
 				rules.Rules[idx].DstPortEnd = 0
 			}
 			rules.Rules[idx].Protocol = syscall.IPPROTO_SCTP
-		case ingressnodefwiov1alpha1.ProtocolTypeICMP:
+		case v1alpha1.ProtocolTypeICMP:
 			rules.Rules[idx].IcmpType = rule.ProtocolConfig.ICMP.ICMPType
 			rules.Rules[idx].IcmpCode = rule.ProtocolConfig.ICMP.ICMPCode
 			rules.Rules[idx].Protocol = syscall.IPPROTO_ICMP
-		case ingressnodefwiov1alpha1.ProtocolTypeICMP6:
+		case v1alpha1.ProtocolTypeICMP6:
 			rules.Rules[idx].IcmpType = rule.ProtocolConfig.ICMPv6.ICMPType
 			rules.Rules[idx].IcmpCode = rule.ProtocolConfig.ICMPv6.ICMPCode
 			rules.Rules[idx].Protocol = syscall.IPPROTO_ICMPV6
 
 		}
 		switch rule.Action {
-		case ingressnodefwiov1alpha1.IngressNodeFirewallAllow:
+		case v1alpha1.IngressNodeFirewallAllow:
 			rules.Rules[idx].Action = xdpAllow
-		case ingressnodefwiov1alpha1.IngressNodeFirewallDeny:
+		case v1alpha1.IngressNodeFirewallDeny:
 			rules.Rules[idx].Action = xdpDeny
 		default:
-			return keys, rules, fmt.Errorf("Failed invalid action %v", rule.Action)
+			return keys, rules, fmt.Errorf("failed invalid action %v", rule.Action)
 		}
 	}
 
@@ -618,7 +616,7 @@ func BuildEBPFKey(ifID uint32, cidr string) (BpfLpmIpKeySt, error) {
 
 	ip, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
-		return key, fmt.Errorf("Failed to parse SourceCIDRs: %v", err)
+		return key, fmt.Errorf("failed to parse SourceCIDRs: %v", err)
 	}
 	if ip.To4() != nil {
 		copy(key.IpData[:], ip.To4())
