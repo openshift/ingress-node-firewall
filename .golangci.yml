@@ -1,12 +1,21 @@
+version: "2"
+
 linters:
   default: standard
-
-linters-settings:
-  errcheck:
-    exclude-functions:
-      - fmt.Fprintf
-      - fmt.Fprintln
-      - fmt.Fprint
-      - (io.Closer).Close
-      - (net.Conn).Close
-      - (net.Listener).Close
+  settings:
+    staticcheck:
+      checks:
+        - "all"
+        - "-QF*"
+        - "-ST*"
+  exclusions:
+    rules:
+      - linters: [errcheck]
+        text: "Error return value of .*.Close"
+      - linters: [errcheck]
+        text: "Error return value of `fmt.Fprint"
+      - linters: [staticcheck]
+        text: "SA1019: scheme.Builder is deprecated"
+    paths:
+      - third_party
+      - builtin

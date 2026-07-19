@@ -127,7 +127,7 @@ func (r *KubernetesReporter) logNodes(dirName string) {
 }
 
 func (r *KubernetesReporter) logLogs(filterPods func(*corev1.Pod) bool, dirName string) {
-	pods, err := r.clients.Pods(v1.NamespaceAll).List(context.Background(), metav1.ListOptions{})
+	pods, err := r.clients.Pods(corev1.NamespaceAll).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to fetch pods: %v\n", err)
 		return
