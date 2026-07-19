@@ -419,7 +419,7 @@ catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
 
 CILIUM_EBPF_VERSION := v0.18.0
-GOLANGCI_LINT_VERSION = v2.2.2
+GOLANGCI_LINT_VERSION = v2.10.0
 CLANG ?= clang
 CFLAGS := -O2 -g -Wall -Werror $(CFLAGS)
 GOOS ?= linux

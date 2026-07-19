@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-VERSION=v2.2.2
+VERSION=v2.10.0
 if [ "$#" -ne 1 ]; then
     echo "Expected command line argument - container runtime (docker/podman) got $# arguments: $@"
     exit 1
