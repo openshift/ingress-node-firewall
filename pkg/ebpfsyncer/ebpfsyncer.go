@@ -10,7 +10,6 @@ import (
 	"syscall"
 
 	"github.com/openshift/ingress-node-firewall/api/v1alpha1"
-	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	nodefwloader "github.com/openshift/ingress-node-firewall/pkg/ebpf"
 	intfs "github.com/openshift/ingress-node-firewall/pkg/interfaces"
 	"github.com/openshift/ingress-node-firewall/pkg/metrics"
@@ -30,7 +29,7 @@ var (
 // interface rules to. On the other side, ebpfDaemon makes sure that rules are attached and detached from / to the
 // host's interfaces.
 type EbpfSyncer interface {
-	SyncInterfaceIngressRules(map[string][]infv1alpha1.IngressNodeFirewallRules, bool) error
+	SyncInterfaceIngressRules(map[string][]v1alpha1.IngressNodeFirewallRules, bool) error
 }
 
 // GetEbpfSyncer allocates and returns a single instance of ebpfSingleton.
@@ -71,7 +70,7 @@ type ebpfSingleton struct {
 // interfaceRules (if any) will be ignored.
 // If isDelete is false, then rules will be synchronized for each of the given interfaces.
 func (e *ebpfSingleton) SyncInterfaceIngressRules(
-	ifaceIngressRules map[string][]infv1alpha1.IngressNodeFirewallRules, isDelete bool) error {
+	ifaceIngressRules map[string][]v1alpha1.IngressNodeFirewallRules, isDelete bool) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -130,7 +129,7 @@ func (e *ebpfSingleton) SyncInterfaceIngressRules(
 // getBPFMapContentForTest lists the content of the current BPF map. Used for unit testing only.
 func (e *ebpfSingleton) getBPFMapContentForTest() (map[nodefwloader.BpfLpmIpKeySt]nodefwloader.BpfRulesValSt, error) {
 	if e.c == nil {
-		return nil, fmt.Errorf("Nil pointer to node firewall loader")
+		return nil, fmt.Errorf("nil pointer to node firewall loader")
 	}
 	return e.c.GetBPFMapContentForTest()
 }
@@ -141,7 +140,7 @@ func (e *ebpfSingleton) createNewManager() error {
 	if e.c == nil {
 		e.log.Info("Creating a new eBPF firewall node controller")
 		if e.c, err = nodefwloader.NewIngNodeFwController(); err != nil {
-			return fmt.Errorf("Failed to create nodefw controller instance, err: %q", err)
+			return fmt.Errorf("failed to create nodefw controller instance, err: %q", err)
 		}
 	}
 	return nil
@@ -225,7 +224,7 @@ func (e *ebpfSingleton) attachNewInterfaces(ifaceIngressRules map[string][]v1alp
 
 // detachUnmanagedInterfaces detaches any interfaces managed by us, but that should not be managed anymore.
 // After this, it purges all rules from the ruleset for interfaces that do not exist anymore.
-func (e *ebpfSingleton) detachUnmanagedInterfaces(ifaceIngressRules map[string][]infv1alpha1.IngressNodeFirewallRules) error {
+func (e *ebpfSingleton) detachUnmanagedInterfaces(ifaceIngressRules map[string][]v1alpha1.IngressNodeFirewallRules) error {
 	var err error
 	// Detach any interfaces that we managed but that should not be managed anymore.
 	e.log.Info("Comparing currently managed interfaces against list of XDP interfaces on system",
