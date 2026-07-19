@@ -33,7 +33,7 @@ func (infc *IngNodeFwController) ingressNodeFwEvents() error {
 	// described in the eBPF C program.
 	rd, err := perf.NewReader(objs.IngressNodeFirewallEventsMap, os.Getpagesize())
 	if err != nil {
-		return fmt.Errorf("Failed creating perf event reader: %q", err)
+		return fmt.Errorf("failed creating perf event reader: %q", err)
 	}
 
 	var eventsLogger *syslog.Writer
