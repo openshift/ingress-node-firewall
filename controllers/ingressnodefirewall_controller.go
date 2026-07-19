@@ -106,11 +106,6 @@ func (r *IngressNodeFirewallReconciler) Reconcile(ctx context.Context, req ctrl.
 			}
 			if yes, debugMode, err := r.isUsingBpfmanManager(ctx); yes && err == nil {
 				r.Log.Info("BPFMAN: Deleting ebpf program", "req.Name", req.Name)
-				interfaces := make([]string, 0,
-					len(ingressNodeFirewallCurrentNodeState.Spec.InterfaceIngressRules))
-				for intf := range ingressNodeFirewallCurrentNodeState.Spec.InterfaceIngressRules {
-					interfaces = append(interfaces, intf)
-				}
 				if err := bpf_mgr.BpfmanDetachNodeFirewall(ctx, r.Client, nil, debugMode); err != nil {
 					r.Log.Error(err, "Failed to delete ebpf program", "req.Name", req.Name)
 					return ctrl.Result{}, err
