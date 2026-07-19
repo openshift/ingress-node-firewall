@@ -9,3 +9,9 @@ linters:
         - (io.Closer).Close
         - (net.Conn).Close
         - (net.Listener).Close
+    staticcheck:
+      checks:
+        - "all"
+        - "-QF*"
+        - "-ST1001"
+        - "-ST1003"
