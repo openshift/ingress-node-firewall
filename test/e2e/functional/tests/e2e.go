@@ -1140,7 +1140,15 @@ var _ = Describe("Ingress Node Firewall", func() {
 			}
 		})
 
-		It("Ingress Node Firewall Operator: TLS profile compliance during operator lifecycle [Disruptive]", func() {
+		// TLS Profile Compliance Test:
+		// This is an umbrella test covering 4 sequential scenarios (Baseline, Modern+Legacy, Modern+Strict, Custom).
+		// Sequential structure is intentional because:
+		//  1. Scenarios have dependencies (each builds on previous cluster state)
+		//  2. TLS profile changes are expensive (~21+ min for MachineConfig updates)
+		//  3. Scanner infrastructure (~10 min build) is shared across all scenarios
+		//  4. Splitting into separate Its would require 4x scanner builds (40+ min total overhead)
+		// This pattern follows OpenShift upgrade/disruption test conventions for sequential cluster state changes.
+		It("Ingress Node Firewall Operator: TLS profile compliance during operator lifecycle [Disruptive][Suite:openshift/conformance/parallel][Skipped:Disconnected]", func() {
 			var (
 				cs         = testclient.Client
 				ctx        = context.Background()

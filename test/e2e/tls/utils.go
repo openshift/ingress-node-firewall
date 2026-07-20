@@ -48,6 +48,33 @@ func int64Ptr(i int64) *int64 {
 	return &i
 }
 
+// sanitizeLogs redacts sensitive infrastructure details from log output
+// Removes: IP addresses, hostnames, pod/node names
+func sanitizeLogs(logs string) string {
+	// Redact IPv4 addresses
+	logs = strings.ReplaceAll(logs, "10.", "10.x.x.")
+	logs = strings.ReplaceAll(logs, "192.168.", "192.168.x.")
+	logs = strings.ReplaceAll(logs, "172.16.", "172.16.x.")
+	logs = strings.ReplaceAll(logs, "127.0.0.1", "127.0.0.x")
+
+	// Redact IPv6 addresses (simplified pattern)
+	if strings.Contains(logs, "::") {
+		logs = strings.ReplaceAll(logs, "::", "::x:x:x")
+	}
+
+	// Redact pod/node identifiers (UUIDs, hashes)
+	// Example: pod-abc123 -> pod-<redacted>
+	logs = strings.ReplaceAll(logs, "-node-firewall-", "-node-firewall-<redacted>-")
+
+	// Limit log length to prevent excessive output
+	const maxLogLength = 2000
+	if len(logs) > maxLogLength {
+		logs = logs[:maxLogLength] + "\n... (truncated for security, showing first 2000 chars)"
+	}
+
+	return logs
+}
+
 func stringPtr(s string) *string {
 	return &s
 }

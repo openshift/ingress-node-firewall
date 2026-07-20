@@ -48,14 +48,16 @@ func WaitForAllNodesReadyAndSchedulable(cs *testclient.ClientSet, ctx context.Co
 			}
 
 			if !ready {
-				notReadyNodes = append(notReadyNodes, node.Name)
+				// Redact node name to avoid exposing infrastructure details
+				notReadyNodes = append(notReadyNodes, fmt.Sprintf("node-%d", len(notReadyNodes)))
 				continue
 			}
 
 			// Check 2: Node must be Schedulable (not cordoned)
 			// OpenShift pattern: check spec.unschedulable and taints
 			if node.Spec.Unschedulable {
-				unschedulableNodes = append(unschedulableNodes, fmt.Sprintf("%s (cordoned)", node.Name))
+				// Redact node name to avoid exposing infrastructure details
+				unschedulableNodes = append(unschedulableNodes, fmt.Sprintf("node-%d (cordoned)", len(unschedulableNodes)))
 				continue
 			}
 
@@ -77,7 +79,8 @@ func WaitForAllNodesReadyAndSchedulable(cs *testclient.ClientSet, ctx context.Co
 						taint.Key == "node.kubernetes.io/pid-pressure" ||
 						taint.Key == "node.kubernetes.io/network-unavailable" {
 						hasBlockingTaint = true
-						unschedulableNodes = append(unschedulableNodes, fmt.Sprintf("%s (taint:%s)", node.Name, taint.Key))
+						// Redact node name to avoid exposing infrastructure details
+						unschedulableNodes = append(unschedulableNodes, fmt.Sprintf("node-%d (taint:%s)", len(unschedulableNodes), taint.Key))
 						break
 					}
 				}

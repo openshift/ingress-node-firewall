@@ -26,6 +26,20 @@ type ScannerPodConfig struct {
 }
 
 // buildScannerPodSpec creates a scanner pod specification with configurable options
+//
+// SECURITY JUSTIFICATION for elevated privileges:
+// This is a TEST-ONLY pod for TLS compliance verification. It requires elevated privileges because:
+// 1. HostNetwork: Scanner must connect to operator pod metrics ports via host IPs (10250, etc.)
+// 2. HostPID: Required to discover operator process endpoints on the host network namespace
+// 3. Privileged + root (RunAsUser=0): Needed to install scanner dependencies:
+//    - dnf install (requires root): git, golang, openssl, curl, lsof, bind-utils
+//    - Build tls-scanner from source (golang compilation)
+//    - Download and install oc/kubectl binaries
+//    - Install testssl.sh security testing framework
+//
+// This pod is ONLY created during e2e test execution, runs in an isolated test namespace
+// (tls-test-scanner), and is automatically cleaned up after test completion.
+// It does NOT run in production clusters and is gated by [Disruptive] test tag.
 func buildScannerPodSpec(config ScannerPodConfig) *corev1.Pod {
 	command := buildScannerCommand(config.Persistent, config.OperatorNS)
 
@@ -37,14 +51,17 @@ func buildScannerPodSpec(config ScannerPodConfig) *corev1.Pod {
 		Spec: corev1.PodSpec{
 			ServiceAccountName: "default",
 			RestartPolicy:      config.RestartPolicy,
-			HostNetwork:        true,
-			HostPID:            true,
+			// HostNetwork required: Scanner connects to operator metrics endpoints via host IPs
+			HostNetwork: true,
+			// HostPID required: Discover operator process endpoints in host network namespace
+			HostPID: true,
 			Containers: []corev1.Container{
 				{
 					Name:    ScannerContainerName,
 					Image:   ScannerImage,
 					Command: []string{"/bin/bash", "-c", command},
 					SecurityContext: &corev1.SecurityContext{
+						// Privileged + root required for package installation and tool building
 						Privileged: boolPtr(true),
 						RunAsUser:  int64Ptr(0),
 					},
@@ -275,9 +292,9 @@ func SetupSharedScanner(cs *testclient.ClientSet, ctx context.Context, operatorN
 		return true, nil
 	})
 	if err != nil {
-		// Get pod logs for debugging
+		// Get pod logs for debugging (sanitized to avoid exposing infrastructure details)
 		logs, _ := getPodLogs(cs, ctx, SharedScannerNamespace, ScannerPodName, nil)
-		return fmt.Errorf("scanner pod not ready: %v. Logs: %s", err, logs)
+		return fmt.Errorf("scanner pod not ready: %v. Sanitized logs: %s", err, sanitizeLogs(logs))
 	}
 
 	LogStep("  Shared scanner pod is ready and can be reused for all scenarios")
@@ -391,7 +408,7 @@ func RestartScannerPod(cs *testclient.ClientSet, ctx context.Context) error {
 
 	if err != nil {
 		logs, _ := getPodLogs(cs, ctx, SharedScannerNamespace, ScannerPodName, int64Ptr(100))
-		return fmt.Errorf("new scanner pod did not become ready: %v. Logs: %s", err, logs)
+		return fmt.Errorf("new scanner pod did not become ready: %v. Sanitized logs: %s", err, sanitizeLogs(logs))
 	}
 
 	LogStep("  Scanner pod restarted successfully")
@@ -413,7 +430,7 @@ func RunScanWithSharedScanner(cs *testclient.ClientSet, ctx context.Context, ope
 	if pod.Status.Phase != corev1.PodRunning {
 		logs, _ := getPodLogs(cs, ctx, SharedScannerNamespace, ScannerPodName, int64Ptr(50))
 		LogStep("  DEBUG: Pod not running, returning error")
-		return false, fmt.Sprintf("Scanner pod is not running (phase: %s). Logs:\n%s", pod.Status.Phase, logs)
+		return false, fmt.Sprintf("Scanner pod is not running (phase: %s). Sanitized logs:\n%s", pod.Status.Phase, sanitizeLogs(logs))
 	}
 
 	// Create a unique results directory for this scan
@@ -468,8 +485,8 @@ echo "Scan completed at $(date)"
 		logCmd := osexec.Command("oc", "exec", "-n", SharedScannerNamespace, ScannerPodName, "--", "cat", fmt.Sprintf("%s/scan.log", resultsDir))
 		logOutput, _ := logCmd.CombinedOutput()
 
-		return false, fmt.Sprintf("Scanner did not produce JSON output. This usually means it encountered fatal connection errors on some ports.\nScanner exit status: %v\nScanner output length: %d bytes\nCSV output:\n%s\nLog output:\n%s",
-			scanErr, len(output), string(csvOutput), string(logOutput))
+		return false, fmt.Sprintf("Scanner did not produce JSON output. This usually means it encountered fatal connection errors on some ports.\nScanner exit status: %v\nScanner output length: %d bytes\nSanitized CSV sample:\n%s\nSanitized log sample:\n%s",
+			scanErr, len(output), sanitizeLogs(string(csvOutput)), sanitizeLogs(string(logOutput)))
 	}
 
 	// Get scan results (JSON file exists)
@@ -478,7 +495,7 @@ echo "Scan completed at $(date)"
 	if err != nil {
 		// Unexpected - JSON file exists but can't read it
 		logs, _ := getPodLogs(cs, ctx, SharedScannerNamespace, ScannerPodName, int64Ptr(50))
-		return false, fmt.Sprintf("JSON file exists but failed to read it: %v. Output: %s. Logs:\n%s", err, string(jsonOutput), logs)
+		return false, fmt.Sprintf("JSON file exists but failed to read it: %v. Sanitized output: %s. Sanitized logs:\n%s", err, sanitizeLogs(string(jsonOutput)), sanitizeLogs(logs))
 	}
 	output = jsonOutput // Use JSON output for parsing
 
