@@ -22,6 +22,7 @@ import (
 	infwutils "github.com/openshift/ingress-node-firewall/test/e2e/ingress-node-firewall"
 	"github.com/openshift/ingress-node-firewall/test/e2e/node"
 	"github.com/openshift/ingress-node-firewall/test/e2e/pods"
+	tlstest "github.com/openshift/ingress-node-firewall/test/e2e/tls"
 	"github.com/openshift/ingress-node-firewall/test/e2e/transport"
 
 	. "github.com/onsi/ginkgo"
@@ -1136,6 +1137,69 @@ var _ = Describe("Ingress Node Firewall", func() {
 					return icmp.IsConnectivityOK(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeICMP6, clientPod, pods.GetIPV6(serverPod.Status.PodIPs))
 				}, timeout, retryInterval).Should(BeTrue())
 
+			}
+		})
+
+		It("Ingress Node Firewall Operator: TLS profile compliance during operator lifecycle [Disruptive]", func() {
+			var (
+				cs         = testclient.Client
+				ctx        = context.Background()
+				operatorNS = OperatorNameSpace
+			)
+
+			// Override namespace for OpenShift deployment
+			// OpenShift uses 'openshift-ingress-node-firewall' while upstream uses 'ingress-node-firewall-system'
+			if operatorNS == inftestconsts.DefaultOperatorNameSpace {
+				operatorNS = "openshift-ingress-node-firewall"
+			}
+
+			// Ensure TLSAdherence featuregate is enabled before running tests
+			By("Ensuring TLSAdherence featuregate is enabled")
+			err := tlstest.EnsureTLSAdherenceEnabled(cs, ctx)
+			Expect(err).ToNot(HaveOccurred(), "Failed to ensure TLSAdherence featuregate is enabled")
+
+			// Ensure cleanup at the end
+			defer func() {
+				By("Cleaning up scanner namespace")
+				tlstest.CleanupScannerNamespace(cs, ctx)
+				By("Restoring Baseline TLS Profile")
+				_ = tlstest.RestoreBaselineProfile()
+			}()
+
+			var testFailures []string
+
+			// Scenario 1: Baseline TLS Configuration
+			// NOTE: Scanner pod is created INSIDE the scenario, after infrastructure is stable
+			By("Scenario 1: Verify baseline TLS configuration for Ingress Node Firewall Operator")
+			err = tlstest.VerifyBaselineConfiguration(cs, ctx, operatorNS)
+			if err != nil {
+				testFailures = append(testFailures, fmt.Sprintf("Scenario 1 (Baseline): %v", err))
+			}
+
+			// Scenario 2: Modern TLS Profile with LegacyAdheringComponentsOnly
+			By("Scenario 2: Verify Modern TLS Profile with LegacyAdheringComponentsOnly")
+			err = tlstest.VerifyModernLegacyAdherence(cs, ctx, operatorNS)
+			if err != nil {
+				testFailures = append(testFailures, fmt.Sprintf("Scenario 2 (Modern with Legacy): %v", err))
+			}
+
+			// Scenario 3: Update tlsAdherence to StrictAllComponents
+			By("Scenario 3: Update tlsAdherence to StrictAllComponents")
+			err = tlstest.VerifyStrictAdherence(cs, ctx, operatorNS)
+			if err != nil {
+				testFailures = append(testFailures, fmt.Sprintf("Scenario 3 (Strict Adherence): %v", err))
+			}
+
+			// Scenario 4: Custom TLS Profile
+			By("Scenario 4: Verify Custom TLS Profile configuration for Ingress Node Firewall Operator")
+			err = tlstest.VerifyCustomConfiguration(cs, ctx, operatorNS)
+			if err != nil {
+				testFailures = append(testFailures, fmt.Sprintf("Scenario 4 (Custom): %v", err))
+			}
+
+			// Report all failures at the end
+			if len(testFailures) > 0 {
+				Fail(fmt.Sprintf("TLS Profile Compliance test completed with %d failure(s): %v", len(testFailures), testFailures))
 			}
 		})
 	})
