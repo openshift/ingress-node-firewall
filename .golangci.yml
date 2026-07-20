@@ -1,0 +1,22 @@
+version: "2"
+linters:
+  default: standard
+  disable:
+    - staticcheck
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (net.Conn).Close
+        - (net.Listener).Close
+        - (*bufio.Writer).Flush
+        - (io.WriteCloser).Close
+        - (*crypto/tls.Conn).Close
+        - (*io.PipeWriter).Close
+    govet:
+      disable:
+        - inline
