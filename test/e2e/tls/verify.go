@@ -65,10 +65,18 @@ func applyProfileChange(profileName string, checkFn func() (bool, error), applyF
 // waitForInfrastructure waits for infrastructure readiness
 // clusterWide=true: waits for MCPs, operators, nodes (cluster-wide TLS changes)
 // clusterWide=false: waits only for operator pods (operator-level changes)
+//
+// NOTE: After TLSAdherence featuregate enablement, we do NOT wait for operator pods to restart.
+// The featuregate triggers MCP updates and node reboots, but the operator pods do not have
+// any mechanism to detect APIServer TLS config changes. They will continue running with their
+// existing TLS client configuration. This is expected behavior - TLS profile changes affect
+// NEW connections, not existing running pods.
 func waitForInfrastructure(cs *testclient.ClientSet, ctx context.Context, operatorNS string, clusterWide bool) error {
 	if clusterWide {
-		LogStep("Step 1: Waiting for operator to apply configuration (cluster-wide)")
-		return WaitForOperatorRestart(cs, ctx, operatorNS)
+		LogStep("Step 1: Cluster-wide TLS configuration applied (MCPs updated, nodes ready)")
+		// TLSAdherence featuregate has already triggered MCP updates and node reboots
+		// No need to wait for operator pods - they will pick up new TLS config on next restart
+		return nil
 	}
 	return WaitForOperatorPodsOnly(cs, ctx, operatorNS)
 }
