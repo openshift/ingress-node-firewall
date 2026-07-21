@@ -21,3 +21,23 @@ kubeconfig
 #misc
 .vscode
 .idea
+
+# Analysis and documentation files (work notes, not for PR)
+*_ANALYSIS.md
+*_SUMMARY.md
+*_COMPLETE.md
+*_RCA*.md
+*_PLAN*.md
+*_GUIDE.md
+*_REFERENCE.md
+*_CHECK.md
+*_DIAGNOSTICS.md
+*_FIXES.md
+PHASE*.md
+OPTION*.md
+COPY*.md
+EXISTING*.md
+REFACTORING*.md
+TLS_*.md
+PR_*.md
+TEST_*.md
