@@ -15,7 +15,6 @@ import (
 	"github.com/onsi/ginkgo/config"
 	"github.com/onsi/ginkgo/types"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -128,7 +127,7 @@ func (r *KubernetesReporter) logNodes(dirName string) {
 }
 
 func (r *KubernetesReporter) logLogs(filterPods func(*corev1.Pod) bool, dirName string) {
-	pods, err := r.clients.Pods(v1.NamespaceAll).List(context.Background(), metav1.ListOptions{})
+	pods, err := r.clients.Pods(corev1.NamespaceAll).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to fetch pods: %v\n", err)
 		return
@@ -143,11 +142,11 @@ func (r *KubernetesReporter) logLogs(filterPods func(*corev1.Pod) bool, dirName 
 			return
 		}
 		defer f.Close()
-		containersToLog := make([]v1.Container, 0)
+		containersToLog := make([]corev1.Container, 0)
 		containersToLog = append(containersToLog, pod.Spec.Containers...)
 		containersToLog = append(containersToLog, pod.Spec.InitContainers...)
 		for _, container := range containersToLog {
-			logs, err := r.clients.Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{Container: container.Name}).DoRaw(context.Background())
+			logs, err := r.clients.Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{Container: container.Name}).DoRaw(context.Background())
 			if err == nil {
 				fmt.Fprintf(f, "-----------------------------------\n")
 				fmt.Fprintf(f, "Dumping logs for pod %s-%s-%s\n", pod.Namespace, pod.Name, container.Name)
