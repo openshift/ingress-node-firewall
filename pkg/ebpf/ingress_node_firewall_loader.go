@@ -3,7 +3,6 @@ package nodefwloader
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -427,7 +426,7 @@ func (infc *IngNodeFwController) cleaneBPFObjs() error {
 
 // removeAllPins removes all pins for XDP.
 func (infc *IngNodeFwController) removeAllPins() error {
-	files, err := ioutil.ReadDir(infc.pinPath)
+	files, err := os.ReadDir(infc.pinPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
