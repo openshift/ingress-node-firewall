@@ -66,7 +66,7 @@ func CleanPods(namespace string, cs *testclient.ClientSet) error {
 		GracePeriodSeconds: ptr.To[int64](0),
 	}, metav1.ListOptions{})
 	if err != nil {
-		return fmt.Errorf("Failed to delete pods %v", err)
+		return fmt.Errorf("failed to delete pods %v", err)
 	}
 	return err
 }

@@ -263,7 +263,7 @@ func (infc *IngNodeFwController) addOrUpdateRules(ebpfKeyToRules map[BpfLpmIpKey
 	for ebpfKey, ebpfRules := range ebpfKeyToRules {
 		log.Printf("Adding or updating ingress firewall rules for key %v", ebpfKey)
 		if err := infc.objs.BpfMaps.IngressNodeFirewallTableMap.Update(ebpfKey, ebpfRules, ebpf.UpdateAny); err != nil {
-			return fmt.Errorf("Failed Adding/Updating ingress firewall rules: %v", err)
+			return fmt.Errorf("failed adding/updating ingress firewall rules: %v", err)
 		}
 	}
 	return nil
@@ -595,7 +595,7 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(
 		case ingressnodefwiov1alpha1.IngressNodeFirewallDeny:
 			rules.Rules[idx].Action = xdpDeny
 		default:
-			return keys, rules, fmt.Errorf("Failed invalid action %v", rule.Action)
+			return keys, rules, fmt.Errorf("failed invalid action %v", rule.Action)
 		}
 	}
 
@@ -617,7 +617,7 @@ func BuildEBPFKey(ifID uint32, cidr string) (BpfLpmIpKeySt, error) {
 
 	ip, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
-		return key, fmt.Errorf("Failed to parse SourceCIDRs: %v", err)
+		return key, fmt.Errorf("failed to parse SourceCIDRs: %v", err)
 	}
 	if ip.To4() != nil {
 		copy(key.IpData[:], ip.To4())

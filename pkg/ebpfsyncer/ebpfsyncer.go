@@ -130,7 +130,7 @@ func (e *ebpfSingleton) SyncInterfaceIngressRules(
 // getBPFMapContentForTest lists the content of the current BPF map. Used for unit testing only.
 func (e *ebpfSingleton) getBPFMapContentForTest() (map[nodefwloader.BpfLpmIpKeySt]nodefwloader.BpfRulesValSt, error) {
 	if e.c == nil {
-		return nil, fmt.Errorf("Nil pointer to node firewall loader")
+		return nil, fmt.Errorf("nil pointer to node firewall loader")
 	}
 	return e.c.GetBPFMapContentForTest()
 }
@@ -141,7 +141,7 @@ func (e *ebpfSingleton) createNewManager() error {
 	if e.c == nil {
 		e.log.Info("Creating a new eBPF firewall node controller")
 		if e.c, err = nodefwloader.NewIngNodeFwController(); err != nil {
-			return fmt.Errorf("Failed to create nodefw controller instance, err: %q", err)
+			return fmt.Errorf("failed to create nodefw controller instance, err: %q", err)
 		}
 	}
 	return nil
