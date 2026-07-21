@@ -9,6 +9,13 @@ linters:
         - fmt.Fprint
         - (io.Closer).Close
         - (net.Conn).Close
+    staticcheck:
+      checks:
+        - "all"
+        - "-QF1001"
+        - "-QF1003"
+        - "-QF1008"
+        - "-SA1019"
   exclusions:
     rules:
       - path: _test\.go
