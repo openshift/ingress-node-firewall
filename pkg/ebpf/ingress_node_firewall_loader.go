@@ -13,7 +13,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	ingressnodefwiov1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/pkg/constants"
 	"github.com/openshift/ingress-node-firewall/pkg/interfaces"
@@ -190,7 +189,7 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 // In the context of this method, stale keys are keys that figure inside the eBPF map but that are not generated
 // during step ii) from the provided ingressRules slice.
 func (infc *IngNodeFwController) IngressNodeFwRulesLoader(
-	ifaceIngressRules map[string][]v1alpha1.IngressNodeFirewallRules) error {
+	ifaceIngressRules map[string][]ingressnodefwiov1alpha1.IngressNodeFirewallRules) error {
 	// Get eBPF objs to create/update eBPF maps and get map info.
 	info, err := infc.objs.BpfMaps.IngressNodeFirewallTableMap.Info()
 	if err != nil {
