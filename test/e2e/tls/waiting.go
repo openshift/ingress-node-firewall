@@ -201,10 +201,10 @@ func ForceOperatorPodRestart(cs *testclient.ClientSet, ctx context.Context, oper
 	// Delete all pods
 	deleteCount := 0
 	for _, pod := range pods.Items {
-		LogStep(fmt.Sprintf("  Deleting pod: %s", pod.Name))
+		LogStep(fmt.Sprintf("  Deleting pod: %s", redactPodName(pod.Name)))
 		err := cs.CoreV1Interface.Pods(operatorNS).Delete(ctx, pod.Name, metav1.DeleteOptions{})
 		if err != nil {
-			LogStep(fmt.Sprintf("  Warning: Failed to delete pod %s: %v", pod.Name, err))
+			LogStep(fmt.Sprintf("  Warning: Failed to delete pod %s: %v", redactPodName(pod.Name), err))
 		} else {
 			deleteCount++
 		}
@@ -277,7 +277,7 @@ func ForceOperatorPodRestart(cs *testclient.ClientSet, ctx context.Context, oper
 
 	for _, pod := range pods.Items {
 		restartCount := getPodRestartCount(&pod)
-		LogStep(fmt.Sprintf("  Pod %s: %d restarts", pod.Name, restartCount))
+		LogStep(fmt.Sprintf("  Pod %s: %d restarts", redactPodName(pod.Name), restartCount))
 	}
 
 	LogStep("  All pods restarted successfully with fresh state")
@@ -372,10 +372,10 @@ func VerifyMetricsEndpointReady(cs *testclient.ClientSet, ctx context.Context, o
 				fmt.Sprintf("echo | openssl s_client -connect %s:9301 -tls1_2 2>&1 | grep -q CONNECTED", podIP))
 			err = cmd.Run()
 			if err != nil {
-				return false, fmt.Sprintf("Endpoint %s:9301 not ready (kube-rbac-proxy still starting)", podIP), nil
+				return false, fmt.Sprintf("Endpoint %s not ready (kube-rbac-proxy still starting)", redactEndpoint(podIP+":9301")), nil
 			}
 
-			return true, fmt.Sprintf("Metrics endpoint %s:9301 is accessible", podIP), nil
+			return true, fmt.Sprintf("Metrics endpoint %s is accessible", redactEndpoint(podIP+":9301")), nil
 		})
 }
 

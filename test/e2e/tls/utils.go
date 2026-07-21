@@ -75,6 +75,49 @@ func sanitizeLogs(logs string) string {
 	return logs
 }
 
+// redactPodName redacts pod name for security - shows only last 4 characters for debugging
+// Example: "ingress-node-firewall-daemon-abc123" -> "pod-***c123"
+func redactPodName(name string) string {
+	if len(name) <= 4 {
+		return "pod-***"
+	}
+	return fmt.Sprintf("pod-***%s", name[len(name)-4:])
+}
+
+// redactIP redacts IP address for security while preserving format for debugging
+// Example: "192.168.111.23" -> "x.x.x.23", "2001:db8::1" -> "x:x:x::1"
+func redactIP(ip string) string {
+	if ip == "" {
+		return "[no-ip]"
+	}
+	if strings.Contains(ip, ":") {
+		// IPv6 - show only last segment
+		parts := strings.Split(ip, ":")
+		if len(parts) > 0 {
+			return fmt.Sprintf("x:x:x::%s", parts[len(parts)-1])
+		}
+		return "x:x:x:x"
+	}
+	// IPv4 - show only last octet
+	parts := strings.Split(ip, ".")
+	if len(parts) == 4 {
+		return fmt.Sprintf("x.x.x.%s", parts[3])
+	}
+	return "x.x.x.x"
+}
+
+// redactEndpoint redacts IP:port endpoint for security
+// Example: "192.168.111.23:9301" -> "x.x.x.23:9301"
+func redactEndpoint(endpoint string) string {
+	parts := strings.Split(endpoint, ":")
+	if len(parts) >= 2 {
+		ip := strings.Join(parts[:len(parts)-1], ":")
+		port := parts[len(parts)-1]
+		return fmt.Sprintf("%s:%s", redactIP(ip), port)
+	}
+	return redactIP(endpoint)
+}
+
 func stringPtr(s string) *string {
 	return &s
 }
