@@ -1,0 +1,28 @@
+version: "2"
+
+linters:
+  default: standard
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (*io.PipeWriter).Close
+        - (io.WriteCloser).Close
+        - (net.Conn).Close
+        - (net.Listener).Close
+        - (*crypto/tls.Conn).Close
+        - (*bufio.Writer).Flush
+    staticcheck:
+      checks:
+        - "all"
+        - "-QF*"
+        - "-ST*"
+        - "-SA1019"
+        - "-SA4010"
+        - "-S1039"
+    govet:
+      disable:
+        - inline
