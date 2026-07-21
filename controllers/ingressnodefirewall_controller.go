@@ -369,7 +369,7 @@ func (r *IngressNodeFirewallReconciler) buildNodeStates(
 				r.Log.Info("BPFMAN: Creating application object and attach ingress firewall prog")
 				err = bpf_mgr.BpfmanAttachNodeFirewall(ctx, r.Client, firewallObj, debugMode)
 				if err != nil {
-					errMsg := fmt.Sprintf("BPFMAN: Failed to attach ingress firewall prog")
+					errMsg := "BPFMAN: Failed to attach ingress firewall prog"
 					r.Log.Error(err, errMsg)
 					if !strings.Contains(err.Error(), programAlreadyExistsErr) {
 						state.Status = infv1alpha1.IngressNodeFirewallNodeStateStatus{
