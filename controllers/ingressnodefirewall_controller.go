@@ -106,11 +106,6 @@ func (r *IngressNodeFirewallReconciler) Reconcile(ctx context.Context, req ctrl.
 			}
 			if yes, debugMode, err := r.isUsingBpfmanManager(ctx); yes && err == nil {
 				r.Log.Info("BPFMAN: Deleting ebpf program", "req.Name", req.Name)
-				interfaces := make([]string, 0,
-					len(ingressNodeFirewallCurrentNodeState.Spec.InterfaceIngressRules))
-				for intf := range ingressNodeFirewallCurrentNodeState.Spec.InterfaceIngressRules {
-					interfaces = append(interfaces, intf)
-				}
 				if err := bpf_mgr.BpfmanDetachNodeFirewall(ctx, r.Client, nil, debugMode); err != nil {
 					r.Log.Error(err, "Failed to delete ebpf program", "req.Name", req.Name)
 					return ctrl.Result{}, err
@@ -369,7 +364,7 @@ func (r *IngressNodeFirewallReconciler) buildNodeStates(
 				r.Log.Info("BPFMAN: Creating application object and attach ingress firewall prog")
 				err = bpf_mgr.BpfmanAttachNodeFirewall(ctx, r.Client, firewallObj, debugMode)
 				if err != nil {
-					errMsg := fmt.Sprintf("BPFMAN: Failed to attach ingress firewall prog")
+					errMsg := "BPFMAN: Failed to attach ingress firewall prog"
 					r.Log.Error(err, errMsg)
 					if !strings.Contains(err.Error(), programAlreadyExistsErr) {
 						state.Status = infv1alpha1.IngressNodeFirewallNodeStateStatus{

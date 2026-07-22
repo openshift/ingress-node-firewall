@@ -1,0 +1,21 @@
+version: "2"
+linters:
+  default: standard
+  settings:
+    staticcheck:
+      checks:
+        - "all"
+        - "-QF*"
+        - "-ST1001"
+        - "-ST1000"
+        - "-ST1003"
+        - "-ST1020"
+        - "-ST1021"
+  exclusions:
+    rules:
+      - linters: [errcheck]
+        source: "fmt\\.Fprint"
+      - linters: [errcheck]
+        source: "\\.Close\\("
+      - linters: [staticcheck]
+        text: "SA1019: scheme.Builder is deprecated"
