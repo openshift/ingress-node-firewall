@@ -170,6 +170,14 @@ func validateRules(allErrs field.ErrorList, rules []ingressnodefwv1alpha1.Ingres
 }
 
 func validateRule(rule ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule, infRulesIndex, ruleIndex int, infName string) *field.Error {
+	// Order must stay within [1, MAX_INGRESS_RULES) to match the CRD Maximum and the
+	// fixed-size rules array used by the daemon (index 0 is reserved).
+	if rule.Order < 1 || rule.Order >= uint32(failsaferules.MAX_INGRESS_RULES) {
+		return field.Invalid(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("rules").Index(ruleIndex).Child("order"),
+			infName, fmt.Sprintf("order %d is out of range; must be between 1 and %d",
+				rule.Order, failsaferules.MAX_INGRESS_RULES-1))
+	}
+
 	if rule.ProtocolConfig.Protocol == ingressnodefwv1alpha1.ProtocolTypeICMP || rule.ProtocolConfig.Protocol == ingressnodefwv1alpha1.ProtocolTypeICMP6 {
 		if isValid, reason := isValidICMPICMPV6Rule(rule); !isValid {
 			return field.Invalid(field.NewPath("spec").Child("ingress").Index(infRulesIndex).Key("rules").Index(ruleIndex),

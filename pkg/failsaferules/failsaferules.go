@@ -1,6 +1,6 @@
 package failsaferules
 
-var MAX_INGRESS_RULES = 100
+const MAX_INGRESS_RULES = 100
 
 type TransportProtoFailSafeRule struct {
 	serviceName string
