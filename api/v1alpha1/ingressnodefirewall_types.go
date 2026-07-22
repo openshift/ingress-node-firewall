@@ -90,10 +90,11 @@ type IngressNodeProtocolConfig struct {
 // IngressNodeFirewallProtocolRule defines an ingress node firewall rule per protocol.
 type IngressNodeFirewallProtocolRule struct {
 	// order defines the order of execution of ingress firewall rules.
-	// The minimum order value is 1 and the values must be unique.
-	// + index 0 is used internally as catch all for unclassified packets matching the same sourceCIDR.
+	// The minimum order value is 1, the maximum is 99, and the values must be unique.
+	// Index 0 is used internally as catch all for unclassified packets matching the same sourceCIDR.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Minimum:=1
+	// +kubebuilder:validation:Maximum:=99
 	Order uint32 `json:"order"`
 
 	// protocolConfig is a discriminated union of a protocol's specific configuration for TCP, UDP, SCTP, ICMP and ICMPv6.
