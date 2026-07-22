@@ -7,8 +7,11 @@ linters:
         - fmt.Fprintf
         - fmt.Fprintln
         - (io.Closer).Close
+        - (*os.File).Close
         - (net.Conn).Close
         - (net.Listener).Close
+        - (*io.PipeWriter).Close
+        - (*crypto/tls.Conn).Close
   exclusions:
     rules:
       - linters:
