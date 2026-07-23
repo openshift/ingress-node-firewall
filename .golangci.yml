@@ -1,0 +1,37 @@
+version: "2"
+linters:
+  default: standard
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
+        - (io.Closer).Close
+        - (net.Conn).Close
+        - (net.Listener).Close
+        - (*os.File).Close
+        - (*io.PipeWriter).Close
+        - (*crypto/tls.Conn).Close
+    staticcheck:
+      checks:
+        - "all"
+        - "-QF*"
+        - "-ST*"
+  exclusions:
+    rules:
+      - linters:
+          - govet
+        text: "inline"
+      - linters:
+          - staticcheck
+        text: "SA1019.*scheme.Builder"
+      - linters:
+          - staticcheck
+        text: "SA1019.*io/ioutil"
+      - linters:
+          - staticcheck
+        text: "SA4010"
+      - linters:
+          - staticcheck
+        text: "S1039"
