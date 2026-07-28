@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo" //nolint:staticcheck
+	. "github.com/onsi/gomega" //nolint:staticcheck
 	"github.com/openshift/ingress-node-firewall/test/consts"
 	testclient "github.com/openshift/ingress-node-firewall/test/e2e/client"
 	corev1 "k8s.io/api/core/v1"

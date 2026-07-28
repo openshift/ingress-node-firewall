@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 4.22.0
+VERSION ?= 5.0.0
 CSV_VERSION = $(shell echo $(VERSION) | sed 's/v//')
 ifeq ($(VERSION), latest)
 CSV_VERSION := 0.0.0
@@ -57,7 +57,7 @@ endif
 IMG ?= quay.io/openshift/origin-ingress-node-firewall:latest
 DAEMON_IMG ?= quay.io/openshift/origin-ingress-node-firewall-daemon:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.32.x
+ENVTEST_K8S_VERSION = 1.36.0
 
 # Default namespace
 NAMESPACE ?= ingress-node-firewall-system
@@ -268,8 +268,8 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
-CONTROLLER_TOOLS_VERSION ?= v0.20.1
-OPERATOR_SDK_VERSION=v1.34.1
+CONTROLLER_TOOLS_VERSION ?= v0.21.0
+OPERATOR_SDK_VERSION=v1.42.2
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
@@ -285,7 +285,7 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
-	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) GOFLAGS="" go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.20
+	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) GOFLAGS="" go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.24
 
 .PHONY: bundle
 bundle: operator-sdk manifests kustomize ## Generate bundle manifests and metadata, then validate generated files.
@@ -363,17 +363,20 @@ OPM = $(shell which opm)
 endif
 endif
 
-PHONY: operator-sdk
-operator-sdk: ## Get the current operator-sdk binary, If there isn't any, we'll use the GOBIN path.
-ifeq (, $(shell which operator-sdk))
+.PHONY: operator-sdk
+OPERATOR_SDK = $(LOCALBIN)/operator-sdk
+operator-sdk: ## Download operator-sdk locally if necessary.
+ifeq (,$(wildcard $(OPERATOR_SDK)))
+ifeq (,$(shell which operator-sdk 2>/dev/null))
 	@{ \
 	set -e ;\
-	curl -Lk  https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)/operator-sdk_linux_amd64 > $(GOBIN)/operator-sdk ;\
-	chmod u+x $(GOBIN)/operator-sdk ;\
+	mkdir -p $(LOCALBIN) ;\
+	curl -L https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)/operator-sdk_linux_amd64 > $(OPERATOR_SDK) ;\
+	chmod u+x $(OPERATOR_SDK) ;\
 	}
-OPERATOR_SDK=$(GOBIN)/operator-sdk
 else
-OPERATOR_SDK=$(shell which operator-sdk)
+OPERATOR_SDK = $(shell which operator-sdk)
+endif
 endif
 
 .PHONY: generate-daemon-manifest
@@ -419,7 +422,7 @@ catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
 
 CILIUM_EBPF_VERSION := v0.18.0
-GOLANGCI_LINT_VERSION = v1.54.2
+GOLANGCI_LINT_VERSION = v1.64.8
 CLANG ?= clang
 CFLAGS := -O2 -g -Wall -Werror $(CFLAGS)
 GOOS ?= linux

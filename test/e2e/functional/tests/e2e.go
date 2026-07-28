@@ -24,8 +24,8 @@ import (
 	"github.com/openshift/ingress-node-firewall/test/e2e/pods"
 	"github.com/openshift/ingress-node-firewall/test/e2e/transport"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo" //nolint:staticcheck
+	. "github.com/onsi/gomega" //nolint:staticcheck
 	prommodel "github.com/prometheus/common/model"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
