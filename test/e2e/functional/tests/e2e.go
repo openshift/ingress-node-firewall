@@ -18,6 +18,7 @@ import (
 	"github.com/openshift/ingress-node-firewall/test/e2e/deployment"
 	"github.com/openshift/ingress-node-firewall/test/e2e/events"
 	"github.com/openshift/ingress-node-firewall/test/e2e/exec"
+	"github.com/openshift/ingress-node-firewall/test/e2e/tls"
 	"github.com/openshift/ingress-node-firewall/test/e2e/icmp"
 	infwutils "github.com/openshift/ingress-node-firewall/test/e2e/ingress-node-firewall"
 	"github.com/openshift/ingress-node-firewall/test/e2e/node"
@@ -32,8 +33,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/component-base/metrics/testutil"
 	goclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 )
 
 var (
@@ -1137,6 +1141,159 @@ var _ = Describe("Ingress Node Firewall", func() {
 				}, timeout, retryInterval).Should(BeTrue())
 
 			}
+		})
+
+		Context("TLS Profile Compliance", func() {
+			BeforeEach(func() {
+				// Skip TLS compliance tests on vanilla Kubernetes (OpenShift-only feature)
+				if !tls.IsOpenShiftCluster(testclient.Client) {
+					Skip("TLS Profile Compliance testing requires OpenShift cluster with config.openshift.io APIs")
+				}
+
+				// Enable TLSAdherence feature gate and wait for complete cluster stability
+				// This runs ONCE before all TLS compliance tests (both Modern and Custom profiles)
+				// It does EVERYTHING:
+				// - Patches feature gate to enable TLSAdherence
+				// - Waits for MCP rollout (start + complete)
+				// - Waits for all cluster operators to settle
+				// - Waits for all nodes to be ready and stable
+				// - Verifies TLSAdherence is active in feature gate status
+				err := tls.EnableTLSAdherence(testclient.Client)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			Context("Modern TLS Profile with StrictAllComponents", func() {
+				It("should verify ingress-node-firewall TLS compliance", func() {
+					// This test verifies that ingress-node-firewall daemon metrics endpoint
+					// complies with Modern TLS profile (TLS 1.3 only)
+					// Expected behavior:
+					// - TLS 1.3 connections should SUCCEED
+					// - TLS 1.2 connections should FAIL
+
+					// Create Kubernetes client from test client config
+					k8sClient, err := kubernetes.NewForConfig(testclient.Client.Config)
+					Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes client")
+
+					// Create OpenShift config client
+					configClient, err := configv1client.NewForConfig(testclient.Client.Config)
+					Expect(err).NotTo(HaveOccurred(), "Failed to create config client")
+
+					// Test the ingress-node-firewall daemon metrics endpoint
+					namespace := OperatorNameSpace
+					labelSelector := "app=ingress-node-firewall-daemon"
+					port := "9301"
+
+					By(fmt.Sprintf("Testing TLS compliance for ingress-node-firewall daemon in %s on port %s", namespace, port))
+					err = tls.VerifyTLSComplianceForPods(configClient, k8sClient, namespace, labelSelector, port)
+					Expect(err).NotTo(HaveOccurred(), "TLS compliance verification failed")
+				})
+
+				It("should verify multus-cni TLS compliance", func() {
+					// This test verifies that multus-admission-controller webhook endpoint
+					// complies with Modern TLS profile (TLS 1.3 only)
+					// Note: Tests webhook port (6443) from inside the pod using openssl
+
+					k8sClient, err := kubernetes.NewForConfig(testclient.Client.Config)
+					Expect(err).NotTo(HaveOccurred())
+
+					configClient, err := configv1client.NewForConfig(testclient.Client.Config)
+					Expect(err).NotTo(HaveOccurred())
+
+					namespace := "openshift-multus"
+					labelSelector := "app=multus-admission-controller"
+					containerName := "multus-admission-controller"
+					port := "6443"
+
+					By(fmt.Sprintf("Testing TLS compliance for multus-admission-controller in %s on port %s", namespace, port))
+					err = tls.VerifyTLSComplianceInPod(configClient, k8sClient, namespace, labelSelector, containerName, port)
+					Expect(err).NotTo(HaveOccurred(), "TLS compliance verification failed")
+				})
+
+				It("should verify ovn-kubernetes TLS compliance", func() {
+					// This test verifies that ovnkube-node metrics endpoint
+					// complies with Modern TLS profile (TLS 1.3 only)
+					// Note: Tests ovn-metrics port (9105) from inside the pod using openssl
+
+					k8sClient, err := kubernetes.NewForConfig(testclient.Client.Config)
+					Expect(err).NotTo(HaveOccurred())
+
+					configClient, err := configv1client.NewForConfig(testclient.Client.Config)
+					Expect(err).NotTo(HaveOccurred())
+
+					namespace := "openshift-ovn-kubernetes"
+					labelSelector := "app=ovnkube-node"
+					containerName := "kube-rbac-proxy-ovn-metrics"
+					port := "9105"
+
+					By(fmt.Sprintf("Testing TLS compliance for ovnkube-node in %s on port %s", namespace, port))
+					err = tls.VerifyTLSComplianceInPod(configClient, k8sClient, namespace, labelSelector, containerName, port)
+					Expect(err).NotTo(HaveOccurred(), "TLS compliance verification failed")
+				})
+
+				It("should verify cluster-network-operator TLS compliance", func() {
+					// This test verifies that cluster-network-operator metrics endpoint
+					// complies with Modern TLS profile (TLS 1.3 only)
+					// Note: Tests metrics port (9104) from inside the pod using openssl
+
+					k8sClient, err := kubernetes.NewForConfig(testclient.Client.Config)
+					Expect(err).NotTo(HaveOccurred())
+
+					configClient, err := configv1client.NewForConfig(testclient.Client.Config)
+					Expect(err).NotTo(HaveOccurred())
+
+					namespace := "openshift-network-operator"
+					labelSelector := "name=network-operator"
+					containerName := "network-operator"
+					port := "9104"
+
+					By(fmt.Sprintf("Testing TLS compliance for network-operator in %s on port %s", namespace, port))
+					err = tls.VerifyTLSComplianceInPod(configClient, k8sClient, namespace, labelSelector, containerName, port)
+					Expect(err).NotTo(HaveOccurred(), "TLS compliance verification failed")
+				})
+
+				It("should verify openshift-network-console TLS compliance", func() {
+					// This test verifies that networking-console-plugin endpoint
+					// complies with Modern TLS profile (TLS 1.3 only)
+					// Note: Tests plugin port (9443) from inside the pod using openssl
+
+					k8sClient, err := kubernetes.NewForConfig(testclient.Client.Config)
+					Expect(err).NotTo(HaveOccurred())
+
+					configClient, err := configv1client.NewForConfig(testclient.Client.Config)
+					Expect(err).NotTo(HaveOccurred())
+
+					namespace := "openshift-network-console"
+					labelSelector := "app.kubernetes.io/name=networking-console-plugin"
+					containerName := "networking-console-plugin"
+					port := "9443"
+
+					By(fmt.Sprintf("Testing TLS compliance for networking-console-plugin in %s on port %s", namespace, port))
+					err = tls.VerifyTLSComplianceInPod(configClient, k8sClient, namespace, labelSelector, containerName, port)
+					Expect(err).NotTo(HaveOccurred(), "TLS compliance verification failed")
+				})
+			})
+
+			Context("Custom TLS Profile", func() {
+				It("should verify ingress-node-firewall TLS compliance", func() {
+					// TODO: Implementation
+				})
+
+				It("should verify multus-cni TLS compliance", func() {
+					// TODO: Implementation
+				})
+
+				It("should verify ovn-kubernetes TLS compliance", func() {
+					// TODO: Implementation
+				})
+
+				It("should verify cluster-network-operator TLS compliance", func() {
+					// TODO: Implementation
+				})
+
+				It("should verify openshift-network-console TLS compliance", func() {
+					// TODO: Implementation
+				})
+			})
 		})
 	})
 
