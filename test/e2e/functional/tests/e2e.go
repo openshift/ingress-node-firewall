@@ -1149,20 +1149,22 @@ var _ = Describe("Ingress Node Firewall", func() {
 				if !tls.IsOpenShiftCluster(testclient.Client) {
 					Skip("TLS Profile Compliance testing requires OpenShift cluster with config.openshift.io APIs")
 				}
-
-				// Enable TLSAdherence feature gate and wait for complete cluster stability
-				// This runs ONCE before all TLS compliance tests (both Modern and Custom profiles)
-				// It does EVERYTHING:
-				// - Patches feature gate to enable TLSAdherence
-				// - Waits for MCP rollout (start + complete)
-				// - Waits for all cluster operators to settle
-				// - Waits for all nodes to be ready and stable
-				// - Verifies TLSAdherence is active in feature gate status
-				err := tls.EnableTLSAdherence(testclient.Client)
-				Expect(err).NotTo(HaveOccurred())
 			})
 
 			Context("Modern TLS Profile with StrictAllComponents", func() {
+				BeforeEach(func() {
+					// Enable TLSAdherence feature gate and configure Modern profile
+					// This runs before each Modern TLS profile test
+					// It does EVERYTHING:
+					// - Patches feature gate to enable TLSAdherence
+					// - Configures Modern TLS profile with StrictAllComponents
+					// - Waits for MCP rollout (start + complete)
+					// - Waits for all cluster operators to settle
+					// - Waits for all nodes to be ready and stable
+					// - Verifies TLSAdherence is active in feature gate status
+					err := tls.EnableTLSAdherence(testclient.Client)
+					Expect(err).NotTo(HaveOccurred())
+				})
 				It("should verify ingress-node-firewall TLS compliance", func() {
 					// This test verifies that ingress-node-firewall daemon metrics endpoint
 					// complies with Modern TLS profile (TLS 1.3 only)
@@ -1305,6 +1307,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 					// - TLS 1.2 connections should SUCCEED
 					// - TLS 1.3 connections should SUCCEED
 					// - TLS 1.1 connections should FAIL
+					// Note: Uses port-forward approach since ingress-node-firewall pods don't have openssl
 
 					k8sClient, err := kubernetes.NewForConfig(testclient.Client.Config)
 					Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes client")
@@ -1314,11 +1317,10 @@ var _ = Describe("Ingress Node Firewall", func() {
 
 					namespace := OperatorNameSpace
 					labelSelector := "app=ingress-node-firewall-daemon"
-					containerName := "daemon" // Use daemon container (has openssl), not kube-rbac-proxy
 					port := "9301"
 
-					By(fmt.Sprintf("Testing TLS compliance for ingress-node-firewall-daemon in %s on port %s", namespace, port))
-					err = tls.VerifyTLSComplianceInPod(configClient, k8sClient, namespace, labelSelector, containerName, port)
+					By(fmt.Sprintf("Testing TLS compliance for ingress-node-firewall daemon in %s on port %s", namespace, port))
+					err = tls.VerifyTLSComplianceForPods(configClient, k8sClient, namespace, labelSelector, port)
 					Expect(err).NotTo(HaveOccurred(), "TLS compliance verification failed")
 				})
 

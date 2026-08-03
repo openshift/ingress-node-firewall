@@ -111,14 +111,75 @@ func GetExpectedTLSConfigs(profile *configv1.TLSSecurityProfile) (shouldWork, sh
 		}
 		description = "Modern profile: TLS 1.3 only (TLS 1.2 should fail)"
 
+	case profile.Type == configv1.TLSProfileCustomType:
+		// Custom: Check minTLSVersion from profile
+		if profile.Custom != nil {
+			minVersion := string(profile.Custom.MinTLSVersion)
+			switch minVersion {
+			case "VersionTLS12":
+				// TLS 1.2+: Both 1.2 and 1.3 should work, TLS 1.1 should fail
+				shouldWork = &tls.Config{
+					MinVersion:         tls.VersionTLS12,
+					MaxVersion:         tls.VersionTLS13,
+					InsecureSkipVerify: true,
+				}
+				shouldNotWork = &tls.Config{
+					MinVersion:         tls.VersionTLS11,
+					MaxVersion:         tls.VersionTLS11,
+					InsecureSkipVerify: true,
+				}
+				description = "Custom profile (minTLSVersion=VersionTLS12): TLS 1.2+ should work, TLS 1.1 should fail"
+			case "VersionTLS13":
+				// TLS 1.3 only: TLS 1.3 should work, TLS 1.2 should fail
+				shouldWork = &tls.Config{
+					MinVersion:         tls.VersionTLS13,
+					MaxVersion:         tls.VersionTLS13,
+					InsecureSkipVerify: true,
+				}
+				shouldNotWork = &tls.Config{
+					MinVersion:         tls.VersionTLS12,
+					MaxVersion:         tls.VersionTLS12,
+					InsecureSkipVerify: true,
+				}
+				description = "Custom profile (minTLSVersion=VersionTLS13): TLS 1.3 only, TLS 1.2 should fail"
+			default:
+				// Default to TLS 1.2+
+				shouldWork = &tls.Config{
+					MinVersion:         tls.VersionTLS12,
+					MaxVersion:         tls.VersionTLS13,
+					InsecureSkipVerify: true,
+				}
+				shouldNotWork = &tls.Config{
+					MinVersion:         tls.VersionTLS11,
+					MaxVersion:         tls.VersionTLS11,
+					InsecureSkipVerify: true,
+				}
+				description = "Custom profile: TLS 1.2+ should work, TLS 1.1 should fail"
+			}
+		} else {
+			// No custom config, default to TLS 1.2+
+			shouldWork = &tls.Config{
+				MinVersion:         tls.VersionTLS12,
+				MaxVersion:         tls.VersionTLS13,
+				InsecureSkipVerify: true,
+			}
+			shouldNotWork = &tls.Config{
+				MinVersion:         tls.VersionTLS11,
+				MaxVersion:         tls.VersionTLS11,
+				InsecureSkipVerify: true,
+			}
+			description = "Custom profile: TLS 1.2+ should work, TLS 1.1 should fail"
+		}
+
 	default:
+		// Old profile or unknown: Allow any TLS, fail on TLS 1.0
 		shouldWork = &tls.Config{InsecureSkipVerify: true}
 		shouldNotWork = &tls.Config{
 			MinVersion:         tls.VersionTLS10,
 			MaxVersion:         tls.VersionTLS10,
 			InsecureSkipVerify: true,
 		}
-		description = "Custom/Old profile: basic TLS check"
+		description = "Old profile: basic TLS check"
 	}
 	return
 }

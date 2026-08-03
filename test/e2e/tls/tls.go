@@ -260,8 +260,27 @@ func ConfigureCustomTLSProfile(client *testclient.ClientSet, minTLSVersion strin
 
 	log.Println("=== Configuring Custom TLS Profile ===")
 
-	// Step 1: Configure APIServer with custom TLS profile
-	log.Printf("Step 1: Configuring APIServer with Custom TLS profile (minTLSVersion=%s, ciphers=%v, tlsAdherence=%s)", minTLSVersion, ciphers, tlsAdherencePolicy)
+	// Step 1: Enable TLSAdherence feature gate
+	log.Println("Step 1: Enabling TLSAdherence feature gate")
+	fg, err := configClient.ConfigV1().FeatureGates().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get featuregate: %w", err)
+	}
+
+	// Check if already enabled
+	tlsFeatureAlreadyEnabled := isAlreadyEnabled(fg)
+	if tlsFeatureAlreadyEnabled {
+		log.Println("✓ TLSAdherence feature gate already enabled")
+	} else {
+		// Enable TLSAdherence feature gate
+		if err := patchFeatureGate(ctx, configClient, fg); err != nil {
+			return fmt.Errorf("failed to patch FeatureGate: %w", err)
+		}
+		log.Println("✓ TLSAdherence feature gate enabled")
+	}
+
+	// Step 2: Configure APIServer with custom TLS profile
+	log.Printf("Step 2: Configuring APIServer with Custom TLS profile (minTLSVersion=%s, ciphers=%v, tlsAdherence=%s)", minTLSVersion, ciphers, tlsAdherencePolicy)
 
 	apiserver, err := configClient.ConfigV1().APIServers().Get(ctx, "cluster", metav1.GetOptions{})
 	if err != nil {
@@ -288,8 +307,8 @@ func ConfigureCustomTLSProfile(client *testclient.ClientSet, minTLSVersion strin
 	}
 	log.Println("✓ APIServer Custom TLS profile configured successfully")
 
-	// Step 2: Check if MCPs are already complete (no rollout needed)
-	log.Println("Step 2: Checking MCP status")
+	// Step 3: Check if MCPs are already complete (no rollout needed)
+	log.Println("Step 3: Checking MCP status")
 	mcpsComplete, err := areAllMCPsComplete(machineConfigClient)
 	if err != nil {
 		return fmt.Errorf("failed to check MCP status: %w", err)
@@ -298,16 +317,16 @@ func ConfigureCustomTLSProfile(client *testclient.ClientSet, minTLSVersion strin
 	if mcpsComplete {
 		log.Println("✓ All MCPs are already updated (no rollout needed)")
 	} else {
-		// Step 3: Wait for MCP rollout to start (with 5-minute timeout)
-		log.Println("Step 3: Waiting for MCP rollout to start")
+		// Step 4: Wait for MCP rollout to start (with 5-minute timeout)
+		log.Println("Step 4: Waiting for MCP rollout to start")
 		err = waitForMCPRolloutStart(machineConfigClient, 5*time.Minute)
 		if err != nil {
 			return fmt.Errorf("failed waiting for MCP rollout to start: %w", err)
 		}
 		log.Println("✓ MCP rollout started")
 
-		// Step 4: Wait for MCP rollout to complete (with 30-minute timeout)
-		log.Println("Step 4: Waiting for MCP rollout to complete")
+		// Step 5: Wait for MCP rollout to complete (with 30-minute timeout)
+		log.Println("Step 5: Waiting for MCP rollout to complete")
 		err = waitForAllMCPsComplete(machineConfigClient, 30*time.Minute)
 		if err != nil {
 			return fmt.Errorf("failed waiting for MCP rollout to complete: %w", err)
@@ -315,8 +334,8 @@ func ConfigureCustomTLSProfile(client *testclient.ClientSet, minTLSVersion strin
 		log.Println("✓ MCP rollout completed")
 	}
 
-	// Step 5: Wait for all cluster operators to settle
-	log.Println("Step 5: Waiting for all cluster operators to settle")
+	// Step 6: Wait for all cluster operators to settle
+	log.Println("Step 6: Waiting for all cluster operators to settle")
 	log.Println("Waiting up to 30 minutes for all cluster operators to settle")
 	err = waitForOperatorsToSettle(ctx, configClient, 30)
 	if err != nil {
@@ -324,16 +343,24 @@ func ConfigureCustomTLSProfile(client *testclient.ClientSet, minTLSVersion strin
 	}
 	log.Println("✓ All cluster operators settled")
 
-	// Step 6: Wait for all nodes to be ready
-	log.Println("Step 6: Waiting for all nodes to be ready and stable")
+	// Step 7: Wait for all nodes to be ready
+	log.Println("Step 7: Waiting for all nodes to be ready and stable")
 	err = waitForNodesStability(k8sClient, 10*time.Minute)
 	if err != nil {
 		return fmt.Errorf("failed waiting for nodes: %w", err)
 	}
 	log.Println("✓ All nodes are ready and stable")
 
-	// Step 7: Verify APIServer TLS configuration
-	log.Println("Step 7: Verifying APIServer Custom TLS profile configuration")
+	// Step 8: Verify TLSAdherence is active
+	log.Println("Step 8: Verifying TLSAdherence is active in feature gate status")
+	err = verifyTLSAdherenceActive(ctx, configClient)
+	if err != nil {
+		return fmt.Errorf("failed to verify TLSAdherence is active: %w", err)
+	}
+	log.Println("✓ TLSAdherence is active in feature gate status")
+
+	// Step 9: Verify APIServer TLS configuration
+	log.Println("Step 9: Verifying APIServer Custom TLS profile configuration")
 	err = verifyAPIServerTLSConfiguration(ctx, configClient, "Custom", tlsAdherencePolicy)
 	if err != nil {
 		return fmt.Errorf("failed to verify APIServer TLS configuration: %w", err)
