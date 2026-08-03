@@ -386,6 +386,8 @@ func VerifyTLSComplianceInPod(configClient configv1client.Interface, k8sClient k
 
 	// Determine expected behavior based on profile
 	var tlsWorkVersion, tlsFailVersion string
+	var shouldTestBothVersions bool // For Custom profile with TLS 1.2, both 1.2 and 1.3 should work
+
 	switch {
 	case apiserver.Spec.TLSSecurityProfile == nil, apiserver.Spec.TLSSecurityProfile.Type == configv1.TLSProfileIntermediateType:
 		tlsWorkVersion = "tls1_2"
@@ -393,13 +395,41 @@ func VerifyTLSComplianceInPod(configClient configv1client.Interface, k8sClient k
 	case apiserver.Spec.TLSSecurityProfile.Type == configv1.TLSProfileModernType:
 		tlsWorkVersion = "tls1_3"
 		tlsFailVersion = "tls1_2"
+	case apiserver.Spec.TLSSecurityProfile.Type == configv1.TLSProfileCustomType:
+		// For Custom profile, check minTLSVersion
+		if apiserver.Spec.TLSSecurityProfile.Custom != nil {
+			minVersion := string(apiserver.Spec.TLSSecurityProfile.Custom.MinTLSVersion)
+			switch minVersion {
+			case "VersionTLS12":
+				// Both TLS 1.2 and 1.3 should work
+				tlsWorkVersion = "tls1_2"
+				tlsFailVersion = "tls1_1"
+				shouldTestBothVersions = true
+			case "VersionTLS13":
+				tlsWorkVersion = "tls1_3"
+				tlsFailVersion = "tls1_2"
+			default:
+				tlsWorkVersion = "tls1_2"
+				tlsFailVersion = "tls1_1"
+			}
+		} else {
+			tlsWorkVersion = "tls1_2"
+			tlsFailVersion = "tls1_1"
+		}
 	default:
 		tlsWorkVersion = "tls1_2"
 		tlsFailVersion = "tls1"
 	}
 
-	log.Printf("Testing with profile: %s (TLS %s should work, TLS %s should fail)",
-		apiserver.Spec.TLSSecurityProfile.Type, tlsWorkVersion, tlsFailVersion)
+	if shouldTestBothVersions {
+		log.Printf("Testing with profile: %s (minTLSVersion=%s) - Both TLS 1.2 and 1.3 should work, TLS %s should fail",
+			apiserver.Spec.TLSSecurityProfile.Type,
+			apiserver.Spec.TLSSecurityProfile.Custom.MinTLSVersion,
+			tlsFailVersion)
+	} else {
+		log.Printf("Testing with profile: %s (TLS %s should work, TLS %s should fail)",
+			apiserver.Spec.TLSSecurityProfile.Type, tlsWorkVersion, tlsFailVersion)
+	}
 
 	// Get pods matching the label selector
 	pods, err := k8sClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
@@ -477,6 +507,26 @@ func VerifyTLSComplianceInPod(configClient configv1client.Interface, k8sClient k
 			if strings.Contains(line, "Protocol") && !strings.Contains(line, "Verify") {
 				log.Printf("✓ TLS connection succeeded: %s", strings.TrimSpace(line))
 				break
+			}
+		}
+	}
+
+	// For Custom profile with minTLSVersion=VersionTLS12, also test TLS 1.3
+	if shouldTestBothVersions {
+		log.Printf("Testing TLS 1.3 connection (should also work for Custom profile with minTLSVersion=VersionTLS12)...")
+		cmdWork13 := []string{"timeout", "3", "openssl", "s_client", "-connect", "localhost:" + port, "-tls1_3"}
+		outputWork13, err := execInPod(k8sClient, namespace, testPod, actualContainer, cmdWork13)
+		if err != nil || !strings.Contains(outputWork13, "Verify return code") {
+			return fmt.Errorf("TLS 1.3 connection (should work) failed: %v\nOutput: %s", err, outputWork13)
+		}
+
+		// Extract protocol version for TLS 1.3
+		if strings.Contains(outputWork13, "Protocol") {
+			for _, line := range strings.Split(outputWork13, "\n") {
+				if strings.Contains(line, "Protocol") && !strings.Contains(line, "Verify") {
+					log.Printf("✓ TLS 1.3 connection succeeded: %s", strings.TrimSpace(line))
+					break
+				}
 			}
 		}
 	}

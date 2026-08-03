@@ -239,6 +239,112 @@ func patchAPIServerTLSProfile(ctx context.Context, configClient configv1client.I
 	return nil
 }
 
+// ConfigureCustomTLSProfile configures a custom TLS profile with specific minTLSVersion and ciphers
+func ConfigureCustomTLSProfile(client *testclient.ClientSet, minTLSVersion string, ciphers []string, tlsAdherencePolicy string) error {
+	configClient, err := configv1client.NewForConfig(client.Config)
+	if err != nil {
+		return fmt.Errorf("failed to create config client: %w", err)
+	}
+
+	machineConfigClient, err := machineconfigclient.NewForConfig(client.Config)
+	if err != nil {
+		return fmt.Errorf("failed to create machine config client: %w", err)
+	}
+
+	k8sClient, err := kubernetes.NewForConfig(client.Config)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	ctx := context.Background()
+
+	log.Println("=== Configuring Custom TLS Profile ===")
+
+	// Step 1: Configure APIServer with custom TLS profile
+	log.Printf("Step 1: Configuring APIServer with Custom TLS profile (minTLSVersion=%s, ciphers=%v, tlsAdherence=%s)", minTLSVersion, ciphers, tlsAdherencePolicy)
+
+	apiserver, err := configClient.ConfigV1().APIServers().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get apiserver: %w", err)
+	}
+
+	// Set Custom TLS Security Profile
+	apiserver.Spec.TLSSecurityProfile = &configv1.TLSSecurityProfile{
+		Type: configv1.TLSProfileCustomType,
+		Custom: &configv1.CustomTLSProfile{
+			TLSProfileSpec: configv1.TLSProfileSpec{
+				Ciphers:       ciphers,
+				MinTLSVersion: configv1.TLSProtocolVersion(minTLSVersion),
+			},
+		},
+	}
+
+	// Set TLS Adherence policy
+	apiserver.Spec.TLSAdherence = configv1.TLSAdherencePolicy(tlsAdherencePolicy)
+
+	_, err = configClient.ConfigV1().APIServers().Update(ctx, apiserver, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to update apiserver: %w", err)
+	}
+	log.Println("✓ APIServer Custom TLS profile configured successfully")
+
+	// Step 2: Check if MCPs are already complete (no rollout needed)
+	log.Println("Step 2: Checking MCP status")
+	mcpsComplete, err := areAllMCPsComplete(machineConfigClient)
+	if err != nil {
+		return fmt.Errorf("failed to check MCP status: %w", err)
+	}
+
+	if mcpsComplete {
+		log.Println("✓ All MCPs are already updated (no rollout needed)")
+	} else {
+		// Step 3: Wait for MCP rollout to start (with 5-minute timeout)
+		log.Println("Step 3: Waiting for MCP rollout to start")
+		err = waitForMCPRolloutStart(machineConfigClient, 5*time.Minute)
+		if err != nil {
+			return fmt.Errorf("failed waiting for MCP rollout to start: %w", err)
+		}
+		log.Println("✓ MCP rollout started")
+
+		// Step 4: Wait for MCP rollout to complete (with 30-minute timeout)
+		log.Println("Step 4: Waiting for MCP rollout to complete")
+		err = waitForAllMCPsComplete(machineConfigClient, 30*time.Minute)
+		if err != nil {
+			return fmt.Errorf("failed waiting for MCP rollout to complete: %w", err)
+		}
+		log.Println("✓ MCP rollout completed")
+	}
+
+	// Step 5: Wait for all cluster operators to settle
+	log.Println("Step 5: Waiting for all cluster operators to settle")
+	log.Println("Waiting up to 30 minutes for all cluster operators to settle")
+	err = waitForOperatorsToSettle(ctx, configClient, 30)
+	if err != nil {
+		return fmt.Errorf("failed waiting for cluster operators: %w", err)
+	}
+	log.Println("✓ All cluster operators settled")
+
+	// Step 6: Wait for all nodes to be ready
+	log.Println("Step 6: Waiting for all nodes to be ready and stable")
+	err = waitForNodesStability(k8sClient, 10*time.Minute)
+	if err != nil {
+		return fmt.Errorf("failed waiting for nodes: %w", err)
+	}
+	log.Println("✓ All nodes are ready and stable")
+
+	// Step 7: Verify APIServer TLS configuration
+	log.Println("Step 7: Verifying APIServer Custom TLS profile configuration")
+	err = verifyAPIServerTLSConfiguration(ctx, configClient, "Custom", tlsAdherencePolicy)
+	if err != nil {
+		return fmt.Errorf("failed to verify APIServer TLS configuration: %w", err)
+	}
+	log.Printf("✓ APIServer Custom TLS profile (minTLSVersion=%s) and tlsAdherence=%s verified", minTLSVersion, tlsAdherencePolicy)
+
+	log.Println("=== Custom TLS Profile successfully configured and cluster is stable ===")
+
+	return nil
+}
+
 // areAllMCPsComplete checks if all MCPs are already complete (Updated=True, Updating=False)
 func areAllMCPsComplete(client machineconfigclient.Interface) (bool, error) {
 	ctx := context.Background()

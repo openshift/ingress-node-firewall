@@ -1274,8 +1274,52 @@ var _ = Describe("Ingress Node Firewall", func() {
 			})
 
 			Context("Custom TLS Profile", func() {
+				BeforeEach(func() {
+					// Configure Custom TLS profile with minTLSVersion=VersionTLS12
+					// and custom cipher before running Custom profile tests
+					// This will:
+					// - Set Custom TLS profile with minTLSVersion=VersionTLS12
+					// - Set custom ciphers (e.g., TLS_AES_128_GCM_SHA256)
+					// - Set tlsAdherence=StrictAllComponents
+					// - Wait for MCP rollout (if needed)
+					// - Wait for all cluster operators to settle
+					// - Wait for all nodes to be ready
+					minTLSVersion := "VersionTLS12"
+					ciphers := []string{
+						"TLS_AES_128_GCM_SHA256",
+						"TLS_AES_256_GCM_SHA384",
+						"TLS_CHACHA20_POLY1305_SHA256",
+						"ECDHE-RSA-AES128-GCM-SHA256",
+						"ECDHE-ECDSA-AES128-GCM-SHA256",
+					}
+					tlsAdherencePolicy := "StrictAllComponents"
+
+					err := tls.ConfigureCustomTLSProfile(testclient.Client, minTLSVersion, ciphers, tlsAdherencePolicy)
+					Expect(err).NotTo(HaveOccurred(), "Failed to configure Custom TLS profile")
+				})
+
 				It("should verify ingress-node-firewall TLS compliance", func() {
-					// TODO: Implementation
+					// This test verifies that ingress-node-firewall daemon metrics endpoint
+					// complies with Custom TLS profile (minTLSVersion=VersionTLS12)
+					// Expected behavior:
+					// - TLS 1.2 connections should SUCCEED
+					// - TLS 1.3 connections should SUCCEED
+					// - TLS 1.1 connections should FAIL
+
+					k8sClient, err := kubernetes.NewForConfig(testclient.Client.Config)
+					Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes client")
+
+					configClient, err := configv1client.NewForConfig(testclient.Client.Config)
+					Expect(err).NotTo(HaveOccurred(), "Failed to create config client")
+
+					namespace := OperatorNameSpace
+					labelSelector := "app=ingress-node-firewall-daemon"
+					containerName := "daemon" // Use daemon container (has openssl), not kube-rbac-proxy
+					port := "9301"
+
+					By(fmt.Sprintf("Testing TLS compliance for ingress-node-firewall-daemon in %s on port %s", namespace, port))
+					err = tls.VerifyTLSComplianceInPod(configClient, k8sClient, namespace, labelSelector, containerName, port)
+					Expect(err).NotTo(HaveOccurred(), "TLS compliance verification failed")
 				})
 
 				It("should verify multus-cni TLS compliance", func() {
