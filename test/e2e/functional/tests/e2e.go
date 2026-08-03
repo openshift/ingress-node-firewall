@@ -18,11 +18,11 @@ import (
 	"github.com/openshift/ingress-node-firewall/test/e2e/deployment"
 	"github.com/openshift/ingress-node-firewall/test/e2e/events"
 	"github.com/openshift/ingress-node-firewall/test/e2e/exec"
-	"github.com/openshift/ingress-node-firewall/test/e2e/tls"
 	"github.com/openshift/ingress-node-firewall/test/e2e/icmp"
 	infwutils "github.com/openshift/ingress-node-firewall/test/e2e/ingress-node-firewall"
 	"github.com/openshift/ingress-node-firewall/test/e2e/node"
 	"github.com/openshift/ingress-node-firewall/test/e2e/pods"
+	"github.com/openshift/ingress-node-firewall/test/e2e/tls"
 	"github.com/openshift/ingress-node-firewall/test/e2e/transport"
 
 	. "github.com/onsi/ginkgo" //nolint:staticcheck

@@ -177,7 +177,6 @@ func ForwardPortAndExecute(serviceName, namespace, remotePort string, toExecute 
 	return fmt.Errorf("port-forward failed after 3 attempts: %w", err)
 }
 
-
 // CheckTLSConnection tests a TLS connection with expected success/failure configs
 // Based on: origin/test/extended/apiserver/tls.go
 func CheckTLSConnection(host string, port int, tlsShouldWork, tlsShouldNotWork *tls.Config) error {
@@ -348,6 +347,34 @@ func VerifyTLSComplianceForPods(configClient configv1client.Interface, k8sClient
 
 // VerifyTLSComplianceInPod tests TLS compliance by executing openssl commands inside a pod
 // This is useful when port-forwarding doesn't work (e.g., authentication required)
+// findContainerForPort finds the container name that serves a specific port in a pod
+func findContainerForPort(k8sClient kubernetes.Interface, namespace, podName, port string) (string, error) {
+	ctx := context.Background()
+	pod, err := k8sClient.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get pod %s/%s: %w", namespace, podName, err)
+	}
+
+	// Check each container for the specified port
+	for _, container := range pod.Spec.Containers {
+		for _, p := range container.Ports {
+			if fmt.Sprintf("%d", p.ContainerPort) == port {
+				log.Printf("Auto-discovered container '%s' serving port %s in pod %s/%s", container.Name, port, namespace, podName)
+				return container.Name, nil
+			}
+		}
+	}
+
+	// If no container explicitly declares the port, try the first container
+	// (some containers serve ports without declaring them)
+	if len(pod.Spec.Containers) > 0 {
+		log.Printf("Warning: No container explicitly declares port %s, using first container '%s'", port, pod.Spec.Containers[0].Name)
+		return pod.Spec.Containers[0].Name, nil
+	}
+
+	return "", fmt.Errorf("no container found serving port %s in pod %s/%s", port, namespace, podName)
+}
+
 func VerifyTLSComplianceInPod(configClient configv1client.Interface, k8sClient kubernetes.Interface, namespace, labelSelector, containerName, port string) error {
 	ctx := context.Background()
 
@@ -399,12 +426,47 @@ func VerifyTLSComplianceInPod(configClient configv1client.Interface, k8sClient k
 		return fmt.Errorf("no running pods found with selector %s", labelSelector)
 	}
 
-	log.Printf("Testing pod %s/%s (container: %s) on localhost:%s", namespace, testPod, containerName, port)
+	// Auto-discover container if the provided name doesn't exist
+	// This handles cases where container names differ across OCP versions or configurations
+	actualContainer := containerName
+	if containerName != "" {
+		// Try to verify the container exists
+		pod, err := k8sClient.CoreV1().Pods(namespace).Get(ctx, testPod, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get pod %s/%s: %w", namespace, testPod, err)
+		}
+
+		containerExists := false
+		for _, c := range pod.Spec.Containers {
+			if c.Name == containerName {
+				containerExists = true
+				break
+			}
+		}
+
+		if !containerExists {
+			log.Printf("Warning: Container '%s' not found in pod, auto-discovering container for port %s", containerName, port)
+			discoveredContainer, err := findContainerForPort(k8sClient, namespace, testPod, port)
+			if err != nil {
+				return fmt.Errorf("failed to find container for port %s: %w", port, err)
+			}
+			actualContainer = discoveredContainer
+		}
+	} else {
+		// If no container name provided, auto-discover
+		discoveredContainer, err := findContainerForPort(k8sClient, namespace, testPod, port)
+		if err != nil {
+			return fmt.Errorf("failed to find container for port %s: %w", port, err)
+		}
+		actualContainer = discoveredContainer
+	}
+
+	log.Printf("Testing pod %s/%s (container: %s) on localhost:%s", namespace, testPod, actualContainer, port)
 
 	// Test TLS version that SHOULD work
 	log.Printf("Testing TLS connection that should work (%s)...", tlsWorkVersion)
 	cmdWork := []string{"timeout", "3", "openssl", "s_client", "-connect", "localhost:" + port, "-" + tlsWorkVersion}
-	outputWork, err := execInPod(k8sClient, namespace, testPod, containerName, cmdWork)
+	outputWork, err := execInPod(k8sClient, namespace, testPod, actualContainer, cmdWork)
 	if err != nil || !strings.Contains(outputWork, "Verify return code") {
 		return fmt.Errorf("TLS %s connection (should work) failed: %v\nOutput: %s", tlsWorkVersion, err, outputWork)
 	}
@@ -422,12 +484,12 @@ func VerifyTLSComplianceInPod(configClient configv1client.Interface, k8sClient k
 	// Test TLS version that SHOULD NOT work
 	log.Printf("Testing TLS connection that should NOT work (%s)...", tlsFailVersion)
 	cmdFail := []string{"timeout", "3", "openssl", "s_client", "-connect", "localhost:" + port, "-" + tlsFailVersion}
-	outputFail, _ := execInPod(k8sClient, namespace, testPod, containerName, cmdFail)
+	outputFail, _ := execInPod(k8sClient, namespace, testPod, actualContainer, cmdFail)
 
 	// Check if connection was rejected (should contain error or "Cipher is (NONE)")
 	if !strings.Contains(outputFail, "alert protocol version") &&
-	   !strings.Contains(outputFail, "Cipher is (NONE)") &&
-	   !strings.Contains(outputFail, "error:") {
+		!strings.Contains(outputFail, "Cipher is (NONE)") &&
+		!strings.Contains(outputFail, "error:") {
 		return fmt.Errorf("TLS %s connection (should NOT work) succeeded unexpectedly\nOutput: %s", tlsFailVersion, outputFail)
 	}
 

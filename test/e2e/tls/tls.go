@@ -15,9 +15,9 @@ import (
 	machineconfigclient "github.com/openshift/client-go/machineconfiguration/clientset/versioned"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 )
 
 // IsOpenShiftCluster detects if running on an OpenShift cluster
@@ -192,8 +192,9 @@ func patchFeatureGate(ctx context.Context, configClient configv1client.Interface
 
 // patchAPIServerTLSProfile patches the APIServer to set TLS profile and adherence policy
 // Example:
-//   oc patch apiserver cluster --type=merge \
-//     -p '{"spec":{"tlsSecurityProfile":{"type":"Modern","modern":{}},"tlsAdherence":"StrictAllComponents"}}'
+//
+//	oc patch apiserver cluster --type=merge \
+//	  -p '{"spec":{"tlsSecurityProfile":{"type":"Modern","modern":{}},"tlsAdherence":"StrictAllComponents"}}'
 func patchAPIServerTLSProfile(ctx context.Context, configClient configv1client.Interface, tlsProfileType string, tlsAdherencePolicy string) error {
 	apiserver, err := configClient.ConfigV1().APIServers().Get(ctx, "cluster", metav1.GetOptions{})
 	if err != nil {
