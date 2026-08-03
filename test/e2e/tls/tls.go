@@ -36,6 +36,146 @@ func IsOpenShiftCluster(client *testclient.ClientSet) bool {
 	return err == nil
 }
 
+// EnableTLSAdherenceFeatureGateOnly enables ONLY the TLSAdherence feature gate
+// This is Step 1 and Step 2 in the parent BeforeEach
+// - Step 1: Patch FeatureGate to enable TLSAdherence
+// - Step 2: Verify TLSAdherence is active in status (15 min timeout)
+func EnableTLSAdherenceFeatureGateOnly(client *testclient.ClientSet) error {
+	configClient, err := configv1client.NewForConfig(client.Config)
+	if err != nil {
+		return fmt.Errorf("failed to create config client: %w", err)
+	}
+
+	ctx := context.Background()
+
+	log.Println("=== Enabling TLSAdherence Feature Gate ===")
+
+	// Step 1: Patch FeatureGate to enable TLSAdherence
+	log.Printf("Step 1: Patching FeatureGate to enable TLSAdherence")
+	fg, err := configClient.ConfigV1().FeatureGates().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get featuregate: %w", err)
+	}
+
+	// Check if already enabled
+	tlsFeatureAlreadyEnabled := isAlreadyEnabled(fg)
+	if tlsFeatureAlreadyEnabled {
+		log.Printf("✓ TLSAdherence feature gate already enabled")
+	} else {
+		// Enable TLSAdherence feature gate
+		if err := patchFeatureGate(ctx, configClient, fg); err != nil {
+			return err
+		}
+		log.Printf("✓ Feature gate patched successfully")
+	}
+
+	// Step 2: Verify TLSAdherence is active in status (15 min timeout)
+	log.Printf("Step 2: Verifying TLSAdherence is active in status (15 min timeout)")
+	if err := verifyTLSAdherenceActive(ctx, configClient); err != nil {
+		return err
+	}
+	log.Printf("✓ TLSAdherence is active in feature gate status")
+
+	log.Println("=== TLSAdherence Feature Gate successfully enabled ===")
+	return nil
+}
+
+// ConfigureModernTLSProfileWithAdherence configures Modern TLS profile with specified adherence policy
+// This performs Steps 1-6 in the child BeforeEach:
+// - Step 1: Configure APIServer with Modern TLS profile
+// - Step 2: Wait for MCP rollout to start (5 min timeout)
+// - Step 3: Wait for all MCPs to complete (30 min timeout)
+// - Step 4: Wait for cluster operators to settle (30 min timeout)
+// - Step 5: Wait for nodes to be ready (10 min timeout)
+// - Step 6: Verify APIServer TLS configuration
+func ConfigureModernTLSProfileWithAdherence(client *testclient.ClientSet, tlsAdherencePolicy string) error {
+	configClient, err := configv1client.NewForConfig(client.Config)
+	if err != nil {
+		return fmt.Errorf("failed to create config client: %w", err)
+	}
+
+	machineConfigClient, err := machineconfigclient.NewForConfig(client.Config)
+	if err != nil {
+		return fmt.Errorf("failed to create machine config client: %w", err)
+	}
+
+	k8sClient, err := kubernetes.NewForConfig(client.Config)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	ctx := context.Background()
+
+	log.Printf("=== Configuring Modern TLS Profile with %s ===", tlsAdherencePolicy)
+
+	// Step 1: Configure APIServer with Modern TLS profile
+	log.Printf("Step 1: Configuring APIServer with Modern TLS profile and tlsAdherence=%s", tlsAdherencePolicy)
+	if err := patchAPIServerTLSProfile(ctx, configClient, "Modern", tlsAdherencePolicy); err != nil {
+		return err
+	}
+	log.Printf("✓ APIServer TLS profile configured successfully")
+
+	// Step 2: Wait for MCP rollout to start (5 min timeout)
+	log.Printf("Step 2: Checking MCP status and waiting for rollout to start (5 min timeout)")
+
+	// First check if MCPs are already complete
+	mcpsAlreadyComplete, err := areAllMCPsComplete(machineConfigClient)
+	if err != nil {
+		return fmt.Errorf("failed to check MCP status: %w", err)
+	}
+
+	if mcpsAlreadyComplete {
+		log.Printf("✓ All MCPs are already updated (no rollout needed)")
+	} else {
+		if err := waitForMCPRolloutStart(machineConfigClient, 5*time.Minute); err != nil {
+			return err
+		}
+		log.Printf("✓ MCP rollout started")
+
+		// Step 3: Wait for all MCPs to complete (30 min timeout)
+		log.Printf("Step 3: Waiting for all MCPs to complete (30 min timeout)")
+		if err := waitForAllMCPsComplete(machineConfigClient, 30*time.Minute); err != nil {
+			return err
+		}
+		log.Printf("✓ All MCPs updated successfully")
+	}
+
+	// Step 4: Wait for cluster operators to settle (30 min timeout)
+	log.Printf("Step 4: Waiting for cluster operators to settle (30 min timeout)")
+	if err := waitForOperatorsToSettle(ctx, configClient, 30); err != nil {
+		return err
+	}
+	log.Printf("✓ All cluster operators settled")
+
+	// Step 5: Wait for nodes to be ready (10 min timeout)
+	log.Printf("Step 5: Waiting for nodes to be ready (10 min timeout)")
+	if err := waitForNodesStability(k8sClient, 10*time.Minute); err != nil {
+		return err
+	}
+	log.Printf("✓ All nodes are ready and stable")
+
+	// Step 6: Verify APIServer TLS configuration
+	log.Printf("Step 6: Verifying APIServer TLS configuration")
+	apiserver, err := configClient.ConfigV1().APIServers().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get APIServer: %w", err)
+	}
+
+	if apiserver.Spec.TLSSecurityProfile == nil || apiserver.Spec.TLSSecurityProfile.Type != configv1.TLSProfileModernType {
+		return fmt.Errorf("APIServer TLS profile is not Modern")
+	}
+
+	if string(apiserver.Spec.TLSAdherence) != tlsAdherencePolicy {
+		return fmt.Errorf("APIServer tlsAdherence is %s, expected %s", apiserver.Spec.TLSAdherence, tlsAdherencePolicy)
+	}
+
+	log.Printf("APIServer configuration verified: tlsSecurityProfile.type=Modern, tlsAdherence=%s", tlsAdherencePolicy)
+	log.Printf("✓ APIServer TLS profile=Modern and tlsAdherence=%s verified", tlsAdherencePolicy)
+
+	log.Printf("=== Modern TLS Profile with %s successfully configured ===", tlsAdherencePolicy)
+	return nil
+}
+
 // EnableTLSAdherence enables the TLSAdherence feature gate AND configures TLS profile with adherence policy
 // This function does EVERYTHING:
 // 1. Patches FeatureGate to enable TLSAdherence feature

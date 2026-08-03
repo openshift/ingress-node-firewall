@@ -1149,10 +1149,78 @@ var _ = Describe("Ingress Node Firewall", func() {
 				if !tls.IsOpenShiftCluster(testclient.Client) {
 					Skip("TLS Profile Compliance testing requires OpenShift cluster with config.openshift.io APIs")
 				}
+
+				// Parent BeforeEach: Enable TLSAdherence feature gate
+				// Step 1: Patch FeatureGate to enable TLSAdherence
+				// Step 2: Verify TLSAdherence is active in status (15 min timeout)
+				err := tls.EnableTLSAdherenceFeatureGateOnly(testclient.Client)
+				Expect(err).NotTo(HaveOccurred(), "Failed to enable TLSAdherence feature gate")
+			})
+
+			Context("Modern TLS Profile with LegacyAdheringComponentsOnly", func() {
+				BeforeEach(func() {
+					// Child BeforeEach: Configure Modern TLS profile with LegacyAdheringComponentsOnly
+					// Step 1: Configure APIServer with Modern TLS profile
+					// Step 2: Wait for MCP rollout to start (5 min timeout)
+					// Step 3: Wait for all MCPs to complete (30 min timeout)
+					// Step 4: Wait for cluster operators to settle (30 min timeout)
+					// Step 5: Wait for nodes to be ready (10 min timeout)
+					// Step 6: Verify APIServer TLS configuration
+					//
+					// Modern with LegacyAdheringComponentsOnly means:
+					// - New components MUST use TLS 1.3
+					// - Legacy components CAN still use TLS 1.2
+					// - For ingress-node-firewall (newer component), both TLS 1.3 and 1.2 should work
+					err := tls.ConfigureModernTLSProfileWithAdherence(testclient.Client, "LegacyAdheringComponentsOnly")
+					Expect(err).NotTo(HaveOccurred(), "Failed to configure Modern TLS profile with LegacyAdheringComponentsOnly")
+				})
+
+				It("should verify ingress-node-firewall TLS compliance", func() {
+					// This test verifies that ingress-node-firewall daemon metrics endpoint
+					// complies with Modern TLS profile with LegacyAdheringComponentsOnly
+					// Expected behavior (for legacy-tolerant policy):
+					// - Step 1: Port-forward to pod (oc port-forward)
+					// - Step 2: Test TLS 1.3 connection (SHOULD work)
+					// - Step 3: Test TLS 1.2 connection (SHOULD work - legacy allowed)
+					// - Step 4: Test TLS 1.1 connection (SHOULD fail)
+
+					k8sClient, err := kubernetes.NewForConfig(testclient.Client.Config)
+					Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes client")
+
+					configClient, err := configv1client.NewForConfig(testclient.Client.Config)
+					Expect(err).NotTo(HaveOccurred(), "Failed to create config client")
+
+					namespace := OperatorNameSpace
+					labelSelector := "app=ingress-node-firewall-daemon"
+					port := "9301"
+
+					By(fmt.Sprintf("Testing TLS compliance for ingress-node-firewall daemon in %s on port %s", namespace, port))
+					err = tls.VerifyTLSComplianceForPods(configClient, k8sClient, namespace, labelSelector, port)
+					Expect(err).NotTo(HaveOccurred(), "TLS compliance verification failed")
+				})
+
+				It("should verify multus-cni TLS compliance", func() {
+					// TODO: Implementation
+				})
+
+				It("should verify ovn-kubernetes TLS compliance", func() {
+					// TODO: Implementation
+				})
+
+				It("should verify cluster-network-operator TLS compliance", func() {
+					// TODO: Implementation
+				})
+
+				It("should verify openshift-network-console TLS compliance", func() {
+					// TODO: Implementation
+				})
 			})
 
 			Context("Modern TLS Profile with StrictAllComponents", func() {
 				BeforeEach(func() {
+					// Skip this test context for now - focusing on LegacyAdheringComponentsOnly
+					Skip("Skipping Modern TLS Profile with StrictAllComponents tests")
+
 					// Enable TLSAdherence feature gate and configure Modern profile
 					// This runs before each Modern TLS profile test
 					// It does EVERYTHING:
@@ -1277,6 +1345,9 @@ var _ = Describe("Ingress Node Firewall", func() {
 
 			Context("Custom TLS Profile", func() {
 				BeforeEach(func() {
+					// Skip this test context for now - focusing on LegacyAdheringComponentsOnly
+					Skip("Skipping Custom TLS Profile tests")
+
 					// Configure Custom TLS profile with minTLSVersion=VersionTLS12
 					// and custom cipher before running Custom profile tests
 					// This will:

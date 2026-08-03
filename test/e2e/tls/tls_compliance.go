@@ -80,8 +80,8 @@ func isTLSPort(name string, port int32) bool {
 	return false
 }
 
-// GetExpectedTLSConfigs returns TLS configs for testing based on the profile type
-func GetExpectedTLSConfigs(profile *configv1.TLSSecurityProfile) (shouldWork, shouldNotWork *tls.Config, description string) {
+// GetExpectedTLSConfigs returns TLS configs for testing based on the profile type and adherence policy
+func GetExpectedTLSConfigs(profile *configv1.TLSSecurityProfile, tlsAdherence string) (shouldWork, shouldNotWork *tls.Config, description string) {
 	switch {
 	case profile == nil, profile.Type == configv1.TLSProfileIntermediateType:
 		// Intermediate: TLS 1.2+ should work, TLS 1.1 should fail
@@ -98,18 +98,35 @@ func GetExpectedTLSConfigs(profile *configv1.TLSSecurityProfile) (shouldWork, sh
 		description = "Intermediate profile: TLS 1.2+ should work, TLS 1.1 should fail"
 
 	case profile.Type == configv1.TLSProfileModernType:
-		// Modern: Only TLS 1.3 should work, TLS 1.2 should fail
-		shouldWork = &tls.Config{
-			MinVersion:         tls.VersionTLS13,
-			MaxVersion:         tls.VersionTLS13,
-			InsecureSkipVerify: true,
+		// Modern profile behavior depends on tlsAdherence policy
+		if tlsAdherence == "LegacyAdheringComponentsOnly" {
+			// Modern with LegacyAdheringComponentsOnly: TLS 1.2+ should work, TLS 1.1 should fail
+			// Legacy components are allowed to use TLS 1.2
+			shouldWork = &tls.Config{
+				MinVersion:         tls.VersionTLS12,
+				MaxVersion:         tls.VersionTLS13,
+				InsecureSkipVerify: true,
+			}
+			shouldNotWork = &tls.Config{
+				MinVersion:         tls.VersionTLS11,
+				MaxVersion:         tls.VersionTLS11,
+				InsecureSkipVerify: true,
+			}
+			description = "Modern profile with LegacyAdheringComponentsOnly: TLS 1.2+ should work, TLS 1.1 should fail"
+		} else {
+			// Modern with StrictAllComponents: Only TLS 1.3 should work, TLS 1.2 should fail
+			shouldWork = &tls.Config{
+				MinVersion:         tls.VersionTLS13,
+				MaxVersion:         tls.VersionTLS13,
+				InsecureSkipVerify: true,
+			}
+			shouldNotWork = &tls.Config{
+				MinVersion:         tls.VersionTLS12,
+				MaxVersion:         tls.VersionTLS12,
+				InsecureSkipVerify: true,
+			}
+			description = "Modern profile with StrictAllComponents: TLS 1.3 only (TLS 1.2 should fail)"
 		}
-		shouldNotWork = &tls.Config{
-			MinVersion:         tls.VersionTLS12,
-			MaxVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: true,
-		}
-		description = "Modern profile: TLS 1.3 only (TLS 1.2 should fail)"
 
 	case profile.Type == configv1.TLSProfileCustomType:
 		// Custom: Check minTLSVersion from profile
@@ -238,13 +255,40 @@ func ForwardPortAndExecute(serviceName, namespace, remotePort string, toExecute 
 	return fmt.Errorf("port-forward failed after 3 attempts: %w", err)
 }
 
+// getTLSVersionDescription returns a human-readable description of TLS version range
+func getTLSVersionDescription(minVersion, maxVersion uint16) string {
+	versionName := func(v uint16) string {
+		switch v {
+		case tls.VersionTLS10:
+			return "TLS 1.0"
+		case tls.VersionTLS11:
+			return "TLS 1.1"
+		case tls.VersionTLS12:
+			return "TLS 1.2"
+		case tls.VersionTLS13:
+			return "TLS 1.3"
+		default:
+			return fmt.Sprintf("TLS 0x%04x", v)
+		}
+	}
+
+	if minVersion == maxVersion {
+		return versionName(minVersion)
+	}
+	if maxVersion == 0 || maxVersion == tls.VersionTLS13 {
+		return versionName(minVersion) + "+"
+	}
+	return versionName(minVersion) + "-" + versionName(maxVersion)
+}
+
 // CheckTLSConnection tests a TLS connection with expected success/failure configs
 // Based on: origin/test/extended/apiserver/tls.go
 func CheckTLSConnection(host string, port int, tlsShouldWork, tlsShouldNotWork *tls.Config) error {
 	endpoint := fmt.Sprintf("localhost:%d", port)
 
 	// Test 1: Connection that SHOULD work
-	log.Printf("Testing TLS connection that should work (TLS 1.3 for Modern profile)...")
+	shouldWorkDesc := getTLSVersionDescription(tlsShouldWork.MinVersion, tlsShouldWork.MaxVersion)
+	log.Printf("Testing TLS connection that should work (%s)...", shouldWorkDesc)
 	conn, err := tls.Dial("tcp", endpoint, tlsShouldWork)
 	if err != nil {
 		return fmt.Errorf("TLS connection that should work FAILED: %w", err)
@@ -256,7 +300,8 @@ func CheckTLSConnection(host string, port int, tlsShouldWork, tlsShouldNotWork *
 	}
 
 	// Test 2: Connection that SHOULD NOT work
-	log.Printf("Testing TLS connection that should NOT work (TLS 1.2 for Modern profile)...")
+	shouldNotWorkDesc := getTLSVersionDescription(tlsShouldNotWork.MinVersion, tlsShouldNotWork.MaxVersion)
+	log.Printf("Testing TLS connection that should NOT work (%s)...", shouldNotWorkDesc)
 	conn, err = tls.Dial("tcp", endpoint, tlsShouldNotWork)
 	if err == nil {
 		conn.Close()
@@ -299,8 +344,9 @@ func VerifyTLSComplianceForService(configClient configv1client.Interface, k8sCli
 		return fmt.Errorf("failed to get APIServer config: %w", err)
 	}
 
-	// Determine expected TLS behavior
-	tlsShouldWork, tlsShouldNotWork, description := GetExpectedTLSConfigs(apiserver.Spec.TLSSecurityProfile)
+	// Determine expected TLS behavior based on profile and adherence policy
+	tlsAdherence := string(apiserver.Spec.TLSAdherence)
+	tlsShouldWork, tlsShouldNotWork, description := GetExpectedTLSConfigs(apiserver.Spec.TLSSecurityProfile, tlsAdherence)
 	log.Printf("Testing with profile: %s", description)
 
 	// Port forward and test
@@ -362,8 +408,9 @@ func VerifyTLSComplianceForPods(configClient configv1client.Interface, k8sClient
 		return fmt.Errorf("failed to get APIServer config: %w", err)
 	}
 
-	// Determine expected TLS behavior
-	tlsShouldWork, tlsShouldNotWork, description := GetExpectedTLSConfigs(apiserver.Spec.TLSSecurityProfile)
+	// Determine expected TLS behavior based on profile and adherence policy
+	tlsAdherence := string(apiserver.Spec.TLSAdherence)
+	tlsShouldWork, tlsShouldNotWork, description := GetExpectedTLSConfigs(apiserver.Spec.TLSSecurityProfile, tlsAdherence)
 	log.Printf("Testing with profile: %s", description)
 
 	// Get pods matching the label selector
