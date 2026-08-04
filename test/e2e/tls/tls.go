@@ -165,6 +165,18 @@ func ConfigureModernTLSProfileWithAdherence(client *testclient.ClientSet, tlsAdh
 		return fmt.Errorf("APIServer TLS profile is not Modern")
 	}
 
+	// Check if tlsAdherence field is supported in this OpenShift version
+	if apiserver.Spec.TLSAdherence == "" {
+		// Field is not supported - FAIL with clear message explaining the issue
+		return fmt.Errorf("apiserver.spec.tlsAdherence field is NOT SUPPORTED in this OpenShift version. "+
+			"This test requires full TLSAdherence API support. "+
+			"The API server likely rejected the field with: 'Warning: unknown field \"spec.tlsAdherence\"'. "+
+			"Expected tlsAdherence=%s but field is empty/unsupported. "+
+			"Minimum OpenShift version with full tlsAdherence support may be required.",
+			tlsAdherencePolicy)
+	}
+
+	// Field exists - verify it matches expected policy
 	if string(apiserver.Spec.TLSAdherence) != tlsAdherencePolicy {
 		return fmt.Errorf("APIServer tlsAdherence is %s, expected %s", apiserver.Spec.TLSAdherence, tlsAdherencePolicy)
 	}
