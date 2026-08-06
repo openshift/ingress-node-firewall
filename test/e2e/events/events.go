@@ -62,7 +62,7 @@ func extractEventsFromString(str string) ([]TestEvent, error) {
 	// Transport regular expression
 	// Match for each drop.
 	// If any change to the event output in pkg/ebpf/ingress_node_firewall_events.go, an update is required here.
-	transportEventRE := "ruleId\\s([0-9]+)\\saction\\s(?P<action>\\w+).*if\\s(?P<inf>\\w+)\n.*\\ssrc\\saddr\\s(?P<srcaddr>[0-9.:a-z]+)\\sdst\\saddr\\s(?P<dstaddr>[0-9.:a-z]+)\n.*(?P<proto>tcp|udp|sctp)\\ssrcPort\\s\\d+\\sdstPort\\s(?P<dstport>\\d+)"
+	transportEventRE := `ruleId\s([0-9]+)\saction\s(?P<action>\w+).*if\s(?P<inf>\w+)\s\|\s(?:ipv4|ipv6)\ssrc\s(?P<srcaddr>[0-9.:a-z]+)\sdst\s(?P<dstaddr>[0-9.:a-z]+)\s\|\s(?P<proto>tcp|udp|sctp)\ssrcPort\s\d+\sdstPort\s(?P<dstport>\d+)`
 	transportEventPattern := regexp.MustCompile(transportEventRE)
 	for _, match := range transportEventPattern.FindAllStringSubmatch(str, -1) { // -1 for unlimited matches
 		var te TestEvent
@@ -94,7 +94,7 @@ func extractEventsFromString(str string) ([]TestEvent, error) {
 	// ICMP regular expression
 	// Match for each drop.
 	// If any change to the event output in pkg/ebpf/ingress_node_firewall_events.go, an update is required here.
-	icmpEventRE := "ruleId\\s([0-9]+)\\saction\\s(?P<action>\\w+).*if\\s(?P<inf>\\w+)\\n.*\\s(ipv4|ipv6)\\ssrc\\saddr\\s(?P<srcaddr>[0-9.:a-z]+)\\sdst\\saddr\\s(?P<dstaddr>[0-9.:a-z]+)\\n.*(?P<proto>icmpv4|icmpv6)\\stype\\s(?P<type>\\d+)\\scode\\s(?P<code>\\d+)"
+	icmpEventRE := `ruleId\s([0-9]+)\saction\s(?P<action>\w+).*if\s(?P<inf>\w+)\s\|\s(?:ipv4|ipv6)\ssrc\s(?P<srcaddr>[0-9.:a-z]+)\sdst\s(?P<dstaddr>[0-9.:a-z]+)\s\|\s(?P<proto>icmpv4|icmpv6)\stype\s(?P<type>\d+)\scode\s(?P<code>\d+)`
 	icmpEventPattern := regexp.MustCompile(icmpEventRE)
 	for _, match := range icmpEventPattern.FindAllStringSubmatch(str, -1) {
 		var te TestEvent
