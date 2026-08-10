@@ -420,6 +420,28 @@ var _ = Describe("Rules", func() {
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 
+		It("rejects order equal to MAX_INGRESS_RULES", func() {
+			inf.Spec.Ingress[0].FirewallProtocolRules = []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+				getTCPRule(uint32(failsaferules.MAX_INGRESS_RULES), ingressnodefwv1alpha1.ProtocolTypeTCP, validPort, ingressnodefwv1alpha1.IngressNodeFirewallAllow),
+			}
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("rejects order greater than maximum", func() {
+			inf.Spec.Ingress[0].FirewallProtocolRules = []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+				getTCPRule(^uint32(0), ingressnodefwv1alpha1.ProtocolTypeTCP, validPort, ingressnodefwv1alpha1.IngressNodeFirewallAllow),
+			}
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+
+		It("accepts order equal to maximum", func() {
+			inf.Spec.Ingress[0].FirewallProtocolRules = []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+				getTCPRule(uint32(failsaferules.MAX_INGRESS_RULES-1), ingressnodefwv1alpha1.ProtocolTypeTCP, validPort, ingressnodefwv1alpha1.IngressNodeFirewallAllow),
+			}
+			Expect(createIngressNodeFirewall(inf)).To(Succeed())
+			Expect(deleteIngressNodeFirewall(inf)).To(Succeed())
+		})
+
 		It("only unique order is allowed", func() {
 			// create inf which has sourceCIRDR X order one
 			Expect(createIngressNodeFirewall(inf)).To(Succeed())

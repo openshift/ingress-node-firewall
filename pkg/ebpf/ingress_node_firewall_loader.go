@@ -520,6 +520,13 @@ func (infc *IngNodeFwController) makeIngressFwRulesMap(
 	for _, rule := range ingFirewallConfig.FirewallProtocolRules {
 		rule := rule
 		idx := rule.Order
+		// Order is used as a raw index into the fixed-size eBPF rules array.
+		// Bound-check against the array length so a crafted IngressNodeFirewallNodeState
+		// (which has no admission webhook) cannot panic the daemon.
+		if idx == 0 || int(idx) >= len(rules.Rules) {
+			return keys, rules, fmt.Errorf("rule order %d out of range; must be between 1 and %d",
+				idx, len(rules.Rules)-1)
+		}
 		rules.Rules[idx].RuleId = rule.Order
 		switch rule.ProtocolConfig.Protocol {
 		case ingressnodefwiov1alpha1.ProtocolTypeTCP:
