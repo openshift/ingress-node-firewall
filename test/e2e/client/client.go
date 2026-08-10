@@ -6,6 +6,8 @@ import (
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 
 	"github.com/golang/glog"
+	configv1 "github.com/openshift/api/config/v1"
+	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
 	apiext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	discovery "k8s.io/client-go/discovery"
@@ -77,6 +79,16 @@ func New(kubeconfig string) *ClientSet {
 	}
 
 	if err := ingressnodefwv1alpha1.AddToScheme(myScheme); err != nil {
+		panic(err)
+	}
+
+	// Add OpenShift config API scheme for TLS compliance tests
+	if err := configv1.AddToScheme(myScheme); err != nil {
+		panic(err)
+	}
+
+	// Add OpenShift machine configuration API scheme for TLS compliance tests
+	if err := mcfgv1.AddToScheme(myScheme); err != nil {
 		panic(err)
 	}
 

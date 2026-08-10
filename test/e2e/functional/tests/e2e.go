@@ -25,8 +25,6 @@ import (
 	"github.com/openshift/ingress-node-firewall/test/e2e/tls"
 	"github.com/openshift/ingress-node-firewall/test/e2e/transport"
 
-	configv1client "github.com/openshift/client-go/config/clientset/versioned"
-
 	. "github.com/onsi/ginkgo" //nolint:staticcheck
 	. "github.com/onsi/gomega" //nolint:staticcheck
 	prommodel "github.com/prometheus/common/model"
@@ -35,7 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/component-base/metrics/testutil"
 	goclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -1191,14 +1188,8 @@ var _ = Describe("Ingress Node Firewall", func() {
 					}
 					Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Failed to configure %s TLS profile with %s", profile.profileType, profile.adherencePolicy))
 
-					k8sClient, err := kubernetes.NewForConfig(testclient.Client.Config)
-					Expect(err).NotTo(HaveOccurred())
-
-					configClient, err := configv1client.NewForConfig(testclient.Client.Config)
-					Expect(err).NotTo(HaveOccurred())
-
 					By(fmt.Sprintf("Testing TLS compliance for ingress-node-firewall-daemon in %s (port 9301)", OpenShiftNameSpace))
-					err = tls.VerifyIngressNodeFirewallTLSComplianceInPod(configClient, k8sClient, OpenShiftNameSpace, daemonLabelSelector)
+					err = tls.VerifyIngressNodeFirewallTLSComplianceInPod(testclient.Client, OpenShiftNameSpace, daemonLabelSelector)
 					Expect(err).NotTo(HaveOccurred(), "TLS compliance verification failed")
 				})
 			})
