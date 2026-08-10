@@ -22,7 +22,10 @@ import (
 	infwutils "github.com/openshift/ingress-node-firewall/test/e2e/ingress-node-firewall"
 	"github.com/openshift/ingress-node-firewall/test/e2e/node"
 	"github.com/openshift/ingress-node-firewall/test/e2e/pods"
+	"github.com/openshift/ingress-node-firewall/test/e2e/tls"
 	"github.com/openshift/ingress-node-firewall/test/e2e/transport"
+
+	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 
 	. "github.com/onsi/ginkgo" //nolint:staticcheck
 	. "github.com/onsi/gomega" //nolint:staticcheck
@@ -32,12 +35,15 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/component-base/metrics/testutil"
 	goclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
 	OperatorNameSpace        = inftestconsts.DefaultOperatorNameSpace
+	OpenShiftNameSpace       = "openshift-ingress-node-firewall"
+	daemonLabelSelector      = "app=ingress-node-firewall-daemon"
 	retryInterval            = time.Millisecond * 10
 	timeout                  = time.Second * 40
 	testInterface            = "eth0"
@@ -1138,6 +1144,65 @@ var _ = Describe("Ingress Node Firewall", func() {
 
 			}
 		})
+	})
+
+	Context("TLS Profile Compliance", func() {
+		var config *ingressnodefwv1alpha1.IngressNodeFirewallConfig
+
+		BeforeEach(func() {
+			if !tls.IsOpenShiftCluster(testclient.Client) {
+				Skip("TLS Profile Compliance testing requires OpenShift cluster with config.openshift.io APIs")
+			}
+
+			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
+			err := infwutils.LoadIngressNodeFirewallConfigFromFile(config, inftestconsts.IngressNodeFirewallConfigCRFile)
+			Expect(err).ShouldNot(HaveOccurred())
+			config.SetNamespace(OperatorNameSpace)
+			config.SetLabels(testArtifactsLabelMap)
+			err = infwutils.EnsureIngressNodeFirewallConfigExists(testclient.Client, config, timeout)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			if config != nil {
+				infwutils.DeleteIngressNodeFirewallConfig(testclient.Client, config, retryInterval, timeout)
+			}
+		})
+
+		type tlsProfileTest struct {
+			profileType     string
+			adherencePolicy string
+		}
+
+		tlsProfiles := []tlsProfileTest{
+			{"Intermediate", "LegacyAdheringComponentsOnly"},
+			{"Modern", "LegacyAdheringComponentsOnly"},
+			{"Modern", "StrictAllComponents"},
+		}
+
+		for _, profile := range tlsProfiles {
+			profile := profile
+			Context(fmt.Sprintf("%s TLS Profile with %s", profile.profileType, profile.adherencePolicy), func() {
+				It("should verify ingress-node-firewall TLS compliance", func() {
+					By(fmt.Sprintf("Configuring %s TLS profile with %s", profile.profileType, profile.adherencePolicy))
+					err := tls.ConfigureTLSProfileWithAdherence(testclient.Client, profile.profileType, profile.adherencePolicy)
+					if tls.IsTLSAdherenceNotSupported(err) {
+						Skip(fmt.Sprintf("Skipping test - tlsAdherence API field not supported in this cluster version: %s", err.Error()))
+					}
+					Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Failed to configure %s TLS profile with %s", profile.profileType, profile.adherencePolicy))
+
+					k8sClient, err := kubernetes.NewForConfig(testclient.Client.Config)
+					Expect(err).NotTo(HaveOccurred())
+
+					configClient, err := configv1client.NewForConfig(testclient.Client.Config)
+					Expect(err).NotTo(HaveOccurred())
+
+					By(fmt.Sprintf("Testing TLS compliance for ingress-node-firewall-daemon in %s (port 9301)", OpenShiftNameSpace))
+					err = tls.VerifyIngressNodeFirewallTLSComplianceInPod(configClient, k8sClient, OpenShiftNameSpace, daemonLabelSelector)
+					Expect(err).NotTo(HaveOccurred(), "TLS compliance verification failed")
+				})
+			})
+		}
 	})
 
 	Context("Statistics", func() {
