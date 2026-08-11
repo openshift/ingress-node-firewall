@@ -37,10 +37,13 @@ import (
 	goclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	OpenShiftNameSpace  = "openshift-ingress-node-firewall"
+	daemonLabelSelector = "app=ingress-node-firewall-daemon"
+)
+
 var (
 	OperatorNameSpace        = inftestconsts.DefaultOperatorNameSpace
-	OpenShiftNameSpace       = "openshift-ingress-node-firewall"
-	daemonLabelSelector      = "app=ingress-node-firewall-daemon"
 	retryInterval            = time.Millisecond * 10
 	timeout                  = time.Second * 40
 	testInterface            = "eth0"
