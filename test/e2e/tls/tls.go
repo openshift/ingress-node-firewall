@@ -93,7 +93,8 @@ func ConfigureTLSProfileWithAdherence(c *testclient.ClientSet, tlsProfileType co
 	}
 
 	log.Println("Step 3: Waiting for cluster to stabilize after TLS profile configuration")
-	requiresMCPRollout := (tlsProfileType == configv1.TLSProfileModernType && (tlsAdherencePolicy == configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly || tlsAdherencePolicy == configv1.TLSAdherencePolicyStrictAllComponents))
+	requiresMCPRollout := ((tlsProfileType == configv1.TLSProfileModernType && (tlsAdherencePolicy == configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly || tlsAdherencePolicy == configv1.TLSAdherencePolicyStrictAllComponents)) ||
+		(tlsProfileType == configv1.TLSProfileIntermediateType && tlsAdherencePolicy == configv1.TLSAdherencePolicyStrictAllComponents))
 	if err := waitForClusterStability(ctx, c, requiresMCPRollout); err != nil {
 		return err
 	}
