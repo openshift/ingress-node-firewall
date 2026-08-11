@@ -798,6 +798,38 @@ func testTLS12Connection(c client.Client, namespace, labelSelector, podName, con
 	return nil
 }
 
+func waitForTLSConfigurationReady(c client.Client, namespace, labelSelector string) error {
+	ctx := context.Background()
+	timeout := 2 * time.Minute
+	interval := 5 * time.Second
+
+	return wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
+		podName, err := findRunningPod(c, namespace, labelSelector)
+		if err != nil {
+			log.Printf("  Waiting for pod to be ready: %v", err)
+			return false, nil
+		}
+
+		containerName := DaemonMetricsContainer
+		port := DaemonMetricsPort
+		cmd := []string{"curl", "-v", "--tls-max", "1.3", "--tlsv1.3", "-k", "https://localhost:" + port + "/metrics"}
+
+		output, err := execCommandInPodWithRetry(c, namespace, labelSelector, podName, containerName, cmd)
+		if err != nil {
+			log.Printf("  TLS configuration not ready yet, retrying...")
+			return false, nil
+		}
+
+		if strings.Contains(output, "TLSv1.3") || strings.Contains(output, "HTTP/") || strings.Contains(output, "Unauthorized") {
+			log.Printf("  TLS configuration ready")
+			return true, nil
+		}
+
+		log.Printf("  TLS handshake incomplete, retrying...")
+		return false, nil
+	})
+}
+
 func VerifyIngressNodeFirewallTLSComplianceInPod(c client.Client, namespace, labelSelector string) error {
 	ctx := context.Background()
 
@@ -806,11 +838,6 @@ func VerifyIngressNodeFirewallTLSComplianceInPod(c client.Client, namespace, lab
 		return fmt.Errorf("failed to restart daemon pods: %w", err)
 	}
 
-	// Wait for TLS configuration to propagate to the restarted pods
-	// Extended wait time needed when transitioning between StrictAllComponents profiles
-	log.Printf("Waiting 60 seconds for TLS configuration to propagate to restarted pods...")
-	time.Sleep(60 * time.Second)
-
 	apiserver := &configv1.APIServer{}
 	err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, apiserver)
 	if err != nil {
@@ -818,6 +845,11 @@ func VerifyIngressNodeFirewallTLSComplianceInPod(c client.Client, namespace, lab
 	}
 
 	expectTLS12Reject, description := determineTLSTestBehavior(apiserver)
+
+	log.Printf("Waiting for TLS configuration to propagate to restarted pods...")
+	if err := waitForTLSConfigurationReady(c, namespace, labelSelector); err != nil {
+		return fmt.Errorf("failed waiting for TLS configuration to propagate: %w", err)
+	}
 
 	profileTypeLabel := "<unset>"
 	if apiserver.Spec.TLSSecurityProfile != nil {
