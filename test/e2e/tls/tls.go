@@ -538,6 +538,10 @@ func verifyTLSAdherenceActive(ctx context.Context, c client.Client) error {
 }
 
 func determineTLSTestBehavior(apiserver *configv1.APIServer) (expectTLS12Reject bool, description string) {
+	if apiserver.Spec.TLSSecurityProfile == nil {
+		return false, "No TLS security profile configured: both TLS 1.2 and TLS 1.3 should work"
+	}
+
 	tlsAdherence := string(apiserver.Spec.TLSAdherence)
 	profileType := apiserver.Spec.TLSSecurityProfile.Type
 
@@ -596,11 +600,11 @@ func execCommandInPodWithRetry(c client.Client, namespace, labelSelector, podNam
 			delay := baseDelay * time.Duration(1<<uint(attempt-1))
 			log.Printf("Retry attempt %d/%d after waiting up to %v for pod readiness (previous error: %v)", attempt+1, maxRetries, delay, lastErr)
 
-			var err error
+			var findErr error
 			ctx := context.Background()
 			pollErr := wait.PollUntilContextTimeout(ctx, 1*time.Second, delay, true, func(ctx context.Context) (bool, error) {
-				currentPodName, err = findRunningPod(c, namespace, labelSelector)
-				if err != nil {
+				currentPodName, findErr = findRunningPod(c, namespace, labelSelector)
+				if findErr != nil {
 					return false, nil
 				}
 
@@ -618,7 +622,7 @@ func execCommandInPodWithRetry(c client.Client, namespace, labelSelector, podNam
 			})
 
 			if pollErr != nil {
-				lastErr = fmt.Errorf("failed to find ready pod within %v: %w", delay, err)
+				lastErr = fmt.Errorf("failed to find ready pod within %v (last discovery error: %v): %w", delay, findErr, pollErr)
 				continue
 			}
 			log.Printf("Re-discovered ready pod %s/%s (container: %s)", namespace, currentPodName, currentContainerName)
@@ -710,7 +714,10 @@ func testTLS12Connection(c client.Client, namespace, labelSelector, podName, con
 	if expectReject {
 		log.Printf("Testing TLS 1.2 connection on port %s using curl (should be REJECTED)...", port)
 		cmd := []string{"curl", "-v", "--tls-max", "1.2", "--tlsv1.2", "-k", "https://localhost:" + port + "/metrics"}
-		output, _ := execCommandInPodWithRetry(c, namespace, labelSelector, podName, containerName, cmd)
+		output, err := execCommandInPodWithRetry(c, namespace, labelSelector, podName, containerName, cmd)
+		if err != nil && output == "" {
+			return fmt.Errorf("TLS 1.2 rejection check on port %s produced no curl output; exec failed: %w", port, err)
+		}
 
 		if strings.Contains(output, "TLSv1.2") || (strings.Contains(output, "HTTP/") && !strings.Contains(output, "SSL") && !strings.Contains(output, "alert")) {
 			return fmt.Errorf("TLS 1.2 connection on port %s SUCCEEDED but should have been REJECTED", port)
@@ -747,7 +754,12 @@ func VerifyIngressNodeFirewallTLSComplianceInPod(c client.Client, namespace, lab
 	}
 
 	expectTLS12Reject, description := determineTLSTestBehavior(apiserver)
-	log.Printf("Testing with profile: %s (%s)", apiserver.Spec.TLSSecurityProfile.Type, description)
+
+	profileTypeLabel := "<unset>"
+	if apiserver.Spec.TLSSecurityProfile != nil {
+		profileTypeLabel = string(apiserver.Spec.TLSSecurityProfile.Type)
+	}
+	log.Printf("Testing with profile: %s (%s)", profileTypeLabel, description)
 
 	podList := &corev1.PodList{}
 	err = c.List(ctx, podList, client.InNamespace(namespace), client.MatchingLabels(parseLabelSelector(labelSelector)))

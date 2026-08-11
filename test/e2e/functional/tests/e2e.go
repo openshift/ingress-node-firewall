@@ -38,7 +38,6 @@ import (
 )
 
 const (
-	OpenShiftNameSpace  = "openshift-ingress-node-firewall"
 	daemonLabelSelector = "app=ingress-node-firewall-daemon"
 )
 
@@ -1146,6 +1145,19 @@ var _ = Describe("Ingress Node Firewall", func() {
 		})
 	})
 
+	// TLS Profile Compliance tests modify cluster-scoped configuration:
+	// - FeatureGate.Spec.FeatureSet → CustomNoUpgrade (IRREVERSIBLE)
+	// - APIServer.Spec.TLSSecurityProfile → Modern/Intermediate
+	// - APIServer.Spec.TLSAdherence → StrictAllComponents
+	//
+	// These changes are NOT restored after tests complete. This is acceptable because:
+	// 1. CI runs on ephemeral baremetal clusters that are destroyed after tests
+	// 2. Restoration would add 30+ minutes to already long test duration
+	// 3. FeatureGate CustomNoUpgrade transition cannot be reversed
+	//
+	// WARNING for local development: Running these tests will permanently set
+	// your cluster to CustomNoUpgrade mode (blocks upgrades) and leave it with
+	// Modern TLS profile. Only run on clusters you can destroy afterwards.
 	Context("TLS Profile Compliance", func() {
 		var config *ingressnodefwv1alpha1.IngressNodeFirewallConfig
 
@@ -1191,8 +1203,8 @@ var _ = Describe("Ingress Node Firewall", func() {
 					}
 					Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Failed to configure %s TLS profile with %s", profile.profileType, profile.adherencePolicy))
 
-					By(fmt.Sprintf("Testing TLS compliance for ingress-node-firewall-daemon in %s (port 9301)", OpenShiftNameSpace))
-					err = tls.VerifyIngressNodeFirewallTLSComplianceInPod(testclient.Client, OpenShiftNameSpace, daemonLabelSelector)
+					By(fmt.Sprintf("Testing TLS compliance for ingress-node-firewall-daemon in %s (port 9301)", OperatorNameSpace))
+					err = tls.VerifyIngressNodeFirewallTLSComplianceInPod(testclient.Client, OperatorNameSpace, daemonLabelSelector)
 					Expect(err).NotTo(HaveOccurred(), "TLS compliance verification failed")
 				})
 			})
