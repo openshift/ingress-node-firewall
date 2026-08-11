@@ -758,14 +758,21 @@ func testTLS12Connection(c client.Client, namespace, labelSelector, podName, con
 		cmd := []string{"curl", "-v", "--tls-max", "1.2", "--tlsv1.2", "-k", "https://localhost:" + port + "/metrics"}
 		output, err := execCommandInPodWithRetry(c, namespace, labelSelector, podName, containerName, cmd)
 
-		// When expecting rejection, SSL errors (exit code 35, 60) are acceptable if curl produced verbose output
+		// When expecting rejection, SSL errors (exit code 35, 60) are acceptable
 		if err != nil {
+			errStr := err.Error()
+			// Exit code 35 means SSL handshake failed - this is expected for rejection
+			if strings.Contains(errStr, "exit code 35") || strings.Contains(errStr, "exit code 60") {
+				log.Printf("Port %s TLS 1.2 connection correctly rejected (SSL handshake failed with exit code 35/60)", port)
+				return nil
+			}
+
 			if output != "" && (strings.Contains(output, "SSL") || strings.Contains(output, "alert") || strings.Contains(output, "error")) {
 				// SSL error with output is expected for rejection - this is success
 				log.Printf("Port %s TLS 1.2 connection correctly rejected (SSL handshake failed)", port)
 				return nil
 			}
-			// Error with no useful output - retry may have consumed all attempts
+			// Error with no useful output and not exit code 35/60 - unexpected failure
 			if output == "" {
 				return fmt.Errorf("TLS 1.2 rejection check on port %s produced no curl output; exec failed: %w", port, err)
 			}
@@ -798,6 +805,10 @@ func VerifyIngressNodeFirewallTLSComplianceInPod(c client.Client, namespace, lab
 	if err := RestartDaemonPods(c, namespace, labelSelector); err != nil {
 		return fmt.Errorf("failed to restart daemon pods: %w", err)
 	}
+
+	// Wait for TLS configuration to propagate to the restarted pods
+	log.Printf("Waiting 30 seconds for TLS configuration to propagate to restarted pods...")
+	time.Sleep(30 * time.Second)
 
 	apiserver := &configv1.APIServer{}
 	err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, apiserver)
