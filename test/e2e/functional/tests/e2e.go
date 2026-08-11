@@ -1184,9 +1184,9 @@ var _ = Describe("Ingress Node Firewall", func() {
 		}
 
 		tlsProfiles := []tlsProfileTest{
-			{configv1.TLSProfileIntermediateType, configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly},
 			{configv1.TLSProfileModernType, configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly},
 			{configv1.TLSProfileModernType, configv1.TLSAdherencePolicyStrictAllComponents},
+			{configv1.TLSProfileIntermediateType, configv1.TLSAdherencePolicyStrictAllComponents},
 		}
 
 		It("should verify ingress-node-firewall TLS compliance across all profiles", func() {
