@@ -807,8 +807,9 @@ func VerifyIngressNodeFirewallTLSComplianceInPod(c client.Client, namespace, lab
 	}
 
 	// Wait for TLS configuration to propagate to the restarted pods
-	log.Printf("Waiting 30 seconds for TLS configuration to propagate to restarted pods...")
-	time.Sleep(30 * time.Second)
+	// Extended wait time needed when transitioning between StrictAllComponents profiles
+	log.Printf("Waiting 60 seconds for TLS configuration to propagate to restarted pods...")
+	time.Sleep(60 * time.Second)
 
 	apiserver := &configv1.APIServer{}
 	err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, apiserver)
