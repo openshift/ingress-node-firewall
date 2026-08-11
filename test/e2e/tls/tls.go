@@ -2,8 +2,10 @@ package tls
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"slices"
 	"strings"
 	"time"
 
@@ -47,8 +49,8 @@ func (e *TLSAdherenceNotSupportedError) Error() string {
 }
 
 func IsTLSAdherenceNotSupported(err error) bool {
-	_, ok := err.(*TLSAdherenceNotSupportedError)
-	return ok
+	var target *TLSAdherenceNotSupportedError
+	return errors.As(err, &target)
 }
 
 func parseLabelSelector(selector string) map[string]string {
@@ -69,39 +71,39 @@ func IsOpenShiftCluster(c *testclient.ClientSet) bool {
 	return err == nil
 }
 
-func ConfigureTLSProfileWithAdherence(c *testclient.ClientSet, tlsProfileType string, tlsAdherencePolicy string) error {
+func ConfigureTLSProfileWithAdherence(c *testclient.ClientSet, tlsProfileType configv1.TLSProfileType, tlsAdherencePolicy configv1.TLSAdherencePolicy) error {
 	overallStartTime := time.Now()
 	log.Printf("=== Configuring %s TLS Profile with %s (started: %s) ===",
 		tlsProfileType, tlsAdherencePolicy, overallStartTime.Format("15:04:05"))
 
 	ctx := context.Background()
 
-	log.Println("Step 2: Checking and enabling TLSAdherence feature gate")
-	featureGateEnabled, err := enableTLSAdherenceFeatureGate(ctx, c)
+	log.Println("Step 1: Checking and enabling TLSAdherence feature gate")
+	alreadyEnabled, err := enableTLSAdherenceFeatureGate(ctx, c)
 	if err != nil {
 		return err
 	}
-	if !featureGateEnabled {
+	if !alreadyEnabled {
 		log.Println("  Feature gate enabled and cluster stabilized")
 	}
 
-	log.Printf("Step 3: Configuring APIServer with %s TLS profile and tlsAdherence=%s", tlsProfileType, tlsAdherencePolicy)
+	log.Printf("Step 2: Configuring APIServer with %s TLS profile and tlsAdherence=%s", tlsProfileType, tlsAdherencePolicy)
 	if err := configureAPIServerTLSProfile(ctx, c, tlsProfileType, tlsAdherencePolicy); err != nil {
 		return err
 	}
 
-	log.Println("Step 4: Waiting for cluster to stabilize after TLS profile configuration")
-	requiresMCPRollout := (tlsProfileType == "Modern" && (tlsAdherencePolicy == "LegacyAdheringComponentsOnly" || tlsAdherencePolicy == "StrictAllComponents"))
+	log.Println("Step 3: Waiting for cluster to stabilize after TLS profile configuration")
+	requiresMCPRollout := (tlsProfileType == configv1.TLSProfileModernType && (tlsAdherencePolicy == configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly || tlsAdherencePolicy == configv1.TLSAdherencePolicyStrictAllComponents))
 	if err := waitForClusterStability(ctx, c, requiresMCPRollout); err != nil {
 		return err
 	}
 
-	log.Println("Step 5: Verifying TLSAdherence is active in feature gate status")
+	log.Println("Step 4: Verifying TLSAdherence is active in feature gate status")
 	if err := verifyTLSAdherenceActive(ctx, c); err != nil {
 		return err
 	}
 
-	log.Println("Step 6: Verifying APIServer TLS profile configuration")
+	log.Println("Step 5: Verifying APIServer TLS profile configuration")
 	if err := verifyAPIServerTLSProfile(ctx, c, tlsProfileType, tlsAdherencePolicy); err != nil {
 		return err
 	}
@@ -151,7 +153,7 @@ func enableTLSAdherenceFeatureGate(ctx context.Context, c client.Client) (bool, 
 	return false, nil
 }
 
-func configureAPIServerTLSProfile(ctx context.Context, c client.Client, tlsProfileType string, tlsAdherencePolicy string) error {
+func configureAPIServerTLSProfile(ctx context.Context, c client.Client, tlsProfileType configv1.TLSProfileType, tlsAdherencePolicy configv1.TLSAdherencePolicy) error {
 	if err := patchAPIServerTLSProfile(ctx, c, tlsProfileType, tlsAdherencePolicy); err != nil {
 		return err
 	}
@@ -201,23 +203,11 @@ func waitForClusterStability(ctx context.Context, c client.Client, requiresMCPRo
 	return nil
 }
 
-func verifyAPIServerTLSProfile(ctx context.Context, c client.Client, tlsProfileType string, tlsAdherencePolicy string) error {
+func verifyAPIServerTLSProfile(ctx context.Context, c client.Client, tlsProfileType configv1.TLSProfileType, tlsAdherencePolicy configv1.TLSAdherencePolicy) error {
 	apiserver := &configv1.APIServer{}
 	err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, apiserver)
 	if err != nil {
 		return fmt.Errorf("failed to get APIServer: %w", err)
-	}
-
-	var expectedProfileType configv1.TLSProfileType
-	switch tlsProfileType {
-	case "Modern":
-		expectedProfileType = configv1.TLSProfileModernType
-	case "Intermediate":
-		expectedProfileType = configv1.TLSProfileIntermediateType
-	case "Old":
-		expectedProfileType = configv1.TLSProfileOldType
-	default:
-		return fmt.Errorf("unsupported TLS profile type: %s", tlsProfileType)
 	}
 
 	if apiserver.Spec.TLSSecurityProfile == nil {
@@ -225,12 +215,12 @@ func verifyAPIServerTLSProfile(ctx context.Context, c client.Client, tlsProfileT
 	}
 
 	actualProfileType := apiserver.Spec.TLSSecurityProfile.Type
-	if actualProfileType != expectedProfileType {
-		return fmt.Errorf("APIServer TLS profile type mismatch: actual=%s, expected=%s", actualProfileType, expectedProfileType)
+	if actualProfileType != tlsProfileType {
+		return fmt.Errorf("APIServer TLS profile type mismatch: actual=%s, expected=%s", actualProfileType, tlsProfileType)
 	}
 	log.Printf("  TLS profile type verified: %s", tlsProfileType)
 
-	actualAdherence := string(apiserver.Spec.TLSAdherence)
+	actualAdherence := apiserver.Spec.TLSAdherence
 	if tlsAdherencePolicy != "" && actualAdherence == "" {
 		return &TLSAdherenceNotSupportedError{
 			Message: fmt.Sprintf("tlsAdherence API field not supported in this cluster version (tried to set %s but got empty value)", tlsAdherencePolicy),
@@ -278,7 +268,7 @@ func patchFeatureGate(ctx context.Context, c client.Client, fg *configv1.Feature
 	return nil
 }
 
-func patchAPIServerTLSProfile(ctx context.Context, c client.Client, tlsProfileType string, tlsAdherencePolicy string) error {
+func patchAPIServerTLSProfile(ctx context.Context, c client.Client, tlsProfileType configv1.TLSProfileType, tlsAdherencePolicy configv1.TLSAdherencePolicy) error {
 	apiserver := &configv1.APIServer{}
 	err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, apiserver)
 	if err != nil {
@@ -286,17 +276,17 @@ func patchAPIServerTLSProfile(ctx context.Context, c client.Client, tlsProfileTy
 	}
 
 	switch tlsProfileType {
-	case "Modern":
+	case configv1.TLSProfileModernType:
 		apiserver.Spec.TLSSecurityProfile = &configv1.TLSSecurityProfile{
 			Type:   configv1.TLSProfileModernType,
 			Modern: &configv1.ModernTLSProfile{},
 		}
-	case "Intermediate":
+	case configv1.TLSProfileIntermediateType:
 		apiserver.Spec.TLSSecurityProfile = &configv1.TLSSecurityProfile{
 			Type:         configv1.TLSProfileIntermediateType,
 			Intermediate: &configv1.IntermediateTLSProfile{},
 		}
-	case "Old":
+	case configv1.TLSProfileOldType:
 		apiserver.Spec.TLSSecurityProfile = &configv1.TLSSecurityProfile{
 			Type: configv1.TLSProfileOldType,
 			Old:  &configv1.OldTLSProfile{},
@@ -305,7 +295,7 @@ func patchAPIServerTLSProfile(ctx context.Context, c client.Client, tlsProfileTy
 		return fmt.Errorf("unsupported TLS profile type: %s (must be Modern, Intermediate, or Old)", tlsProfileType)
 	}
 
-	apiserver.Spec.TLSAdherence = configv1.TLSAdherencePolicy(tlsAdherencePolicy)
+	apiserver.Spec.TLSAdherence = tlsAdherencePolicy
 
 	err = c.Update(ctx, apiserver)
 	if err != nil {
@@ -497,12 +487,9 @@ func waitForNodesStability(c client.Client, timeout time.Duration) error {
 }
 
 func isNodeReady(node *corev1.Node) bool {
-	for _, condition := range node.Status.Conditions {
-		if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(node.Status.Conditions, func(condition corev1.NodeCondition) bool {
+		return condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue
+	})
 }
 
 func verifyTLSAdherenceActive(ctx context.Context, c client.Client) error {
@@ -542,10 +529,10 @@ func determineTLSTestBehavior(apiserver *configv1.APIServer) (expectTLS12Reject 
 		return false, "No TLS security profile configured: both TLS 1.2 and TLS 1.3 should work"
 	}
 
-	tlsAdherence := string(apiserver.Spec.TLSAdherence)
+	tlsAdherence := apiserver.Spec.TLSAdherence
 	profileType := apiserver.Spec.TLSSecurityProfile.Type
 
-	if profileType == configv1.TLSProfileModernType && tlsAdherence == "StrictAllComponents" {
+	if profileType == configv1.TLSProfileModernType && tlsAdherence == configv1.TLSAdherencePolicyStrictAllComponents {
 		return true, "Modern with StrictAllComponents: TLS 1.3 only, TLS 1.2 should be rejected"
 	}
 
@@ -565,7 +552,7 @@ func findRunningPod(c client.Client, namespace, labelSelector string) (string, e
 	}
 
 	for _, pod := range podList.Items {
-		if pod.Status.Phase == "Running" {
+		if pod.Status.Phase == corev1.PodRunning && podutil.IsPodReady(&pod) {
 			return pod.Name, nil
 		}
 	}
