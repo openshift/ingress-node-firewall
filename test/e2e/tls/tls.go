@@ -569,7 +569,6 @@ func isTransientExecError(err error) bool {
 	return strings.Contains(errStr, "container not found") ||
 		strings.Contains(errStr, "pod not found") ||
 		strings.Contains(errStr, "unable to upgrade connection") ||
-		strings.Contains(errStr, "exit code 35") ||
 		strings.Contains(errStr, "exit code 7") ||
 		strings.Contains(errStr, "connection refused") ||
 		strings.Contains(errStr, "connection reset")
@@ -643,6 +642,61 @@ func execCommandInPodWithRetry(c client.Client, namespace, labelSelector, podNam
 	return "", fmt.Errorf("exec command failed after %d retries: %w", maxRetries, lastErr)
 }
 
+func RestartDaemonPods(c client.Client, namespace, labelSelector string) error {
+	log.Printf("Restarting daemon pods with selector %s in namespace %s", labelSelector, namespace)
+
+	ctx := context.Background()
+	podList := &corev1.PodList{}
+	err := c.List(ctx, podList, client.InNamespace(namespace), client.MatchingLabels(parseLabelSelector(labelSelector)))
+	if err != nil {
+		return fmt.Errorf("failed to list pods: %w", err)
+	}
+
+	oldPodUIDs := make(map[string]bool)
+	for _, pod := range podList.Items {
+		oldPodUIDs[string(pod.UID)] = true
+		log.Printf("  Deleting pod %s (UID: %s)", pod.Name, pod.UID)
+		if err := c.Delete(ctx, &pod, client.GracePeriodSeconds(0)); err != nil {
+			log.Printf("  Warning: failed to delete pod %s: %v", pod.Name, err)
+		}
+	}
+
+	log.Printf("Waiting for new daemon pods to be created and ready...")
+	timeout := 5 * time.Minute
+	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		newPodList := &corev1.PodList{}
+		err := c.List(ctx, newPodList, client.InNamespace(namespace), client.MatchingLabels(parseLabelSelector(labelSelector)))
+		if err != nil {
+			log.Printf("Error listing pods: %v", err)
+			return false, nil
+		}
+
+		if len(newPodList.Items) == 0 {
+			log.Printf("No pods found yet, waiting...")
+			return false, nil
+		}
+
+		allNewAndReady := true
+		for _, pod := range newPodList.Items {
+			if oldPodUIDs[string(pod.UID)] {
+				log.Printf("Pod %s is still the old pod (UID: %s), waiting for deletion...", pod.Name, pod.UID)
+				allNewAndReady = false
+				continue
+			}
+
+			if pod.Status.Phase != corev1.PodRunning || !podutil.IsPodReady(&pod) {
+				allNewAndReady = false
+			}
+		}
+
+		if allNewAndReady {
+			log.Printf("All %d new daemon pods are ready", len(newPodList.Items))
+			return true, nil
+		}
+		return false, nil
+	})
+}
+
 func WaitForDaemonPodsReady(c client.Client, namespace, labelSelector string, timeout time.Duration) error {
 	log.Printf("Waiting for daemon pods with selector %s to be ready in namespace %s", labelSelector, namespace)
 
@@ -703,8 +757,18 @@ func testTLS12Connection(c client.Client, namespace, labelSelector, podName, con
 		log.Printf("Testing TLS 1.2 connection on port %s using curl (should be REJECTED)...", port)
 		cmd := []string{"curl", "-v", "--tls-max", "1.2", "--tlsv1.2", "-k", "https://localhost:" + port + "/metrics"}
 		output, err := execCommandInPodWithRetry(c, namespace, labelSelector, podName, containerName, cmd)
-		if err != nil && output == "" {
-			return fmt.Errorf("TLS 1.2 rejection check on port %s produced no curl output; exec failed: %w", port, err)
+
+		// When expecting rejection, SSL errors (exit code 35, 60) are acceptable if curl produced verbose output
+		if err != nil {
+			if output != "" && (strings.Contains(output, "SSL") || strings.Contains(output, "alert") || strings.Contains(output, "error")) {
+				// SSL error with output is expected for rejection - this is success
+				log.Printf("Port %s TLS 1.2 connection correctly rejected (SSL handshake failed)", port)
+				return nil
+			}
+			// Error with no useful output - retry may have consumed all attempts
+			if output == "" {
+				return fmt.Errorf("TLS 1.2 rejection check on port %s produced no curl output; exec failed: %w", port, err)
+			}
 		}
 
 		if strings.Contains(output, "TLSv1.2") || (strings.Contains(output, "HTTP/") && !strings.Contains(output, "SSL") && !strings.Contains(output, "alert")) {
@@ -730,9 +794,9 @@ func testTLS12Connection(c client.Client, namespace, labelSelector, podName, con
 func VerifyIngressNodeFirewallTLSComplianceInPod(c client.Client, namespace, labelSelector string) error {
 	ctx := context.Background()
 
-	log.Printf("Waiting for daemon pods to be ready before TLS compliance testing...")
-	if err := WaitForDaemonPodsReady(c, namespace, labelSelector, 2*time.Minute); err != nil {
-		return fmt.Errorf("daemon pods did not become ready: %w", err)
+	log.Printf("Restarting daemon pods to ensure they pick up the new TLS configuration...")
+	if err := RestartDaemonPods(c, namespace, labelSelector); err != nil {
+		return fmt.Errorf("failed to restart daemon pods: %w", err)
 	}
 
 	apiserver := &configv1.APIServer{}
