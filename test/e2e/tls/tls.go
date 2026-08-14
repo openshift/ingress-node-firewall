@@ -1,0 +1,903 @@
+package tls
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"slices"
+	"strings"
+	"time"
+
+	configv1 "github.com/openshift/api/config/v1"
+	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
+	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	testclient "github.com/openshift/ingress-node-firewall/test/e2e/client"
+	executil "github.com/openshift/ingress-node-firewall/test/e2e/exec"
+)
+
+const (
+	MCPRolloutStartTimeout    = 10 * time.Minute
+	MCPRolloutCompleteTimeout = 60 * time.Minute
+	NodeStabilityTimeout      = 60 * time.Minute
+	OperatorSettleTimeMinutes = 60
+
+	PodExecMaxRetries = 3
+	PodExecBaseDelay  = 5 * time.Second
+
+	MCPPollingInterval      = 10 * time.Second
+	OperatorPollingInterval = 10 * time.Second
+	NodePollingInterval     = 5 * time.Second
+
+	DaemonMetricsPort      = "9301"
+	DaemonMetricsContainer = "kube-rbac-proxy"
+)
+
+type TLSAdherenceNotSupportedError struct {
+	Message string
+}
+
+func (e *TLSAdherenceNotSupportedError) Error() string {
+	return e.Message
+}
+
+func IsTLSAdherenceNotSupported(err error) bool {
+	var target *TLSAdherenceNotSupportedError
+	return errors.As(err, &target)
+}
+
+func parseLabelSelector(selector string) map[string]string {
+	labels := make(map[string]string)
+	parts := strings.Split(selector, ",")
+	for _, part := range parts {
+		kv := strings.Split(strings.TrimSpace(part), "=")
+		if len(kv) == 2 {
+			labels[kv[0]] = kv[1]
+		}
+	}
+	return labels
+}
+
+func IsOpenShiftCluster(c *testclient.ClientSet) bool {
+	fg := &configv1.FeatureGate{}
+	err := c.Get(context.Background(), types.NamespacedName{Name: "cluster"}, fg)
+	return err == nil
+}
+
+func ConfigureTLSProfileWithAdherence(c *testclient.ClientSet, tlsProfileType configv1.TLSProfileType, tlsAdherencePolicy configv1.TLSAdherencePolicy) error {
+	overallStartTime := time.Now()
+	log.Printf("=== Configuring %s TLS Profile with %s (started: %s) ===",
+		tlsProfileType, tlsAdherencePolicy, overallStartTime.Format("15:04:05"))
+
+	ctx := context.Background()
+
+	log.Println("Step 1: Checking and enabling TLSAdherence feature gate")
+	alreadyEnabled, err := enableTLSAdherenceFeatureGate(ctx, c)
+	if err != nil {
+		return err
+	}
+	if !alreadyEnabled {
+		log.Println("  Feature gate enabled and cluster stabilized")
+	}
+
+	log.Printf("Step 2: Configuring APIServer with %s TLS profile and tlsAdherence=%s", tlsProfileType, tlsAdherencePolicy)
+	if err := configureAPIServerTLSProfile(ctx, c, tlsProfileType, tlsAdherencePolicy); err != nil {
+		return err
+	}
+
+	log.Println("Step 3: Waiting for cluster to stabilize after TLS profile configuration")
+	requiresMCPRollout := ((tlsProfileType == configv1.TLSProfileModernType && (tlsAdherencePolicy == configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly || tlsAdherencePolicy == configv1.TLSAdherencePolicyStrictAllComponents)) ||
+		(tlsProfileType == configv1.TLSProfileIntermediateType && tlsAdherencePolicy == configv1.TLSAdherencePolicyStrictAllComponents))
+	if err := waitForClusterStability(ctx, c, requiresMCPRollout); err != nil {
+		return err
+	}
+
+	log.Println("Step 4: Verifying TLSAdherence is active in feature gate status")
+	if err := verifyTLSAdherenceActive(ctx, c); err != nil {
+		return err
+	}
+
+	log.Println("Step 5: Verifying APIServer TLS profile configuration")
+	if err := verifyAPIServerTLSProfile(ctx, c, tlsProfileType, tlsAdherencePolicy); err != nil {
+		return err
+	}
+
+	log.Printf("=== %s TLS Profile successfully configured (total time: %v) ===",
+		tlsProfileType, time.Since(overallStartTime))
+	return nil
+}
+
+func enableTLSAdherenceFeatureGate(ctx context.Context, c client.Client) (bool, error) {
+	fg := &configv1.FeatureGate{}
+	err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, fg)
+	if err != nil {
+		return false, fmt.Errorf("failed to get featuregate: %w", err)
+	}
+
+	if isAlreadyEnabled(fg) {
+		log.Println("  TLSAdherence feature gate is already enabled")
+		return true, nil
+	}
+
+	log.Println("  Enabling TLSAdherence feature gate")
+	if err := patchFeatureGate(ctx, c, fg); err != nil {
+		return false, fmt.Errorf("failed to patch FeatureGate: %w", err)
+	}
+
+	log.Println("  Waiting for MCP rollout to start")
+	if err := waitForMCPRolloutStart(c, MCPRolloutStartTimeout); err != nil {
+		log.Printf("  WARNING: MCP rollout did not start within timeout: %v", err)
+	} else {
+		log.Println("  Waiting for MCP rollout to complete")
+		if err := waitForAllMCPsComplete(c, MCPRolloutCompleteTimeout); err != nil {
+			return false, fmt.Errorf("failed waiting for MCP rollout: %w", err)
+		}
+	}
+
+	log.Println("  Waiting for nodes to be ready")
+	if err := waitForNodesStability(c, NodeStabilityTimeout); err != nil {
+		return false, fmt.Errorf("failed waiting for nodes: %w", err)
+	}
+
+	log.Println("  Waiting for cluster operators to settle")
+	if err := waitForOperatorsToSettle(ctx, c, OperatorSettleTimeMinutes); err != nil {
+		return false, fmt.Errorf("failed waiting for operators: %w", err)
+	}
+
+	return false, nil
+}
+
+func configureAPIServerTLSProfile(ctx context.Context, c client.Client, tlsProfileType configv1.TLSProfileType, tlsAdherencePolicy configv1.TLSAdherencePolicy) error {
+	if err := patchAPIServerTLSProfile(ctx, c, tlsProfileType, tlsAdherencePolicy); err != nil {
+		return err
+	}
+	return nil
+}
+
+func waitForClusterStability(ctx context.Context, c client.Client, requiresMCPRollout bool) error {
+	if requiresMCPRollout {
+		mcpsComplete, err := areAllMCPsComplete(c)
+		if err != nil {
+			return fmt.Errorf("failed to check MCP status: %w", err)
+		}
+
+		if !mcpsComplete {
+			log.Println("  Waiting for MCP rollout to start")
+			if err := waitForMCPRolloutStart(c, MCPRolloutStartTimeout); err != nil {
+				return err
+			}
+
+			log.Println("  Waiting for MCP rollout to complete")
+			if err := waitForAllMCPsComplete(c, MCPRolloutCompleteTimeout); err != nil {
+				return err
+			}
+		}
+
+		log.Println("  Waiting for nodes to be ready")
+		if err := waitForNodesStability(c, NodeStabilityTimeout); err != nil {
+			return err
+		}
+
+		log.Println("  Waiting for cluster operators to settle")
+		if err := waitForOperatorsToSettle(ctx, c, OperatorSettleTimeMinutes); err != nil {
+			return err
+		}
+	} else {
+		log.Println("  Waiting for cluster operators to settle")
+		if err := waitForOperatorsToSettle(ctx, c, OperatorSettleTimeMinutes); err != nil {
+			return err
+		}
+
+		log.Println("  Waiting for nodes to be ready")
+		if err := waitForNodesStability(c, NodeStabilityTimeout); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func verifyAPIServerTLSProfile(ctx context.Context, c client.Client, tlsProfileType configv1.TLSProfileType, tlsAdherencePolicy configv1.TLSAdherencePolicy) error {
+	apiserver := &configv1.APIServer{}
+	err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, apiserver)
+	if err != nil {
+		return fmt.Errorf("failed to get APIServer: %w", err)
+	}
+
+	if apiserver.Spec.TLSSecurityProfile == nil {
+		return fmt.Errorf("APIServer TLS security profile is nil, expected %s", tlsProfileType)
+	}
+
+	actualProfileType := apiserver.Spec.TLSSecurityProfile.Type
+	if actualProfileType != tlsProfileType {
+		return fmt.Errorf("APIServer TLS profile type mismatch: actual=%s, expected=%s", actualProfileType, tlsProfileType)
+	}
+	log.Printf("  TLS profile type verified: %s", tlsProfileType)
+
+	actualAdherence := apiserver.Spec.TLSAdherence
+	if tlsAdherencePolicy != "" && actualAdherence == "" {
+		return &TLSAdherenceNotSupportedError{
+			Message: fmt.Sprintf("tlsAdherence API field not supported in this cluster version (tried to set %s but got empty value)", tlsAdherencePolicy),
+		}
+	}
+
+	if actualAdherence != "" && actualAdherence != tlsAdherencePolicy {
+		return fmt.Errorf("APIServer tlsAdherence mismatch: actual=%s, expected=%s", actualAdherence, tlsAdherencePolicy)
+	}
+
+	if actualAdherence == "" {
+		log.Println("  TLS adherence policy verified: <empty> (default)")
+	} else {
+		log.Printf("  TLS adherence policy verified: %s", actualAdherence)
+	}
+
+	return nil
+}
+
+func isAlreadyEnabled(fg *configv1.FeatureGate) bool {
+	if fg.Spec.FeatureSet == configv1.CustomNoUpgrade && fg.Spec.CustomNoUpgrade != nil {
+		for _, enabled := range fg.Spec.CustomNoUpgrade.Enabled {
+			if enabled == "TLSAdherence" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func patchFeatureGate(ctx context.Context, c client.Client, fg *configv1.FeatureGate) error {
+	if fg.Spec.FeatureSet == configv1.CustomNoUpgrade && fg.Spec.CustomNoUpgrade != nil {
+		fg.Spec.CustomNoUpgrade.Enabled = append(fg.Spec.CustomNoUpgrade.Enabled, "TLSAdherence")
+	} else {
+		fg.Spec.FeatureSet = configv1.CustomNoUpgrade
+		fg.Spec.CustomNoUpgrade = &configv1.CustomFeatureGates{
+			Enabled: []configv1.FeatureGateName{"TLSAdherence"},
+		}
+	}
+
+	err := c.Update(ctx, fg)
+	if err != nil {
+		return fmt.Errorf("failed to update featuregate: %w", err)
+	}
+	return nil
+}
+
+func patchAPIServerTLSProfile(ctx context.Context, c client.Client, tlsProfileType configv1.TLSProfileType, tlsAdherencePolicy configv1.TLSAdherencePolicy) error {
+	apiserver := &configv1.APIServer{}
+	err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, apiserver)
+	if err != nil {
+		return fmt.Errorf("failed to get apiserver: %w", err)
+	}
+
+	switch tlsProfileType {
+	case configv1.TLSProfileModernType:
+		apiserver.Spec.TLSSecurityProfile = &configv1.TLSSecurityProfile{
+			Type:   configv1.TLSProfileModernType,
+			Modern: &configv1.ModernTLSProfile{},
+		}
+	case configv1.TLSProfileIntermediateType:
+		apiserver.Spec.TLSSecurityProfile = &configv1.TLSSecurityProfile{
+			Type:         configv1.TLSProfileIntermediateType,
+			Intermediate: &configv1.IntermediateTLSProfile{},
+		}
+	case configv1.TLSProfileOldType:
+		apiserver.Spec.TLSSecurityProfile = &configv1.TLSSecurityProfile{
+			Type: configv1.TLSProfileOldType,
+			Old:  &configv1.OldTLSProfile{},
+		}
+	default:
+		return fmt.Errorf("unsupported TLS profile type: %s (must be Modern, Intermediate, or Old)", tlsProfileType)
+	}
+
+	apiserver.Spec.TLSAdherence = tlsAdherencePolicy
+
+	err = c.Update(ctx, apiserver)
+	if err != nil {
+		return fmt.Errorf("failed to update apiserver: %w", err)
+	}
+
+	return nil
+}
+
+func areAllMCPsComplete(c client.Client) (bool, error) {
+	ctx := context.Background()
+	mcpList := &mcfgv1.MachineConfigPoolList{}
+	err := c.List(ctx, mcpList)
+	if err != nil {
+		return false, fmt.Errorf("failed to list MCPs: %w", err)
+	}
+
+	for _, mcp := range mcpList.Items {
+		if mcp.Status.MachineCount == 0 {
+			continue
+		}
+
+		updated := false
+		updating := false
+
+		for _, cond := range mcp.Status.Conditions {
+			if cond.Type == mcfgv1.MachineConfigPoolUpdated && cond.Status == corev1.ConditionTrue {
+				updated = true
+			}
+			if cond.Type == mcfgv1.MachineConfigPoolUpdating && cond.Status == corev1.ConditionTrue {
+				updating = true
+			}
+		}
+
+		if !updated || updating {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+func waitForMCPRolloutStart(c client.Client, timeout time.Duration) error {
+	ctx := context.Background()
+	return wait.PollUntilContextTimeout(ctx, MCPPollingInterval, timeout, true, func(ctx context.Context) (bool, error) {
+		mcpList := &mcfgv1.MachineConfigPoolList{}
+		err := c.List(ctx, mcpList)
+		if err != nil {
+			return false, err
+		}
+
+		for _, mcp := range mcpList.Items {
+			for _, cond := range mcp.Status.Conditions {
+				if cond.Type == mcfgv1.MachineConfigPoolUpdating && cond.Status == corev1.ConditionTrue {
+					log.Printf("    MCP %s has started updating", mcp.Name)
+					return true, nil
+				}
+			}
+		}
+		return false, nil
+	})
+}
+
+func waitForAllMCPsComplete(c client.Client, timeout time.Duration) error {
+	ctx := context.Background()
+	mcpList := &mcfgv1.MachineConfigPoolList{}
+	err := c.List(ctx, mcpList)
+	if err != nil {
+		return fmt.Errorf("failed to list MCPs: %w", err)
+	}
+	mcps := mcpList.Items
+
+	for _, mcp := range mcps {
+		if mcp.Status.MachineCount == 0 {
+			continue
+		}
+
+		log.Printf("    Waiting for MCP %s (%d machines)", mcp.Name, mcp.Status.MachineCount)
+		if err := waitForMCPComplete(c, mcp.Name, timeout); err != nil {
+			return fmt.Errorf("MCP %s did not complete: %w", mcp.Name, err)
+		}
+	}
+
+	return nil
+}
+
+func waitForMCPComplete(c client.Client, mcpName string, timeout time.Duration) error {
+	ctx := context.Background()
+	return wait.PollUntilContextTimeout(ctx, 30*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		mcp := &mcfgv1.MachineConfigPool{}
+		err := c.Get(ctx, types.NamespacedName{Name: mcpName}, mcp)
+		if err != nil {
+			return false, nil
+		}
+
+		updated := false
+		for _, cond := range mcp.Status.Conditions {
+			if cond.Type == mcfgv1.MachineConfigPoolUpdated && cond.Status == corev1.ConditionTrue {
+				updated = true
+				break
+			}
+		}
+
+		if updated && mcp.Status.UpdatedMachineCount == mcp.Status.MachineCount {
+			return true, nil
+		}
+
+		log.Printf("      MCP %s: %d/%d machines updated (waiting...)",
+			mcpName, mcp.Status.UpdatedMachineCount, mcp.Status.MachineCount)
+		return false, nil
+	})
+}
+
+func waitForOperatorsToSettle(ctx context.Context, c client.Client, waitTimeMinutes int) error {
+	return wait.PollUntilContextTimeout(ctx, 10*time.Second, time.Duration(waitTimeMinutes)*time.Minute, true, func(ctx context.Context) (bool, error) {
+		coList := &configv1.ClusterOperatorList{}
+		err := c.List(ctx, coList)
+		if err != nil {
+			return false, nil
+		}
+
+		unsettled := []string{}
+		for _, co := range coList.Items {
+			available, degraded, progressing := getOperatorConditions(&co)
+
+			if available && !degraded && !progressing {
+				continue
+			}
+
+			if !available {
+				unsettled = append(unsettled, fmt.Sprintf("%s: Available=False", co.Name))
+			}
+			if degraded {
+				unsettled = append(unsettled, fmt.Sprintf("%s: Degraded=True", co.Name))
+			}
+			if progressing {
+				unsettled = append(unsettled, fmt.Sprintf("%s: Progressing=True", co.Name))
+			}
+		}
+
+		if len(unsettled) > 0 {
+			log.Printf("    Waiting for operators to settle: %s", strings.Join(unsettled, ", "))
+			return false, nil
+		}
+
+		return true, nil
+	})
+}
+
+func getOperatorConditions(co *configv1.ClusterOperator) (available, degraded, progressing bool) {
+	for _, cond := range co.Status.Conditions {
+		switch cond.Type {
+		case configv1.OperatorAvailable:
+			available = (cond.Status == configv1.ConditionTrue)
+		case configv1.OperatorDegraded:
+			degraded = (cond.Status == configv1.ConditionTrue)
+		case configv1.OperatorProgressing:
+			progressing = (cond.Status == configv1.ConditionTrue)
+		}
+	}
+	return
+}
+
+func waitForNodesStability(c client.Client, timeout time.Duration) error {
+	ctx := context.Background()
+	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		nodeList := &corev1.NodeList{}
+		err := c.List(ctx, nodeList)
+		if err != nil {
+			return false, nil
+		}
+		nodes := nodeList.Items
+
+		notReady := []string{}
+		for _, node := range nodes {
+			if !isNodeReady(&node) {
+				notReady = append(notReady, node.Name)
+			}
+		}
+
+		if len(notReady) > 0 {
+			log.Printf("    Waiting for nodes to be ready: %s", strings.Join(notReady, ", "))
+			return false, nil
+		}
+
+		log.Printf("    All %d nodes are ready", len(nodes))
+		return true, nil
+	})
+}
+
+func isNodeReady(node *corev1.Node) bool {
+	return slices.ContainsFunc(node.Status.Conditions, func(condition corev1.NodeCondition) bool {
+		return condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue
+	})
+}
+
+func verifyTLSAdherenceActive(ctx context.Context, c client.Client) error {
+	cv := &configv1.ClusterVersion{}
+	err := c.Get(ctx, types.NamespacedName{Name: "version"}, cv)
+	if err != nil {
+		return fmt.Errorf("failed to get cluster version: %w", err)
+	}
+	version := cv.Status.Desired.Version
+	log.Printf("  Verifying TLSAdherence is active for cluster version %s", version)
+
+	return wait.PollUntilContextTimeout(ctx, 15*time.Second, 15*time.Minute, true, func(ctx context.Context) (bool, error) {
+		fg := &configv1.FeatureGate{}
+		err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, fg)
+		if err != nil {
+			log.Printf("Error getting FeatureGate: %v", err)
+			return false, nil
+		}
+
+		for _, fgStatus := range fg.Status.FeatureGates {
+			if fgStatus.Version == version {
+				for _, enabled := range fgStatus.Enabled {
+					if enabled.Name == "TLSAdherence" {
+						return true, nil
+					}
+				}
+			}
+		}
+
+		log.Printf("TLSAdherence not yet in status for version %s (waiting...)", version)
+		return false, nil
+	})
+}
+
+func determineTLSTestBehavior(apiserver *configv1.APIServer) (expectTLS12Reject bool, description string) {
+	if apiserver.Spec.TLSSecurityProfile == nil {
+		return false, "No TLS security profile configured: both TLS 1.2 and TLS 1.3 should work"
+	}
+
+	tlsAdherence := apiserver.Spec.TLSAdherence
+	profileType := apiserver.Spec.TLSSecurityProfile.Type
+
+	if profileType == configv1.TLSProfileModernType && tlsAdherence == configv1.TLSAdherencePolicyStrictAllComponents {
+		return true, "Modern with StrictAllComponents: TLS 1.3 only, TLS 1.2 should be rejected"
+	}
+
+	return false, "Both TLS 1.2 and TLS 1.3 should work"
+}
+
+func findRunningPod(c client.Client, namespace, labelSelector string) (string, error) {
+	ctx := context.Background()
+	podList := &corev1.PodList{}
+	err := c.List(ctx, podList, client.InNamespace(namespace), client.MatchingLabels(parseLabelSelector(labelSelector)))
+	if err != nil {
+		return "", fmt.Errorf("failed to list pods with selector %s: %w", labelSelector, err)
+	}
+
+	if len(podList.Items) == 0 {
+		return "", fmt.Errorf("no pods found with selector %s in namespace %s", labelSelector, namespace)
+	}
+
+	for _, pod := range podList.Items {
+		if pod.Status.Phase == corev1.PodRunning && podutil.IsPodReady(&pod) {
+			return pod.Name, nil
+		}
+	}
+
+	return "", fmt.Errorf("no running pods found with selector %s", labelSelector)
+}
+
+func isTransientExecError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "container not found") ||
+		strings.Contains(errStr, "pod not found") ||
+		strings.Contains(errStr, "unable to upgrade connection") ||
+		strings.Contains(errStr, "exit code 7") ||
+		strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "connection reset")
+}
+
+func execCommandInPodWithRetry(c client.Client, namespace, labelSelector, podName, containerName string, command []string) (string, error) {
+	const maxRetries = PodExecMaxRetries
+	const baseDelay = PodExecBaseDelay
+
+	var lastErr error
+	currentPodName := podName
+	currentContainerName := containerName
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			delay := baseDelay * time.Duration(1<<uint(attempt-1))
+			log.Printf("Retry attempt %d/%d after waiting up to %v for pod readiness (previous error: %v)", attempt+1, maxRetries, delay, lastErr)
+
+			var findErr error
+			ctx := context.Background()
+			pollErr := wait.PollUntilContextTimeout(ctx, 1*time.Second, delay, true, func(ctx context.Context) (bool, error) {
+				currentPodName, findErr = findRunningPod(c, namespace, labelSelector)
+				if findErr != nil {
+					return false, nil
+				}
+
+				pod := &corev1.Pod{}
+				getPodErr := c.Get(ctx, types.NamespacedName{Name: currentPodName, Namespace: namespace}, pod)
+				if getPodErr != nil {
+					return false, nil
+				}
+
+				if pod.Status.Phase != corev1.PodRunning {
+					return false, nil
+				}
+
+				return podutil.IsPodReady(pod), nil
+			})
+
+			if pollErr != nil {
+				lastErr = fmt.Errorf("failed to find ready pod within %v (last discovery error: %v): %w", delay, findErr, pollErr)
+				continue
+			}
+			log.Printf("Re-discovered ready pod %s/%s (container: %s)", namespace, currentPodName, currentContainerName)
+		}
+
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      currentPodName,
+				Namespace: namespace,
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{{Name: currentContainerName}},
+			},
+		}
+
+		stdout, stderr, err := executil.RunExecCommand(testclient.Client, pod, command...)
+		if err == nil {
+			return stdout + stderr, nil
+		}
+
+		if isTransientExecError(err) {
+			lastErr = fmt.Errorf("transient connection/SSL issue: %w", err)
+			log.Printf("Detected transient connection/SSL issue, will retry...")
+			continue
+		}
+
+		return stdout + stderr, err
+	}
+
+	return "", fmt.Errorf("exec command failed after %d retries: %w", maxRetries, lastErr)
+}
+
+func RestartDaemonPods(c client.Client, namespace, labelSelector string) error {
+	log.Printf("Restarting daemon pods with selector %s in namespace %s", labelSelector, namespace)
+
+	ctx := context.Background()
+	podList := &corev1.PodList{}
+	err := c.List(ctx, podList, client.InNamespace(namespace), client.MatchingLabels(parseLabelSelector(labelSelector)))
+	if err != nil {
+		return fmt.Errorf("failed to list pods: %w", err)
+	}
+
+	oldPodUIDs := make(map[string]bool)
+	for _, pod := range podList.Items {
+		oldPodUIDs[string(pod.UID)] = true
+		log.Printf("  Deleting pod %s (UID: %s)", pod.Name, pod.UID)
+		if err := c.Delete(ctx, &pod, client.GracePeriodSeconds(0)); err != nil {
+			log.Printf("  Warning: failed to delete pod %s: %v", pod.Name, err)
+		}
+	}
+
+	log.Printf("Waiting for new daemon pods to be created and ready...")
+	timeout := 5 * time.Minute
+	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		newPodList := &corev1.PodList{}
+		err := c.List(ctx, newPodList, client.InNamespace(namespace), client.MatchingLabels(parseLabelSelector(labelSelector)))
+		if err != nil {
+			log.Printf("Error listing pods: %v", err)
+			return false, nil
+		}
+
+		if len(newPodList.Items) == 0 {
+			log.Printf("No pods found yet, waiting...")
+			return false, nil
+		}
+
+		allNewAndReady := true
+		for _, pod := range newPodList.Items {
+			if oldPodUIDs[string(pod.UID)] {
+				log.Printf("Pod %s is still the old pod (UID: %s), waiting for deletion...", pod.Name, pod.UID)
+				allNewAndReady = false
+				continue
+			}
+
+			if pod.Status.Phase != corev1.PodRunning || !podutil.IsPodReady(&pod) {
+				allNewAndReady = false
+			}
+		}
+
+		if allNewAndReady {
+			log.Printf("All %d new daemon pods are ready", len(newPodList.Items))
+			return true, nil
+		}
+		return false, nil
+	})
+}
+
+func WaitForDaemonPodsReady(c client.Client, namespace, labelSelector string, timeout time.Duration) error {
+	log.Printf("Waiting for daemon pods with selector %s to be ready in namespace %s", labelSelector, namespace)
+
+	ctx := context.Background()
+	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		podList := &corev1.PodList{}
+		err := c.List(ctx, podList, client.InNamespace(namespace), client.MatchingLabels(parseLabelSelector(labelSelector)))
+		if err != nil {
+			log.Printf("Error listing pods: %v", err)
+			return false, nil
+		}
+		pods := podList.Items
+
+		if len(pods) == 0 {
+			log.Printf("No pods found yet, waiting...")
+			return false, nil
+		}
+
+		allReady := true
+		for _, pod := range pods {
+			if pod.Status.Phase != corev1.PodRunning {
+				log.Printf("Pod %s is not Running (phase: %s), waiting...", pod.Name, pod.Status.Phase)
+				allReady = false
+				continue
+			}
+
+			if !podutil.IsPodReady(&pod) {
+				log.Printf("Pod %s is not Ready, waiting...", pod.Name)
+				allReady = false
+			}
+		}
+
+		if allReady {
+			log.Printf("All %d daemon pods are ready", len(pods))
+			return true, nil
+		}
+		return false, nil
+	})
+}
+
+func testTLS13Connection(c client.Client, namespace, labelSelector, podName, containerName, port, portDescription string) error {
+	log.Printf("Testing TLS 1.3 connection on port %s using curl...", port)
+	cmd := []string{"curl", "-v", "--tls-max", "1.3", "--tlsv1.3", "-k", "https://localhost:" + port + "/metrics"}
+	output, err := execCommandInPodWithRetry(c, namespace, labelSelector, podName, containerName, cmd)
+	if err != nil {
+		return fmt.Errorf("TLS 1.3 connection on port %s failed: %v\nOutput: %s", port, err, output)
+	}
+
+	if !strings.Contains(output, "TLSv1.3") && !strings.Contains(output, "HTTP/") && !strings.Contains(output, "Unauthorized") {
+		return fmt.Errorf("TLS 1.3 connection on port %s did not complete successfully\nOutput: %s", port, output)
+	}
+	log.Printf("Port %s TLS 1.3 connection succeeded", port)
+	return nil
+}
+
+func testTLS12Connection(c client.Client, namespace, labelSelector, podName, containerName, port string, expectReject bool) error {
+	if expectReject {
+		log.Printf("Testing TLS 1.2 connection on port %s using curl (should be REJECTED)...", port)
+		cmd := []string{"curl", "-v", "--tls-max", "1.2", "--tlsv1.2", "-k", "https://localhost:" + port + "/metrics"}
+		output, err := execCommandInPodWithRetry(c, namespace, labelSelector, podName, containerName, cmd)
+
+		// When expecting rejection, SSL errors (exit code 35, 60) are acceptable
+		if err != nil {
+			errStr := err.Error()
+			// Exit code 35 means SSL handshake failed - this is expected for rejection
+			if strings.Contains(errStr, "exit code 35") || strings.Contains(errStr, "exit code 60") {
+				log.Printf("Port %s TLS 1.2 connection correctly rejected (SSL handshake failed with exit code 35/60)", port)
+				return nil
+			}
+
+			if output != "" && (strings.Contains(output, "SSL") || strings.Contains(output, "alert") || strings.Contains(output, "error")) {
+				// SSL error with output is expected for rejection - this is success
+				log.Printf("Port %s TLS 1.2 connection correctly rejected (SSL handshake failed)", port)
+				return nil
+			}
+			// Error with no useful output and not exit code 35/60 - unexpected failure
+			if output == "" {
+				return fmt.Errorf("TLS 1.2 rejection check on port %s produced no curl output; exec failed: %w", port, err)
+			}
+		}
+
+		if strings.Contains(output, "TLSv1.2") || (strings.Contains(output, "HTTP/") && !strings.Contains(output, "SSL") && !strings.Contains(output, "alert")) {
+			return fmt.Errorf("TLS 1.2 connection on port %s SUCCEEDED but should have been REJECTED", port)
+		}
+		log.Printf("Port %s TLS 1.2 connection correctly rejected", port)
+	} else {
+		log.Printf("Testing TLS 1.2 connection on port %s using curl...", port)
+		cmd := []string{"curl", "-v", "--tls-max", "1.2", "--tlsv1.2", "-k", "https://localhost:" + port + "/metrics"}
+		output, err := execCommandInPodWithRetry(c, namespace, labelSelector, podName, containerName, cmd)
+		if err != nil {
+			return fmt.Errorf("TLS 1.2 connection on port %s failed: %v\nOutput: %s", port, err, output)
+		}
+
+		if !strings.Contains(output, "TLSv1.2") && !strings.Contains(output, "HTTP/") && !strings.Contains(output, "Unauthorized") {
+			return fmt.Errorf("TLS 1.2 connection on port %s did not complete successfully\nOutput: %s", port, output)
+		}
+		log.Printf("Port %s TLS 1.2 connection succeeded", port)
+	}
+	return nil
+}
+
+func waitForTLSConfigurationReady(c client.Client, namespace, labelSelector string) error {
+	ctx := context.Background()
+	timeout := 2 * time.Minute
+	interval := 5 * time.Second
+
+	return wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
+		podName, err := findRunningPod(c, namespace, labelSelector)
+		if err != nil {
+			log.Printf("  Waiting for pod to be ready: %v", err)
+			return false, nil
+		}
+
+		containerName := DaemonMetricsContainer
+		port := DaemonMetricsPort
+		cmd := []string{"curl", "-v", "--tls-max", "1.3", "--tlsv1.3", "-k", "https://localhost:" + port + "/metrics"}
+
+		output, err := execCommandInPodWithRetry(c, namespace, labelSelector, podName, containerName, cmd)
+		if err != nil {
+			log.Printf("  TLS configuration not ready yet, retrying...")
+			return false, nil
+		}
+
+		if strings.Contains(output, "TLSv1.3") || strings.Contains(output, "HTTP/") || strings.Contains(output, "Unauthorized") {
+			log.Printf("  TLS configuration ready")
+			return true, nil
+		}
+
+		log.Printf("  TLS handshake incomplete, retrying...")
+		return false, nil
+	})
+}
+
+func VerifyIngressNodeFirewallTLSComplianceInPod(c client.Client, namespace, labelSelector string) error {
+	ctx := context.Background()
+
+	log.Printf("Restarting daemon pods to ensure they pick up the new TLS configuration...")
+	if err := RestartDaemonPods(c, namespace, labelSelector); err != nil {
+		return fmt.Errorf("failed to restart daemon pods: %w", err)
+	}
+
+	apiserver := &configv1.APIServer{}
+	err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, apiserver)
+	if err != nil {
+		return fmt.Errorf("failed to get APIServer config: %w", err)
+	}
+
+	expectTLS12Reject, description := determineTLSTestBehavior(apiserver)
+
+	log.Printf("Waiting for TLS configuration to propagate to restarted pods...")
+	if err := waitForTLSConfigurationReady(c, namespace, labelSelector); err != nil {
+		return fmt.Errorf("failed waiting for TLS configuration to propagate: %w", err)
+	}
+
+	profileTypeLabel := "<unset>"
+	if apiserver.Spec.TLSSecurityProfile != nil {
+		profileTypeLabel = string(apiserver.Spec.TLSSecurityProfile.Type)
+	}
+	log.Printf("Testing with profile: %s (%s)", profileTypeLabel, description)
+
+	podList := &corev1.PodList{}
+	err = c.List(ctx, podList, client.InNamespace(namespace), client.MatchingLabels(parseLabelSelector(labelSelector)))
+	if err != nil {
+		return fmt.Errorf("failed to list pods with selector %s: %w", labelSelector, err)
+	}
+	pods := podList.Items
+
+	if len(pods) == 0 {
+		return fmt.Errorf("no pods found with selector %s in namespace %s", labelSelector, namespace)
+	}
+
+	var testPod string
+	for _, pod := range pods {
+		if pod.Status.Phase == "Running" {
+			testPod = pod.Name
+			break
+		}
+	}
+
+	if testPod == "" {
+		return fmt.Errorf("no running pods found with selector %s", labelSelector)
+	}
+
+	containerName := DaemonMetricsContainer
+	port := DaemonMetricsPort
+	portDescription := "Daemon Metrics (kube-rbac-proxy)"
+
+	log.Printf("Testing pod %s/%s (container: %s) on localhost:%s (%s)", namespace, testPod, containerName, port, portDescription)
+
+	if err := testTLS13Connection(c, namespace, labelSelector, testPod, containerName, port, portDescription); err != nil {
+		return err
+	}
+
+	if err := testTLS12Connection(c, namespace, labelSelector, testPod, containerName, port, expectTLS12Reject); err != nil {
+		return err
+	}
+
+	if expectTLS12Reject {
+		log.Printf("TLS 1.3 works, TLS 1.2 correctly rejected for pod %s/%s on port %s", namespace, testPod, port)
+	} else {
+		log.Printf("TLS 1.2 and TLS 1.3 compliance verified for pod %s/%s on port %s", namespace, testPod, port)
+	}
+	return nil
+}
