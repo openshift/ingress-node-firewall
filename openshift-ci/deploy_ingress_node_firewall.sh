@@ -165,8 +165,8 @@ sleep_time=10
 max_iterations=72 # results in 12 minutes timeout
 until $ds_ready
 do
-  desired_ds_num=$(oc get ds -n "$NAMESPACE" ingress-node-firewall-daemon -o jsonpath="{.status.desiredNumberScheduled}")
-  ready_ds_num=$(oc get ds -n "$NAMESPACE" ingress-node-firewall-daemon -o jsonpath="{.status.numberReady}")
+  desired_ds_num=$(oc get ds -n "$NAMESPACE" ingress-node-firewall-daemon -o jsonpath="{.status.desiredNumberScheduled}" 2>/dev/null || echo "0")
+  ready_ds_num=$(oc get ds -n "$NAMESPACE" ingress-node-firewall-daemon -o jsonpath="{.status.numberReady}" 2>/dev/null || echo "0")
   if [ "${desired_ds_num}" -gt 1 ] && [ "${ready_ds_num}" -eq "${desired_ds_num}" ]; then
     echo "daemonset ready"
     ds_ready=true

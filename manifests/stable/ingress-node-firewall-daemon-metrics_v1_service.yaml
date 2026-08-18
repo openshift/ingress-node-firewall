@@ -14,7 +14,7 @@ spec:
   - name: metrics
     port: 9301
     protocol: TCP
-    targetPort: https
+    targetPort: metrics
   publishNotReadyAddresses: true
   selector:
     app: ingress-node-firewall-daemon
