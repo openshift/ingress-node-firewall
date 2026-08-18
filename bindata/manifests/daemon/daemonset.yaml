@@ -26,6 +26,13 @@ spec:
       containers:
         - name: daemon
           image: '{{.Image}}'
+          command: ["/usr/bin/daemon"]
+          args:
+            - --metrics-bind-address=:9301
+            - --metrics-cert-dir=/etc/pki/tls/metrics-certs
+            - --metrics-secure=true
+            - --metrics-tls-min-version={{.TLSMinVersion}}
+            - --metrics-tls-cipher-suites={{default "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384" .TLSCipherSuites}}
           env:
             - name: NODE_NAME
               valueFrom:
@@ -41,10 +48,16 @@ spec:
               value: '{{.Debug}}'
             - name: EBPF_MANAGEMENT_MODE
               value: '{{.EBPFProgramManagerMode}}'
+          ports:
+            - containerPort: 9301
+              name: metrics
           terminationMessagePolicy: FallbackToLogsOnError
           volumeMounts:
             - name: syslog-socket
               mountPath: /var/run
+            - name: ingress-node-firewall-daemon-metrics-certs
+              mountPath: /etc/pki/tls/metrics-certs
+              readOnly: true
         - name: events
           image: '{{.Image}}'
           command: ["/usr/bin/syslog"]
@@ -57,67 +70,10 @@ spec:
           volumeMounts:
             - name: syslog-socket
               mountPath: /var/run
-        - name: kube-rbac-proxy
-          image: '{{.RBACProxyImage}}'
-          command:
-            - /bin/bash
-            - -c
-            - |
-              #!/bin/bash
-              set -euo pipefail
-              TLS_PK=/etc/pki/tls/metrics-certs/tls.key
-              TLS_CERT=/etc/pki/tls/metrics-certs/tls.crt
-              # As the secret mount is optional we must wait for the files to be present.
-              # If it isn't created there is probably an issue so we want to crashloop.
-              TS=$(date +%s)
-              WARN_TS=$(( ${TS} + $(( 20 * 60)) ))
-              HAS_LOGGED_INFO=0
-              log_missing_certs(){
-                  CUR_TS=$(date +%s)
-                  if [[ "${CUR_TS}" -gt "${WARN_TS}"  ]]; then
-                    echo $(date -Iseconds) WARN: ingress-node-firewall-daemon-metrics-certs not mounted after 20 minutes.
-                  elif [[ "${HAS_LOGGED_INFO}" -eq 0 ]] ; then
-                    echo $(date -Iseconds) INFO: ingress-node-firewall-daemon-metrics-certs not mounted. Waiting 20 minutes.
-                    HAS_LOGGED_INFO=1
-                  fi
-              }
-              while [[ ! -f "${TLS_PK}" ||  ! -f "${TLS_CERT}" ]] ; do
-                log_missing_certs
-                sleep 5
-              done
-              echo $(date -Iseconds) INFO: ingress-node-firewall-daemon-metrics-certs mounted, starting kube-rbac-proxy
-              exec /usr/bin/kube-rbac-proxy \
-                --secure-listen-address=:9301 \
-              {{- if .TLSMinVersion }}
-                --tls-min-version={{.TLSMinVersion}} \
-              {{- end }}
-              {{- if .TLSCipherSuites }}
-                --tls-cipher-suites={{.TLSCipherSuites}} \
-              {{- else }}
-                --tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256 \
-              {{- end }}
-                --upstream=http://127.0.0.1:39401 \
-                --tls-private-key-file=${TLS_PK} \
-                --tls-cert-file=${TLS_CERT}
-          ports:
-            - containerPort: 9301
-              name: https
-          resources:
-            requests:
-              cpu: 10m
-              memory: 20Mi
-          terminationMessagePolicy: FallbackToLogsOnError
-          volumeMounts:
-            - name: ingress-node-firewall-daemon-metrics-certs
-              mountPath: /etc/pki/tls/metrics-certs
-              readOnly: True
       volumes:
-        # Must be optional because the ingress-node-firewall-daemon-metrics-certs is a service serving
-        # certificate and those cannot be generated without the daemon running
         - name: ingress-node-firewall-daemon-metrics-certs
           secret:
             secretName: ingress-node-firewall-daemon-metrics-certs
-            optional: true
         - name: syslog-socket
           path: /var/run
       serviceAccountName: ingress-node-firewall-daemon

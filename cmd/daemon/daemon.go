@@ -14,8 +14,10 @@ limitations under the License.
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"os"
+	"strings"
 
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/controllers"
@@ -29,9 +31,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	cliflag "k8s.io/component-base/cli/flag"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -50,9 +54,19 @@ func init() {
 func main() {
 	var metricsAddr string
 	var probeAddr string
+	var enableHTTP2 bool
+	var secureMetrics bool
+	var metricsCertDir string
+	var tlsMinVersion string
+	var tlsCipherSuites string
 	// We are host networked, we set default to loopback by default
 	flag.StringVar(&probeAddr, "health-probe-bind-address", "127.0.0.1:39400", "The address the probe endpoint binds to.")
-	flag.StringVar(&metricsAddr, "metrics-bind-address", "127.0.0.1:39401", "The address the metric endpoint binds to.")
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":9301", "The address the metric endpoint binds to.")
+	flag.StringVar(&metricsCertDir, "metrics-cert-dir", "/etc/pki/tls/metrics-certs", "Directory containing TLS certificates for metrics endpoint.")
+	flag.BoolVar(&secureMetrics, "metrics-secure", true, "If the metrics endpoint should be served securely.")
+	flag.BoolVar(&enableHTTP2, "metrics-enable-http2", false, "If HTTP/2 should be enabled for the metrics server.")
+	flag.StringVar(&tlsMinVersion, "metrics-tls-min-version", "", "Minimum TLS version for the metrics endpoint (e.g. VersionTLS12, VersionTLS13).")
+	flag.StringVar(&tlsCipherSuites, "metrics-tls-cipher-suites", "", "Comma-separated list of TLS cipher suites for the metrics endpoint.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -80,9 +94,45 @@ func main() {
 		os.Exit(1)
 	}
 
+	var tlsOpts []func(*tls.Config)
+
+	if tlsMinVersion != "" {
+		minVersionID, err := cliflag.TLSVersion(tlsMinVersion)
+		if err != nil {
+			setupLog.Error(err, "invalid TLS minimum version")
+			os.Exit(1)
+		}
+		tlsOpts = append(tlsOpts, func(c *tls.Config) {
+			c.MinVersion = minVersionID
+		})
+	}
+
+	if tlsCipherSuites != "" {
+		cipherSuiteIDs, err := cliflag.TLSCipherSuites(strings.Split(tlsCipherSuites, ","))
+		if err != nil {
+			setupLog.Error(err, "invalid TLS cipher suites")
+			os.Exit(1)
+		}
+		tlsOpts = append(tlsOpts, func(c *tls.Config) {
+			c.CipherSuites = cipherSuiteIDs
+		})
+	}
+
+	if !enableHTTP2 {
+		tlsOpts = append(tlsOpts, func(c *tls.Config) {
+			c.NextProtos = []string{"http/1.1"}
+		})
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress:    metricsAddr,
+			SecureServing:  secureMetrics,
+			CertDir:        metricsCertDir,
+			FilterProvider: filters.WithAuthenticationAndAuthorization,
+			TLSOpts:        tlsOpts,
+		},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         false,
 		Cache: cache.Options{

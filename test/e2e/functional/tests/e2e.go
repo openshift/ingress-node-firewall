@@ -1368,7 +1368,9 @@ var _ = Describe("Ingress Node Firewall", func() {
 			var stdOut, stdError string
 			var metrics testutil.Metrics
 			err = wait.PollUntilContextTimeout(context.Background(), 1*time.Second, 30*time.Second, true, func(ctx context.Context) (done bool, err error) {
-				stdOut, stdError, err = exec.RunExecCommand(testclient.Client, daemonSetPod, "/usr/bin/curl", "127.0.0.1:39401/metrics")
+				stdOut, stdError, err = exec.RunExecCommand(testclient.Client, daemonSetPod,
+					"/bin/sh", "-c",
+					"curl -k -H \"Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)\" https://127.0.0.1:9301/metrics")
 				if err != nil {
 					return false, err
 				}

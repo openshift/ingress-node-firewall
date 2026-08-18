@@ -30,7 +30,7 @@ spec:
     - name: metrics
       port: 9301
       protocol: TCP
-      targetPort: https
+      targetPort: metrics
   selector:
     app: ingress-node-firewall-daemon
   clusterIP: None

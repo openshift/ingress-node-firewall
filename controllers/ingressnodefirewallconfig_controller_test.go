@@ -3,12 +3,10 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"slices"
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -22,7 +20,6 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 	const (
 		daemonContainerName = "daemon"
 		eventsContainerName = "events"
-		proxyContainerName  = "kube-rbac-proxy"
 	)
 
 	Context("syncIngressNodeFwConfig", func() {
@@ -61,7 +58,6 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 			daemonContainers := map[string]string{
 				daemonContainerName: "test-daemon:latest",
 				eventsContainerName: "test-daemon:latest",
-				proxyContainerName:  "kube-rbac-proxy:latest",
 			}
 
 			By("Validating that the daemonset variables were templated correctly")
@@ -82,12 +78,17 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 				}
 			}
 
-			script := getContainerCommandScript(daemonSet, proxyContainerName)
-
-			// With no TLS profile set (test default), should use fallback cipher suites
-			Expect(script).To(ContainSubstring("--tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"))
-			// Should not have --tls-min-version when TLS profile is not set
-			Expect(script).NotTo(ContainSubstring("--tls-min-version"))
+			By("Validating default TLS configuration")
+			Eventually(func() []string {
+				ds := &appsv1.DaemonSet{}
+				if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: DeamonSetName, Namespace: IngressNodeFwConfigTestNameSpace}, ds); err != nil {
+					return nil
+				}
+				return getContainerArgs(ds, daemonContainerName)
+			}, 5*time.Second, 200*time.Millisecond).Should(And(
+				ContainElement("--metrics-tls-min-version="),
+				ContainElement(HavePrefix("--metrics-tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256")),
+			))
 
 			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
 			err := k8sClient.Get(context.Background(), types.NamespacedName{Name: IngressNodeFirewallResourceName, Namespace: IngressNodeFwConfigTestNameSpace}, config)
@@ -131,12 +132,18 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 				tlsProfileSpec.Store(tlsProfile)
 			})
 
-			It("Should apply TLS profile to kube-rbac-proxy when configured", func() {
+			It("Should apply TLS profile to daemon container args", func() {
 				By("Validating that TLS configuration is applied to daemonset")
-
-				script := getContainerCommandScript(awaitDaemonset(), proxyContainerName)
-				Expect(script).To(ContainSubstring("--tls-cipher-suites=TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384"))
-				Expect(script).To(ContainSubstring("--tls-min-version=VersionTLS13"))
+				Eventually(func() []string {
+					ds := &appsv1.DaemonSet{}
+					if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: DeamonSetName, Namespace: IngressNodeFwConfigTestNameSpace}, ds); err != nil {
+						return nil
+					}
+					return getContainerArgs(ds, daemonContainerName)
+				}, 5*time.Second, 200*time.Millisecond).Should(And(
+					ContainElement("--metrics-tls-min-version=VersionTLS13"),
+					ContainElement("--metrics-tls-cipher-suites=TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384"),
+				))
 			})
 		})
 	})
@@ -152,12 +159,11 @@ func awaitDaemonset() *appsv1.DaemonSet {
 	return daemonSet
 }
 
-func getContainerCommandScript(daemonSet *appsv1.DaemonSet, name string) string {
-	index := slices.IndexFunc(daemonSet.Spec.Template.Spec.Containers, func(c corev1.Container) bool {
-		return c.Name == name
-	})
-	Expect(index).NotTo(Equal(-1))
-	Expect(daemonSet.Spec.Template.Spec.Containers[index].Command).To(HaveLen(3))
-
-	return daemonSet.Spec.Template.Spec.Containers[index].Command[2]
+func getContainerArgs(daemonSet *appsv1.DaemonSet, name string) []string {
+	for _, c := range daemonSet.Spec.Template.Spec.Containers {
+		if c.Name == name {
+			return c.Args
+		}
+	}
+	return nil
 }

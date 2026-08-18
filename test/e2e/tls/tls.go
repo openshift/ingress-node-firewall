@@ -12,6 +12,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -37,7 +38,8 @@ const (
 	NodePollingInterval     = 5 * time.Second
 
 	DaemonMetricsPort      = "9301"
-	DaemonMetricsContainer = "kube-rbac-proxy"
+	DaemonMetricsContainer = "daemon"
+	DaemonSetName          = "ingress-node-firewall-daemon"
 )
 
 type TLSAdherenceNotSupportedError struct {
@@ -540,6 +542,58 @@ func determineTLSTestBehavior(apiserver *configv1.APIServer) (expectTLS12Reject 
 	return false, "Both TLS 1.2 and TLS 1.3 should work"
 }
 
+func expectedTLSMinVersion(apiserver *configv1.APIServer) string {
+	if apiserver.Spec.TLSSecurityProfile == nil {
+		return ""
+	}
+	if apiserver.Spec.TLSAdherence != configv1.TLSAdherencePolicyStrictAllComponents {
+		return ""
+	}
+	switch apiserver.Spec.TLSSecurityProfile.Type {
+	case configv1.TLSProfileModernType:
+		return "VersionTLS13"
+	case configv1.TLSProfileIntermediateType:
+		return "VersionTLS12"
+	case configv1.TLSProfileOldType:
+		return "VersionTLS10"
+	case configv1.TLSProfileCustomType:
+		if apiserver.Spec.TLSSecurityProfile.Custom != nil {
+			return string(apiserver.Spec.TLSSecurityProfile.Custom.MinTLSVersion)
+		}
+		return ""
+	default:
+		return ""
+	}
+}
+
+func waitForDaemonSetTLSUpdate(c client.Client, namespace string, expectedMinVersion string) error {
+	expectedArg := fmt.Sprintf("--metrics-tls-min-version=%s", expectedMinVersion)
+	log.Printf("Waiting for DaemonSet args to contain %s ...", expectedArg)
+
+	return wait.PollUntilContextTimeout(context.Background(), 5*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
+		ds := &appsv1.DaemonSet{}
+		if err := c.Get(ctx, types.NamespacedName{Name: DaemonSetName, Namespace: namespace}, ds); err != nil {
+			log.Printf("  DaemonSet not found: %v", err)
+			return false, nil
+		}
+
+		for _, container := range ds.Spec.Template.Spec.Containers {
+			if container.Name != DaemonMetricsContainer {
+				continue
+			}
+			for _, arg := range container.Args {
+				if arg == expectedArg {
+					log.Printf("  DaemonSet args match expected TLS configuration")
+					return true, nil
+				}
+			}
+		}
+
+		log.Printf("  DaemonSet args do not yet reflect expected TLS min version, waiting...")
+		return false, nil
+	})
+}
+
 func findRunningPod(c client.Client, namespace, labelSelector string) (string, error) {
 	ctx := context.Background()
 	podList := &corev1.PodList{}
@@ -833,15 +887,21 @@ func waitForTLSConfigurationReady(c client.Client, namespace, labelSelector stri
 func VerifyIngressNodeFirewallTLSComplianceInPod(c client.Client, namespace, labelSelector string) error {
 	ctx := context.Background()
 
-	log.Printf("Restarting daemon pods to ensure they pick up the new TLS configuration...")
-	if err := RestartDaemonPods(c, namespace, labelSelector); err != nil {
-		return fmt.Errorf("failed to restart daemon pods: %w", err)
-	}
-
 	apiserver := &configv1.APIServer{}
 	err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, apiserver)
 	if err != nil {
 		return fmt.Errorf("failed to get APIServer config: %w", err)
+	}
+
+	expectedMinVer := expectedTLSMinVersion(apiserver)
+	log.Printf("Waiting for operator to update DaemonSet with expected TLS min version %q...", expectedMinVer)
+	if err := waitForDaemonSetTLSUpdate(c, namespace, expectedMinVer); err != nil {
+		return fmt.Errorf("timed out waiting for DaemonSet TLS args to be updated by operator: %w", err)
+	}
+
+	log.Printf("Restarting daemon pods to ensure they pick up the new TLS configuration...")
+	if err := RestartDaemonPods(c, namespace, labelSelector); err != nil {
+		return fmt.Errorf("failed to restart daemon pods: %w", err)
 	}
 
 	expectTLS12Reject, description := determineTLSTestBehavior(apiserver)
@@ -882,7 +942,7 @@ func VerifyIngressNodeFirewallTLSComplianceInPod(c client.Client, namespace, lab
 
 	containerName := DaemonMetricsContainer
 	port := DaemonMetricsPort
-	portDescription := "Daemon Metrics (kube-rbac-proxy)"
+	portDescription := "Daemon Metrics"
 
 	log.Printf("Testing pod %s/%s (container: %s) on localhost:%s (%s)", namespace, testPod, containerName, port, portDescription)
 

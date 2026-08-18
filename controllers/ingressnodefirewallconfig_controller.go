@@ -35,7 +35,10 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	uns "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -70,6 +73,8 @@ type IngressNodeFirewallConfigReconciler struct {
 //+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewallconfigs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewallconfigs/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
+
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -147,8 +152,16 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 
 	data.Data["Image"] = os.Getenv("DAEMONSET_IMAGE")
 	data.Data["NameSpace"] = r.Namespace
-	data.Data["RBACProxyImage"] = os.Getenv("KUBE_RBAC_PROXY_IMAGE")
 	data.Data["IsOpenShift"] = r.PlatformInfo.IsOpenShift()
+
+	tlsProfileSpec := r.GetTLSProfileSpec()
+	if tlsProfileSpec != nil {
+		data.Data["TLSMinVersion"] = string(tlsProfileSpec.MinTLSVersion)
+		data.Data["TLSCipherSuites"] = strings.Join(inftls.ConvertCiphersToIANA(tlsProfileSpec.Ciphers), ",")
+	} else {
+		data.Data["TLSMinVersion"] = ""
+		data.Data["TLSCipherSuites"] = ""
+	}
 	if config.Spec.Debug != nil {
 		data.Data["Debug"] = "0"
 		if *config.Spec.Debug {
@@ -164,20 +177,14 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 		}
 	}
 
-	// Add TLS configuration for kube-rbac-proxy
-	// Always set these keys (even if empty) so the template doesn't error on missing keys
-	tlsProfileSpec := r.GetTLSProfileSpec()
-	if tlsProfileSpec != nil {
-		data.Data["TLSMinVersion"] = string(tlsProfileSpec.MinTLSVersion)
-		data.Data["TLSCipherSuites"] = strings.Join(inftls.ConvertCiphersToIANA(tlsProfileSpec.Ciphers), ",")
-	} else {
-		data.Data["TLSMinVersion"] = ""
-		data.Data["TLSCipherSuites"] = ""
-	}
-
 	objs, err := render.RenderDir(ManifestPath, &data)
 	if err != nil {
 		logger.Error(err, "Fail to render config daemon manifests")
+		return err
+	}
+
+	if err := r.createDaemonMetricsService(ctx, config); err != nil {
+		logger.Error(err, "Failed to create daemon metrics service")
 		return err
 	}
 
@@ -290,4 +297,52 @@ func newMountPropagationMode(m corev1.MountPropagationMode) *corev1.MountPropaga
 	mode := new(corev1.MountPropagationMode)
 	*mode = m
 	return mode
+}
+
+func (r *IngressNodeFirewallConfigReconciler) createDaemonMetricsService(ctx context.Context, config *ingressnodefwv1alpha1.IngressNodeFirewallConfig) error {
+	service := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ingress-node-firewall-daemon-metrics",
+			Namespace: r.Namespace,
+			Annotations: map[string]string{
+				"service.beta.openshift.io/serving-cert-secret-name": "ingress-node-firewall-daemon-metrics-certs",
+			},
+			Labels: map[string]string{
+				"app":           "ingress-node-firewall-daemon",
+				"control-plane": "daemon",
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			ClusterIP: corev1.ClusterIPNone,
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "metrics",
+					Port:       9301,
+					Protocol:   corev1.ProtocolTCP,
+					TargetPort: intstr.FromString("metrics"),
+				},
+			},
+			PublishNotReadyAddresses: true,
+			Selector: map[string]string{
+				"app": "ingress-node-firewall-daemon",
+			},
+		},
+	}
+
+	if err := ctrl.SetControllerReference(config, service, r.Scheme); err != nil {
+		return errors.Wrapf(err, "failed to set controller reference for metrics service")
+	}
+
+	scheme := kscheme.Scheme
+	obj := &uns.Unstructured{}
+	err := scheme.Convert(service, obj, nil)
+	if err != nil {
+		return errors.Wrapf(err, "failed to convert service to unstructured")
+	}
+
+	if err := apply.ApplyObject(ctx, r.Client, obj); err != nil {
+		return errors.Wrapf(err, "failed to apply daemon metrics service")
+	}
+
+	return nil
 }
