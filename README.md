@@ -363,7 +363,6 @@ oc adm policy add-scc-to-user privileged -z ingress-node-firewall-daemon
 ```sh
 export DAEMONSET_IMAGE=<registry>/<image>:<tag>
 export DAEMONSET_NAMESPACE=ingress-node-firewall-system
-export KUBE_RBAC_PROXY_IMAGE=quay.io/openshift/origin-kube-rbac-proxy:latest
 make install run
 ```
 
