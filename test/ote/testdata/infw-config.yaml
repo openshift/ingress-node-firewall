@@ -1,0 +1,12 @@
+apiVersion: ingressnodefirewall.openshift.io/v1alpha1
+kind: IngressNodeFirewallConfig
+metadata:
+  name: ingressnodefirewallconfig
+  namespace: {{NAMESPACE}}
+spec:
+  nodeSelector:
+    node-role.kubernetes.io/worker: ""
+  tolerations:
+  - key: "Example"
+    operator: "Exists"
+    effect: "NoExecute"

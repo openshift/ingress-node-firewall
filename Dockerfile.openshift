@@ -14,13 +14,19 @@ COPY controllers/ controllers/
 COPY pkg/ pkg/
 COPY vendor/ vendor/
 COPY bindata/manifests/ bindata/manifests/
+COPY test/ test/
 
 # Build
 RUN CGO_ENABLED=0 GO111MODULE=on go build -a -mod=vendor -o manager main.go
+
+# Build extended tests (test/ote/ has its own go.mod, vendor at build time)
+RUN make -C test build-e2e-tests && \
+    gzip test/bin/ingress-node-firewall-tests
 
 FROM registry.ci.openshift.org/ocp/5.0:base-rhel9
 WORKDIR /
 COPY --from=builder /workspace/manager .
 COPY --from=builder /workspace/bindata/manifests /bindata/manifests
+COPY --from=builder /workspace/test/bin/ingress-node-firewall-tests.gz /usr/bin/
 
 ENTRYPOINT ["/manager"]
