@@ -118,11 +118,6 @@ func main() {
 		setupLog.Error(nil, "DAEMONSET_NAMESPACE env variable must be set")
 		os.Exit(1)
 	}
-	if _, ok = os.LookupEnv("KUBE_RBAC_PROXY_IMAGE"); !ok {
-		setupLog.Error(nil, "KUBE_RBAC_PROXY_IMAGE env variable must be set")
-		os.Exit(1)
-	}
-
 	tlsOpts := append(tlsProfile.TLSOpts, func(c *tls.Config) {
 		if enableHTTP2 {
 			return
