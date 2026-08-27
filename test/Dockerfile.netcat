@@ -1,4 +1,6 @@
 FROM alpine:latest
 
 RUN apk add --no-cache --update --verbose bash nmap-ncat && \
+    apk add --no-cache --verbose hping3 \
+        --repository=https://dl-cdn.alpinelinux.org/alpine/edge/testing && \
     rm -rf /var/cache/apk/* /tmp/*

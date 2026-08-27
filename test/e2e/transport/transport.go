@@ -67,6 +67,11 @@ func getClient(clientPodName, namespace string, labels, affinity, antiAffinity m
 					Name:    "client",
 					Image:   images.NetcatImage(),
 					Command: []string{"/bin/sh", "-c", "sleep INF"},
+					SecurityContext: &corev1.SecurityContext{
+						Capabilities: &corev1.Capabilities{
+							Add: []corev1.Capability{"NET_RAW"},
+						},
+					},
 					Resources: corev1.ResourceRequirements{
 						Requests: map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: resource.MustParse("256Mi")},
 						Limits:   map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: resource.MustParse("512Mi")},
@@ -223,4 +228,40 @@ func ncClientSCTPV6(client *testclient.ClientSet, sourcePod *corev1.Pod, sourceI
 func ncClientTransport(client *testclient.ClientSet, sourcePod *corev1.Pod, sourceIP, destinationIP, dPort string, additionalFlag ...string) (string, string, error) {
 	command := []string{"sh", "-c", fmt.Sprintf("ncat %s --wait 1 %s %s --verbose", strings.Join(additionalFlag, " "), destinationIP, dPort)}
 	return exec.RunExecCommandWithStdin(client, sourcePod, sourceIP, command...)
+}
+
+// HpingFragmentedConnect sends a fragmented packet to the destination using hping3.
+// Analogous to ConnectToPortFromPod but for fragmented traffic testing.
+func HpingFragmentedConnect(client *testclient.ClientSet, proto ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType,
+	v6 bool, sourcePod *corev1.Pod, destinationIP, destinationPort string) (string, string, error) {
+	hping3Flags := []string{"-f", "-c", "1"}
+	if v6 {
+		hping3Flags = append(hping3Flags, "-6")
+	}
+
+	switch proto {
+	case ingressnodefwv1alpha1.ProtocolTypeTCP:
+		hping3Flags = append(hping3Flags, "-S")
+	case ingressnodefwv1alpha1.ProtocolTypeUDP:
+		hping3Flags = append(hping3Flags, "--udp")
+	default:
+		return "", "", fmt.Errorf("Unsupported protocol for hping3")
+	}
+	command := append([]string{"hping3"}, hping3Flags...)
+	command = append(command, "-p", destinationPort, destinationIP)
+	return exec.RunExecCommand(client, sourcePod, command...)
+}
+
+// IsHpingResponseSeen determines if a response was received from hping3.
+// Exit code 0 means a response was received (true).
+// Exit code 1 means no response (false). Any other error is logged and
+// treated as no response (false).
+func IsHpingResponseSeen(stderr string, err error) bool {
+	if err != nil {
+		if !strings.Contains(err.Error(), "exit code 1") {
+			log.Printf("hping3 probe failed to execute: %v (stderr: %s)", err, stderr)
+		}
+		return false
+	}
+	return true
 }
