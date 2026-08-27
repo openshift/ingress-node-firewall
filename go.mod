@@ -12,7 +12,7 @@ require (
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.39.1
-	github.com/openshift/api v0.0.0-20260615110019-261e3a0546f3
+	github.com/openshift/api v0.0.0-20260807110950-72ae4424ef35
 	github.com/openshift/controller-runtime-common v0.0.0-20260428152732-64ee174f5e2e
 	github.com/openshift/library-go v0.0.0-20260615113748-bc9d4056464b
 	github.com/pkg/errors v0.9.1
