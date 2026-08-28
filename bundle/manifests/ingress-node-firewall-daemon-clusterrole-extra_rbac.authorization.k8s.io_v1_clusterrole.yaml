@@ -16,3 +16,7 @@ rules:
   - subjectaccessreviews
   verbs:
   - create
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get

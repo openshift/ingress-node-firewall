@@ -56,7 +56,7 @@ const (
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
-var tlsProfileSpec atomic.Value // holds *configv1.TLSProfileSpec
+var tlsProfileSpec atomic.Value
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -70,7 +70,6 @@ var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 	By("Setting Ingress nodefirewall config environment variables")
 	Expect(os.Setenv("DAEMONSET_IMAGE", "test-daemon:latest")).To(Succeed())
-	Expect(os.Setenv("KUBE_RBAC_PROXY_IMAGE", "kube-rbac-proxy:latest")).To(Succeed())
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{

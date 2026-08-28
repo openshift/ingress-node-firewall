@@ -312,9 +312,10 @@ within the node daemons themselves:
 ```sh
 kubectl exec -n ${OPERATOR_NAMESPACE} -it ${NODE_DAEMON_NAME} sh
 ```
-2. Retrieve the Prometheus formatted metrics
+2. Retrieve the Prometheus-formatted metrics (requires a bearer token with GET permission on the `/metrics` non-resource URL, granted to the daemon service account via `ingress-node-firewall-daemon-clusterrole-extra`)
 ```sh
-Curl 127.0.0.1:39401/metrics
+TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+curl -k -H "Authorization: Bearer ${TOKEN}" https://127.0.0.1:9301/metrics
 ```
 
 Within OCP, you may use the OCP console to access the promql console to search for the following metrics:
@@ -363,7 +364,6 @@ oc adm policy add-scc-to-user privileged -z ingress-node-firewall-daemon
 ```sh
 export DAEMONSET_IMAGE=<registry>/<image>:<tag>
 export DAEMONSET_NAMESPACE=ingress-node-firewall-system
-export KUBE_RBAC_PROXY_IMAGE=quay.io/openshift/origin-kube-rbac-proxy:latest
 make install run
 ```
 

@@ -140,6 +140,18 @@ spec:
           - list
           - watch
         - apiGroups:
+          - ""
+          resources:
+          - services
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
           - apps
           resources:
           - daemonsets
@@ -259,8 +271,6 @@ spec:
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.namespace
-                - name: KUBE_RBAC_PROXY_IMAGE
-                  value: quay.io/openshift/origin-kube-rbac-proxy:latest
                 image: quay.io/openshift/origin-ingress-node-firewall:latest
                 livenessProbe:
                   httpGet:
