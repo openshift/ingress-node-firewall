@@ -34,6 +34,7 @@ import (
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -68,13 +69,13 @@ type IngressNodeFirewallConfigReconciler struct {
 }
 
 // +kubebuilder:rbac:groups=apps,namespace=ingress-node-firewall-system,resources=daemonsets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=networking.k8s.io,namespace=ingress-node-firewall-system,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 
 //+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewallconfigs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewallconfigs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=ingressnodefirewall.openshift.io,resources=ingressnodefirewallconfigs/finalizers,verbs=update
-// +kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
-
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -140,6 +141,7 @@ func (r *IngressNodeFirewallConfigReconciler) SetupWithManager(mgr ctrl.Manager)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ingressnodefwv1alpha1.IngressNodeFirewallConfig{}).
 		Owns(&appsv1.DaemonSet{}).
+		Owns(&networkingv1.NetworkPolicy{}).
 		Complete(r)
 }
 
@@ -271,6 +273,14 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 				return err
 			}
 
+			if err := apply.ApplyObject(ctx, r.Client, obj); err != nil {
+				return errors.Wrapf(err, "could not apply (%s) %s", obj.GroupVersionKind(), obj.GetName())
+			}
+		} else if obj.GetKind() == "NetworkPolicy" {
+			// Handle NetworkPolicy
+			if err := ctrl.SetControllerReference(config, obj, r.Scheme); err != nil {
+				return errors.Wrapf(err, "Failed to set controller reference to %s %s", obj.GetNamespace(), obj.GetName())
+			}
 			if err := apply.ApplyObject(ctx, r.Client, obj); err != nil {
 				return errors.Wrapf(err, "could not apply (%s) %s", obj.GroupVersionKind(), obj.GetName())
 			}
