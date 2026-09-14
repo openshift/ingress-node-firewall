@@ -241,7 +241,7 @@ ipv4_firewall_lookup(void *data, void *data_end, __u32 ifId) {
             }
           } else {
             if ((bpf_ntohs(dstPort) >= rule->dstPortStart) &&
-                (bpf_ntohs(dstPort) < rule->dstPortEnd)) {
+                (bpf_ntohs(dstPort) <= rule->dstPortEnd)) {
               return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
             }
           }
@@ -334,7 +334,7 @@ ipv6_firewall_lookup(void *data, void *data_end, __u32 ifId) {
             }
           } else {
             if ((bpf_ntohs(dstPort) >= rule->dstPortStart) &&
-                (bpf_ntohs(dstPort) < rule->dstPortEnd)) {
+                (bpf_ntohs(dstPort) <= rule->dstPortEnd)) {
               return SET_ACTIONRULE_RESPONSE(rule->action, rule->ruleId);
             }
           }
