@@ -1,0 +1,26 @@
+apiVersion: ingressnodefirewall.openshift.io/v1alpha1
+kind: IngressNodeFirewall
+metadata:
+  name: {{NAME}}
+spec:
+  interfaces:
+  - {{PRIMARY_INF}}
+  nodeSelector:
+    matchLabels:
+      node-role.kubernetes.io/worker: ""
+  ingress:
+  - sourceCIDRs:
+    - {{SRC_CIDR}}
+    rules:
+    - order: 1
+      protocolConfig:
+        protocol: ICMPv6
+        icmpv6:
+          icmpType: 128
+      action: {{ACTION_1}}
+    - order: 2
+      protocolConfig:
+        protocol: ICMPv6
+        icmpv6:
+          icmpType: 128
+      action: {{ACTION_2}}

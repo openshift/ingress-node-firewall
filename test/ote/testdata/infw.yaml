@@ -1,0 +1,26 @@
+apiVersion: ingressnodefirewall.openshift.io/v1alpha1
+kind: IngressNodeFirewall
+metadata:
+  name: {{NAME}}
+spec:
+  interfaces:
+  - {{PRIMARY_INF}}
+  nodeSelector:
+    matchLabels:
+      node-role.kubernetes.io/worker: ""
+  ingress:
+  - sourceCIDRs:
+    - {{SRC_CIDR1}}
+    rules:
+    - order: 1
+      protocolConfig:
+        protocol: {{PROTOCOL_1}}
+        {{PROTOCOLTYPE1}}:
+          ports: "{{RANGE_1}}"
+      action: {{ACTION_1}}
+    - order: 2
+      protocolConfig:
+        protocol: {{PROTOCOL_2}}
+        {{PROTOCOLTYPE2}}:
+          ports: "{{RANGE_1}}"
+      action: {{ACTION_2}}

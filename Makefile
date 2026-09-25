@@ -482,3 +482,12 @@ podman-build-daemon: ## Build the daemon image with podman. To change location, 
 .PHONY: podman-push-daemon
 podman-push-daemon: ## Push the daemon image with docker. To change location, specify DAEMON_IMG=<image>.
 	podman push ${DAEMON_IMG}
+
+##@ Extended Tests (OTE)
+.PHONY: build-e2e-tests
+build-e2e-tests: ## Build the extended e2e test binary for OpenShift
+	$(MAKE) -C test build-e2e-tests
+
+.PHONY: clean-e2e-tests
+clean-e2e-tests: ## Clean the extended e2e test artifacts
+	$(MAKE) -C test clean
