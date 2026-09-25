@@ -95,8 +95,12 @@ volatile const __u32 debug_lookup = 0;
  * __u8 *icmpType: pointer to ICMP or ICMPv6's type value.
  * __u8 *icmpCode: pointer to ICMP or ICMPv6's code value.
  * Return:
- * 0 for Success.
- * -1 for Failure.
+ * L4_OK (0): extracted L4 info successfully.
+ * L4_TRUNCATED (-1): packet too short; pass to kernel for rejection.
+ * L4_FRAGMENTED (-2): fragmented packet (IPv4 frag_off or IPv6 Fragment
+ *                     extension header); deny (INF cannot reassemble).
+ * L4_EXT_HDR_LIMIT (-3): IPv6 extension header chain longer than
+ *                     MAX_IPV6_EXT_HDRS; deny (L4 header never reached).
  */
 __attribute__((__always_inline__)) static inline int
 ip_extract_l4info(void *data, void *dataEnd, __u8 *proto, __u16 *dstPort,
@@ -107,23 +111,61 @@ ip_extract_l4info(void *data, void *dataEnd, __u8 *proto, __u16 *dstPort,
     struct iphdr *iph = dataStart;
     dataStart += sizeof(struct iphdr);
     if (unlikely(dataStart > dataEnd)) {
-      return -1;
+      return L4_TRUNCATED;
     }
     *proto = iph->protocol;
+
+    __u16 frag_off = bpf_ntohs(iph->frag_off);
+    if (unlikely((frag_off & IP_OFFSET_MASK) || (frag_off & IP_MF))) {
+      return L4_FRAGMENTED;
+    }
   } else {
     struct ipv6hdr *iph = dataStart;
     dataStart += sizeof(struct ipv6hdr);
     if (unlikely(dataStart > dataEnd)) {
-      return -1;
+      return L4_TRUNCATED;
     }
     *proto = iph->nexthdr;
+
+    /*
+     * Walk the IPv6 extension header chain looking for a Fragment header.
+     * INF cannot reassemble, so any fragment is denied, same as IPv4 above.
+     */
+#pragma clang loop unroll(full)
+    for (int i = 0; i < MAX_IPV6_EXT_HDRS; ++i) {
+      if (unlikely(*proto == NEXTHDR_FRAGMENT)) {
+        return L4_FRAGMENTED;
+      }
+      if (likely(!IS_IPV6_EXT_HDR(*proto))) {
+        break;
+      }
+      struct ipv6_opt_hdr *exth = dataStart;
+      if (unlikely(dataStart + sizeof(struct ipv6_opt_hdr) > dataEnd)) {
+        return L4_TRUNCATED;
+      }
+      *proto = exth->nexthdr;
+      dataStart += ((__u32)exth->hdrlen + 1) * 8;
+      if (unlikely(dataStart > dataEnd)) {
+        return L4_TRUNCATED;
+      }
+    }
+
+    /*
+     * The walk is bounded, so a longer chain leaves *proto still on an extension
+     * header. Deny it. The L4 header was never reached, so no rule can be matched
+     * against it, and the switch below would send it to the default arm and let
+     * it through unfiltered.
+     */
+    if (unlikely(IS_IPV6_EXT_HDR(*proto) || (*proto == NEXTHDR_FRAGMENT))) {
+      return L4_EXT_HDR_LIMIT;
+    }
   }
   switch (*proto) {
   case IPPROTO_TCP: {
     struct tcphdr *tcph = (struct tcphdr *)dataStart;
     dataStart += sizeof(struct tcphdr);
     if (unlikely(dataStart > dataEnd)) {
-      return -1;
+      return L4_TRUNCATED;
     }
     *dstPort = tcph->dest;
     break;
@@ -132,7 +174,7 @@ ip_extract_l4info(void *data, void *dataEnd, __u8 *proto, __u16 *dstPort,
     struct udphdr *udph = (struct udphdr *)dataStart;
     dataStart += sizeof(struct udphdr);
     if (unlikely(dataStart > dataEnd)) {
-      return -1;
+      return L4_TRUNCATED;
     }
     *dstPort = udph->dest;
     break;
@@ -141,7 +183,7 @@ ip_extract_l4info(void *data, void *dataEnd, __u8 *proto, __u16 *dstPort,
     struct sctphdr *sctph = (struct sctphdr *)dataStart;
     dataStart += sizeof(struct sctphdr);
     if (unlikely(dataStart > dataEnd)) {
-      return -1;
+      return L4_TRUNCATED;
     }
     *dstPort = sctph->dest;
     break;
@@ -150,7 +192,7 @@ ip_extract_l4info(void *data, void *dataEnd, __u8 *proto, __u16 *dstPort,
     struct icmphdr *icmph = (struct icmphdr *)dataStart;
     dataStart += sizeof(struct icmphdr);
     if (unlikely(dataStart > dataEnd)) {
-      return -1;
+      return L4_TRUNCATED;
     }
     *icmpType = icmph->type;
     *icmpCode = icmph->code;
@@ -160,16 +202,16 @@ ip_extract_l4info(void *data, void *dataEnd, __u8 *proto, __u16 *dstPort,
     struct icmp6hdr *icmp6h = (struct icmp6hdr *)dataStart;
     dataStart += sizeof(struct icmp6hdr);
     if (unlikely(dataStart > dataEnd)) {
-      return -1;
+      return L4_TRUNCATED;
     }
     *icmpType = icmp6h->icmp6_type;
     *icmpCode = icmp6h->icmp6_code;
     break;
   }
   default:
-    return -1;
+    return L4_TRUNCATED;
   }
-  return 0;
+  return L4_OK;
 }
 
 /*
@@ -195,8 +237,12 @@ ipv4_firewall_lookup(void *data, void *data_end, __u32 ifId) {
   __u8 icmpCode = 0, icmpType = 0, proto = 0;
   int i;
 
-  if (unlikely(ip_extract_l4info(data, data_end, &proto, &dstPort, &icmpType,
-                                 &icmpCode, 1) < 0)) {
+  int l4_result = ip_extract_l4info(data, data_end, &proto, &dstPort, &icmpType,
+                                     &icmpCode, 1);
+  if (unlikely(l4_result != L4_OK)) {
+    if ((l4_result == L4_FRAGMENTED) || (l4_result == L4_EXT_HDR_LIMIT)) {
+      return SET_ACTIONRULE_RESPONSE(DENY, INVALID_RULE_ID);
+    }
     ingress_node_firewall_printk("failed to extract l4 info");
     return SET_ACTION(UNDEF);
   }
@@ -291,8 +337,12 @@ ipv6_firewall_lookup(void *data, void *data_end, __u32 ifId) {
   __u8 icmpCode = 0, icmpType = 0, proto = 0;
   int i;
 
-  if (unlikely(ip_extract_l4info(data, data_end, &proto, &dstPort, &icmpType,
-                                 &icmpCode, 0) < 0)) {
+  int l4_result = ip_extract_l4info(data, data_end, &proto, &dstPort, &icmpType,
+                                     &icmpCode, 0);
+  if (unlikely(l4_result != L4_OK)) {
+    if ((l4_result == L4_FRAGMENTED) || (l4_result == L4_EXT_HDR_LIMIT)) {
+      return SET_ACTIONRULE_RESPONSE(DENY, INVALID_RULE_ID);
+    }
     ingress_node_firewall_printk("failed to extract l4 info");
     return SET_ACTION(UNDEF);
   }
