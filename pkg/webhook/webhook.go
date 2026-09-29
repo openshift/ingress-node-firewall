@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
+	"github.com/openshift/ingress-node-firewall/pkg/constants"
 	"github.com/openshift/ingress-node-firewall/pkg/failsaferules"
 	"github.com/openshift/ingress-node-firewall/pkg/utils"
 
@@ -103,6 +104,11 @@ func validateINFInterfaces(ctx context.Context, infInterfaces []string, infName 
 			allErrs = append(allErrs,
 				field.Invalid(field.NewPath("Spec").Child("interfaces").Index(index),
 					infName, fmt.Sprintf("interface %q can't start with a number", inf)))
+		}
+		if strings.Contains(inf, constants.PinDirDotPlaceholder) {
+			allErrs = append(allErrs,
+				field.Invalid(field.NewPath("Spec").Child("interfaces").Index(index),
+					infName, fmt.Sprintf("interface %q can't contain '%s'", inf, constants.PinDirDotPlaceholder)))
 		}
 	}
 	return allErrs
