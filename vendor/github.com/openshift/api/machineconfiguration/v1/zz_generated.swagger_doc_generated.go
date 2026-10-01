@@ -162,7 +162,6 @@ var map_ControllerConfigSpec = map[string]string{
 	"pullSecret":                     "pullSecret is the default pull secret that needs to be installed on all machines.",
 	"internalRegistryPullSecret":     "internalRegistryPullSecret is the pull secret for the internal registry, used by rpm-ostree to pull images from the internal registry if present",
 	"images":                         "images is map of images that are used by the controller to render templates under ./templates/",
-	"bgpVIPPeersJSON":                "bgpVIPPeersJSON carries the BGP VIP peer configuration (the config.json payload of the bgp-vip-config ConfigMap) for rendering the frr-k8s static pod peer file on control plane nodes. Only set when BGP-based VIP management is enabled. When omitted, BGP-based VIP management is not configured and no frr-k8s peer file is rendered. When set, the value must be between 1 and 65536 characters long.",
 	"baseOSContainerImage":           "baseOSContainerImage is the new-format container image for operating system updates.",
 	"baseOSExtensionsContainerImage": "baseOSExtensionsContainerImage is the matching extensions container for the new-format container",
 	"osImageURL":                     "osImageURL is the old-format container image that contains the OS update payload.",
@@ -245,12 +244,10 @@ func (KubeletConfigList) SwaggerDoc() map[string]string {
 }
 
 var map_KubeletConfigSpec = map[string]string{
-	"":                          "KubeletConfigSpec configures the kubelet running on cluster nodes.",
-	"autoSizingReserved":        "autoSizingReserved controls whether system-reserved CPU and memory are automatically calculated based on each node's installed capacity. When set to true, this prevents node failure from resource starvation of system components (kubelet, CRI-O) without manual configuration. When omitted, this means the user has no opinion and the platform is left to choose a reasonable default, which is subject to change over time. The current default is true for worker nodes and false for control plane nodes. When set to false, automatic resource reservation is disabled and manual settings must be configured.",
-	"logLevel":                  "logLevel sets the kubelet log verbosity, controlling the amount of detail in kubelet logs. Valid values range from 0 (minimal logging) to 10 (maximum verbosity with trace-level detail). Higher log levels may impact node performance. When omitted, the platform chooses a reasonable default, which is subject to change over time. The current default is 2 (standard informational logging).",
-	"machineConfigPoolSelector": "machineConfigPoolSelector selects which pools the KubeletConfig should apply to. When omitted or set to an empty selector {}, no pools are selected, which is equivalent to not matching any MachineConfigPool.",
-	"kubeletConfig":             "kubeletConfig contains upstream Kubernetes kubelet configuration fields. Values are validated by the kubelet itself. Invalid values may render nodes unusable. Refer to OpenShift documentation for the Kubernetes version corresponding to your OpenShift release to find valid kubelet configuration options.",
-	"tlsSecurityProfile":        "tlsSecurityProfile configures TLS settings for the kubelet. When omitted, the TLS configuration defaults to the value from apiservers.config.openshift.io/cluster. When specified, the type field can be set to either \"Old\", \"Intermediate\", \"Modern\", \"Custom\" or omitted for backward compatibility.",
+	"":                          "KubeletConfigSpec defines the desired state of KubeletConfig",
+	"machineConfigPoolSelector": "machineConfigPoolSelector selects which pools the KubeletConfig shoud apply to. A nil selector will result in no pools being selected.",
+	"kubeletConfig":             "kubeletConfig fields are defined in kubernetes upstream. Please refer to the types defined in the version/commit used by OpenShift of the upstream kubernetes. It's important to note that, since the fields of the kubelet configuration are directly fetched from upstream the validation of those values is handled directly by the kubelet. Please refer to the upstream version of the relevant kubernetes for the valid values of these fields. Invalid values of the kubelet configuration fields may render cluster nodes unusable.",
+	"tlsSecurityProfile":        "If unset, the default is based on the apiservers.config.openshift.io/cluster resource. Note that only Old and Intermediate profiles are currently supported, and the maximum available minTLSVersion is VersionTLS12.",
 }
 
 func (KubeletConfigSpec) SwaggerDoc() map[string]string {
@@ -411,65 +408,6 @@ func (PoolSynchronizerStatus) SwaggerDoc() map[string]string {
 	return map_PoolSynchronizerStatus
 }
 
-var map_InternalReleaseImage = map[string]string{
-	"":         "InternalReleaseImage is used to keep track and manage a set of release bundles (OCP and OLM operators images) that are stored into the control planes nodes. This is a singleton resource with 'cluster' as the only valid name.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
-	"metadata": "metadata is the standard object's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
-	"spec":     "spec describes the configuration of this internal release image.",
-	"status":   "status describes the last observed state of this internal release image.",
-}
-
-func (InternalReleaseImage) SwaggerDoc() map[string]string {
-	return map_InternalReleaseImage
-}
-
-var map_InternalReleaseImageBundleStatus = map[string]string{
-	"":           "InternalReleaseImageBundleStatus describes the observed state of a single release bundle managed by the cluster.",
-	"conditions": "conditions represent the observations of an internal release image current state. Valid types are: Mounted, Installing, Available, Removing and Degraded.\n\nIf Mounted is true, that means that a valid ISO has been discovered and mounted on one of the cluster nodes. If Installing is true, that means that a new release bundle is currently being copied on one (or more) cluster nodes, and not yet completed. If Available is true, it means that the release has been previously installed on all the cluster nodes, and it can be used. If Removing is true, it means that a release deletion is in progress on one (or more) cluster nodes, and not yet completed. If Degraded is true, that means something has gone wrong (possibly on one or more cluster nodes).\n\nIn general, after installing a new release bundle, it is required to wait for the Conditions \"Available\" to become \"True\" (and all the other conditions to be equal to \"False\") before being able to pull its content. When present, conditions must contain at least 1 entry and must not exceed 5 entries.",
-	"name":       "name indicates the desired release bundle identifier. This field is required and must be between 1 and 64 characters long. The expected name format is ocp-release-bundle-<version>-<arch|stream>.",
-	"image":      "image is an OCP release image referenced by digest. The format of the image pull spec is: host[:port][/namespace]/name@sha256:<digest>, where the digest must be 64 characters long, and consist only of lowercase hexadecimal characters, a-f and 0-9. The length of the whole spec must be between 1 to 447 characters. The field is optional, and it will be provided after a release has been successfully installed.",
-}
-
-func (InternalReleaseImageBundleStatus) SwaggerDoc() map[string]string {
-	return map_InternalReleaseImageBundleStatus
-}
-
-var map_InternalReleaseImageList = map[string]string{
-	"":         "InternalReleaseImageList is a list of InternalReleaseImage resources\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
-	"metadata": "metadata is the standard list's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
-}
-
-func (InternalReleaseImageList) SwaggerDoc() map[string]string {
-	return map_InternalReleaseImageList
-}
-
-var map_InternalReleaseImageRef = map[string]string{
-	"":     "InternalReleaseImageRef is used to provide a simple reference for a release bundle. Currently it contains only the name field.",
-	"name": "name indicates the desired release bundle identifier. This field is required and must be between 1 and 64 characters long. The expected name format is ocp-release-bundle-<version>-<arch|stream>.",
-}
-
-func (InternalReleaseImageRef) SwaggerDoc() map[string]string {
-	return map_InternalReleaseImageRef
-}
-
-var map_InternalReleaseImageSpec = map[string]string{
-	"":         "InternalReleaseImageSpec defines the desired state of a InternalReleaseImage.",
-	"releases": "releases is a list of release bundle identifiers that the user wants to add/remove to/from the control plane nodes. Entries must be unique, keyed on the name field. releases must contain at least one entry and must not exceed 16 entries.",
-}
-
-func (InternalReleaseImageSpec) SwaggerDoc() map[string]string {
-	return map_InternalReleaseImageSpec
-}
-
-var map_InternalReleaseImageStatus = map[string]string{
-	"":           "InternalReleaseImageStatus describes the current state of a InternalReleaseImage.",
-	"conditions": "conditions represent the observations of the InternalReleaseImage controller current state. Valid types are: Degraded. If Degraded is true, that means something has gone wrong in the controller. The conditions list must contain at most 5 entries.",
-	"releases":   "releases is a list of the release bundles currently owned and managed by the cluster. A release bundle content could be safely pulled only when its Conditions field contains at least an Available entry set to \"True\" and Degraded to \"False\". Entries must be unique, keyed on the name field. releases must contain at least one entry and must not exceed 32 entries.",
-}
-
-func (InternalReleaseImageStatus) SwaggerDoc() map[string]string {
-	return map_InternalReleaseImageStatus
-}
-
 var map_IrreconcilableChangeDiff = map[string]string{
 	"":          "IrreconcilableChangeDiff holds an individual diff between the initial install-time MachineConfig and the latest applied one caused by the presence of irreconcilable changes.",
 	"fieldPath": "fieldPath is a required reference to the path in the latest rendered MachineConfig that differs from this nodes configuration. Must not be empty and must not exceed 70 characters in length. Must begin with the prefix 'spec.' and only contain alphanumeric characters, square brackets ('[]'), or dots ('.').",
@@ -542,7 +480,7 @@ func (MachineConfigNodeSpecMachineConfigVersion) SwaggerDoc() map[string]string 
 
 var map_MachineConfigNodeStatus = map[string]string{
 	"":                      "MachineConfigNodeStatus holds the reported information on a particular machine config node.",
-	"conditions":            "conditions represent the observations of a machine config node's current state. Valid types are: UpdatePrepared, UpdateExecuted, UpdatePostActionComplete, UpdateComplete, Updated, Resumed, Drained, AppliedFilesAndOS, Cordoned, Uncordoned, RebootedNode, NodeDegraded, PinnedImageSetsProgressing, and PinnedImageSetsDegraded. The following types are only available when the ImageModeStatusReporting feature gate is enabled: ImagePulledFromRegistry, AppliedOSImage, AppliedFiles The following types are only available when the NoRegistryClusterInstall feature gate is enabled: InternalReleaseImageDegraded",
+	"conditions":            "conditions represent the observations of a machine config node's current state. Valid types are: UpdatePrepared, UpdateExecuted, UpdatePostActionComplete, UpdateComplete, Updated, Resumed, Drained, AppliedFilesAndOS, Cordoned, Uncordoned, RebootedNode, NodeDegraded, PinnedImageSetsProgressing, and PinnedImageSetsDegraded. The following types are only available when the ImageModeStatusReporting feature gate is enabled: ImagePulledFromRegistry, AppliedOSImage, AppliedFiles",
 	"observedGeneration":    "observedGeneration represents the generation of the MachineConfigNode object observed by the Machine Config Operator's controller. This field is updated when the controller observes a change to the desiredConfig in the configVersion of the machine config node spec.",
 	"configVersion":         "configVersion describes the current and desired machine config version for this node.",
 	"configImage":           "configImage is an optional field for configuring the OS image to be used for this node. This field will only exist if the node belongs to a pool opted into on-cluster image builds, and will override any MachineConfig referenced OSImageURL fields. When omitted, this means that the Image Mode feature is not being used and the node will be up to date with the specific current rendered config version for the nodes MachinePool. When specified, the Image Mode feature is enabled and the contents of this field show the observed state of the node image. When Image Mode is enabled and a new MachineConfig is applied such that a new OS image build is not created, only the configVersion field will change. When Image Mode is enabled and a new MachineConfig is applied such that a new OS image build is created, then only the configImage field will change. It is also possible that both the configImage and configVersion change during the same update.",
@@ -578,7 +516,7 @@ var map_MachineConfigNodeStatusInternalReleaseImageRef = map[string]string{
 	"":           "MachineConfigNodeStatusInternalReleaseImageRef is used to provide a more detailed reference for a release bundle.",
 	"conditions": "conditions represent the observations of an internal release image current state. Valid types are: Mounted, Installing, Available, Removing and Degraded.\n\nIf Mounted is true, that means that a valid ISO has been mounted on the current node. If Installing is true, that means that a new release bundle is currently being copied on the current node, and not yet completed. If Available is true, it means that the release has been previously installed on the current node, and it can be used. If Removing is true, it means that a release deletion is in progress on the current node, and not yet completed. If Degraded is true, that means something has gone wrong in the current node.",
 	"name":       "name indicates the desired release bundle identifier. This field is required and must be between 1 and 64 characters long. The expected name format is ocp-release-bundle-<version>-<arch|stream>.",
-	"image":      "image is an OCP release image referenced by digest. The format of the image pull spec is: host[:port][/namespace]/name@sha256:<digest>, where the digest must be 64 characters long, and consist only of lowercase hexadecimal characters, a-f and 0-9. The host must be either exactly \"localhost\" or a dot-qualified domain name. Single-label hosts other than \"localhost\" are not permitted. The length of the whole spec must be between 1 to 447 characters. The field is optional, and it will be provided after a release will be successfully installed.",
+	"image":      "image is an OCP release image referenced by digest. The format of the image pull spec is: host[:port][/namespace]/name@sha256:<digest>, where the digest must be 64 characters long, and consist only of lowercase hexadecimal characters, a-f and 0-9. The length of the whole spec must be between 1 to 447 characters. The field is optional, and it will be provided after a release will be successfully installed.",
 }
 
 func (MachineConfigNodeStatusInternalReleaseImageRef) SwaggerDoc() map[string]string {
@@ -775,55 +713,6 @@ var map_MachineOSImageBuilder = map[string]string{
 
 func (MachineOSImageBuilder) SwaggerDoc() map[string]string {
 	return map_MachineOSImageBuilder
-}
-
-var map_OSImageStream = map[string]string{
-	"":         "OSImageStream describes a set of streams and associated images available for the MachineConfigPools to be used as base OS images.\n\nThe resource is a singleton named \"cluster\".\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
-	"metadata": "metadata is the standard object's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
-	"spec":     "spec contains the desired OSImageStream config configuration.",
-	"status":   "status describes the last observed state of this OSImageStream. Populated by the MachineConfigOperator after reading release metadata. When not present, the controller has not yet reconciled this resource.",
-}
-
-func (OSImageStream) SwaggerDoc() map[string]string {
-	return map_OSImageStream
-}
-
-var map_OSImageStreamList = map[string]string{
-	"":         "OSImageStreamList is a list of OSImageStream resources\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
-	"metadata": "metadata is the standard list's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
-}
-
-func (OSImageStreamList) SwaggerDoc() map[string]string {
-	return map_OSImageStreamList
-}
-
-var map_OSImageStreamSet = map[string]string{
-	"name":              "name is the required identifier of the stream.\n\nname is determined by the operator based on the OCI label of the discovered OS or Extension Image.\n\nMust be a valid RFC 1123 subdomain between 1 and 253 characters in length, consisting of lowercase alphanumeric characters, hyphens ('-'), and periods ('.').",
-	"osImage":           "osImage is a required OS Image referenced by digest.\n\nosImage contains the immutable, fundamental operating system components, including the kernel and base utilities, that define the core environment for the node's host operating system.\n\nThe format of the image pull spec is: host[:port][/namespace]/name@sha256:<digest>, where the digest must be 64 characters long, and consist only of lowercase hexadecimal characters, a-f and 0-9. The length of the whole spec must be between 1 to 447 characters.",
-	"osExtensionsImage": "osExtensionsImage is a required OS Extensions Image referenced by digest.\n\nosExtensionsImage bundles the extra repositories used to enable extensions, augmenting the base operating system without modifying the underlying immutable osImage.\n\nThe format of the image pull spec is: host[:port][/namespace]/name@sha256:<digest>, where the digest must be 64 characters long, and consist only of lowercase hexadecimal characters, a-f and 0-9. The length of the whole spec must be between 1 to 447 characters.",
-}
-
-func (OSImageStreamSet) SwaggerDoc() map[string]string {
-	return map_OSImageStreamSet
-}
-
-var map_OSImageStreamSpec = map[string]string{
-	"":              "OSImageStreamSpec defines the desired state of a OSImageStream.",
-	"defaultStream": "defaultStream is the desired name of the stream that should be used as the default when no specific stream is requested by a MachineConfigPool.\n\nThis field is set by the installer during installation. Users may need to update it if the currently selected stream is no longer available, for example when the stream has reached its End of Life. The MachineConfigOperator uses this value to determine which stream from status.availableStreams to apply as the default for MachineConfigPools that do not specify a stream override.\n\nWhen status.availableStreams has been populated by the operator, updating this field requires that the new value references the name of one of the streams in status.availableStreams. Status-only updates by the operator are not subject to this constraint, allowing the operator to update availableStreams independently of this field. During initial creation, before the operator has populated status, any valid value is accepted.\n\nFor upgrade scenarios where the source OCP version doesn't have this CRD the MCO creates and populates the OSImageStream cluster singleton setting this field with the proper value based on the source OCP version.\n\nIt must be a valid RFC 1123 subdomain between 1 and 253 characters in length, consisting of lowercase alphanumeric characters, hyphens ('-'), and periods ('.').",
-}
-
-func (OSImageStreamSpec) SwaggerDoc() map[string]string {
-	return map_OSImageStreamSpec
-}
-
-var map_OSImageStreamStatus = map[string]string{
-	"":                 "OSImageStreamStatus describes the current state of a OSImageStream",
-	"availableStreams": "availableStreams is a list of the available OS Image Streams that can be used as the base image for MachineConfigPools. availableStreams is required, must have at least one item, must not exceed 100 items, and must have unique entries keyed on the name field.",
-	"defaultStream":    "defaultStream is the name of the stream that should be used as the default when no specific stream is requested by a MachineConfigPool.\n\nIt must be a valid RFC 1123 subdomain between 1 and 253 characters in length, consisting of lowercase alphanumeric characters, hyphens ('-'), and periods ('.'), and must reference the name of one of the streams in availableStreams.",
-}
-
-func (OSImageStreamStatus) SwaggerDoc() map[string]string {
-	return map_OSImageStreamStatus
 }
 
 var map_PinnedImageRef = map[string]string{
