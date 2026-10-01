@@ -16,7 +16,7 @@
 7. [Test Deliverables](#test-deliverables) — Test reports and automation
 8. [Test Tasks](#test-tasks) — Work breakdown
 9. [Pass/Fail Criteria](#passfail-criteria) — Exit criteria
-10. [Risks](#risks) — Known blockers and limitations
+10. [Risks and Mitigation](#risks-and-mitigation) — Known blockers and limitations
 
 ## References
 
@@ -26,7 +26,7 @@
 |------|-----------|-------------|
 | **Enhancement Proposal** | [api-tls-curves-config.md](https://github.com/openshift/enhancements/blob/master/enhancements/security/api-tls-curves-config.md) | TLS curve/group preferences configuration API |
 | **Parent Jira** | [OCPSTRAT-3145](https://redhat.atlassian.net/browse/OCPSTRAT-3145) | TLSGroupPreferences field for TLS 1.3 |
-| **Feature Gate** | `TLSCurvePreferences` | Required for PQC hybrid curves (DevPreviewNoUpgrade / TechPreviewNoUpgrade) |
+| **Feature Gate** | `TLSCurvePreferences` | Required for any explicitly configured `custom.groups` value; omitted groups use default classical negotiation (DevPreviewNoUpgrade / TechPreviewNoUpgrade) |
 | **Repository** | [openshift/ingress-node-firewall](https://github.com/openshift/ingress-node-firewall) | Ingress Node Firewall webhook server |
 
 ## Introduction
@@ -68,14 +68,14 @@ When OpenShift runs in FIPS mode (`/proc/sys/crypto/fips_enabled=1`), the TLS st
 - `secp521r1` (NIST P-521)
 - `SecP384r1MLKEM1024` (PQC hybrid, OCP 5.1+)
 
-**Non-FIPS Curves (Filtered):**
+**Non-FIPS Curves (Must Be Explicitly Filtered):**
 - `X25519` (non-NIST classical curve)
 - `X25519MLKEM768` (contains non-FIPS X25519 component)
 
 **Future Availability:**
 - `SecP256r1MLKEM768` — FIPS-approved PQC hybrid curve (requires Go 1.26+)
 
-**Important:** FIPS filtering is **silent** — the configuration is accepted, but non-compliant curves are ignored during TLS handshake negotiation.
+**Important:** The webhook TLS profile adapter must explicitly filter non-FIPS-approved groups, including `X25519MLKEM768`, when FIPS mode is enabled. The configuration is accepted, but non-compliant curves must not be used during TLS handshake negotiation.
 
 ## Test Strategy
 
@@ -117,12 +117,12 @@ This test plan focuses on the Ingress Node Firewall webhook server for TLS curve
 
 | Curve / Group | Type | FIPS Status | Feature Gate Required | Availability |
 |---------------|------|-------------|----------------------|--------------|
-| **X25519** | Classical (non-NIST) | Filtered | No | All OCP versions |
-| **secp256r1** | Classical (NIST P-256) | Approved | No | All OCP versions |
-| **secp384r1** | Classical (NIST P-384) | Approved | No | All OCP versions |
-| **secp521r1** | Classical (NIST P-521) | Approved | No | All OCP versions |
+| **X25519** | Classical (non-NIST) | Filtered | Yes (when configured in custom.groups) | All OCP versions |
+| **secp256r1** | Classical (NIST P-256) | Approved | Yes (when configured in custom.groups) | All OCP versions |
+| **secp384r1** | Classical (NIST P-384) | Approved | Yes (when configured in custom.groups) | All OCP versions |
+| **secp521r1** | Classical (NIST P-521) | Approved | Yes (when configured in custom.groups) | All OCP versions |
 | **X25519MLKEM768** | PQC Hybrid | Filtered (contains X25519) | Yes | OCP 5.1+ |
-| **SecP256r1MLKEM768** | PQC Hybrid | Would be approved | Yes | Requires Go 1.26+ |
+| **SecP256r1MLKEM768** | PQC Hybrid | Approved (when available) | Yes | OCP 5.1+ (requires Go 1.26+ runtime) |
 | **SecP384r1MLKEM1024** | PQC Hybrid | Approved | Yes | OCP 5.1+ |
 
 ### E2E Test Cases
@@ -147,8 +147,9 @@ Validates that the Ingress Node Firewall admission webhook server correctly appl
 - Hypershift
 
 **Expected Results:**
-- TLS connections successfully negotiate using configured curves
-- Non-FIPS curves are filtered when FIPS mode is enabled
+- TLS connections successfully negotiate, and the negotiated group is among the configured curves
+- Excluded groups, including non-FIPS curves in FIPS mode, are not selected during negotiation
+- Non-FIPS curves are explicitly filtered when FIPS mode is enabled
 - PQC hybrid curves require `TLSCurvePreferences` feature gate
 - Admission webhook operations complete successfully with configured TLS curves
 
@@ -231,7 +232,7 @@ The feature is **NOT ready for release** if any of the following occur:
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
-| **Go version dependency** | `SecP256r1MLKEM768` requires Go 1.26+ | Medium | Document as future availability; test other PQC curves |
+| **Go version dependency** | `SecP256r1MLKEM768` requires Go 1.26+ runtime | Medium | Test with OCP 5.1+ when Go 1.26+ runtime is available; validate other PQC curves |
 | **FIPS certification delays** | PQC hybrid curves may need additional FIPS approval | Low | Focus on classical curve validation first |
 | **Platform-specific issues** | Different behavior on ARM64, s390x, ppc64le | Low | Test on all supported architectures |
 | **Third-party client compatibility** | Older clients may not support PQC curves | Medium | Ensure graceful fallback to classical curves |
