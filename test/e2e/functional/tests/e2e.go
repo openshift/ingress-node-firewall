@@ -1146,6 +1146,135 @@ var _ = Describe("Ingress Node Firewall", func() {
 		})
 	})
 
+	Context("IP fragmentation", func() {
+		var (
+			config           *ingressnodefwv1alpha1.IngressNodeFirewallConfig
+			clientOnePodName = "e2e-inf-frag-client-one"
+			serverOnePodName = "e2e-inf-frag-server-one"
+			serverLabelKey   = "e2e-inf-frag-server"
+			serverLabelValue = ""
+			serverPodLabel   = map[string]string{serverLabelKey: serverLabelValue, testArtifactsLabelKey: testArtifactsLabelValue}
+			clientLabelKey   = "e2e-inf-frag-client"
+			clientLabelValue = ""
+			clientPodLabel   = map[string]string{clientLabelKey: clientLabelValue, testArtifactsLabelKey: testArtifactsLabelValue}
+			serverPort       = "80"
+			unrelatedPort    = "40000"
+		)
+
+		BeforeEach(func() {
+			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
+			Expect(infwutils.LoadIngressNodeFirewallConfigFromFile(config,
+				inftestconsts.IngressNodeFirewallConfigCRFile)).Should(Succeed())
+			config.SetNamespace(OperatorNameSpace)
+			config.SetLabels(testArtifactsLabelMap)
+			Expect(infwutils.EnsureIngressNodeFirewallConfigExists(testclient.Client, config, timeout)).Should(Succeed())
+			infDaemonSet := &appsv1.DaemonSet{}
+			infDaemonSet.SetName(inftestconsts.IngressNodeFirewallDaemonsetName)
+			infDaemonSet.SetNamespace(OperatorNameSpace)
+			Expect(daemonset.WaitForDaemonSetReady(testclient.Client, infDaemonSet, retryInterval, timeout)).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			infwutils.DeleteIngressNodeFirewallConfig(testclient.Client, config, retryInterval, timeout)
+		})
+
+		// Fragments are denied in ip_extract_l4info() before the source CIDR lookup, so
+		// this holds for every fragment arriving on an attached interface no matter what
+		// the rules say. The policy created below exists only to make the daemon attach
+		// to testInterface; it targets an unrelated port so that unfragmented traffic to
+		// serverPort stays reachable and can serve as a positive control.
+		It("denies fragmented packets on a port that unfragmented traffic may use", func() {
+			clientPod, serverPod, cleanupPodsFn, err := getClientServerTestPods(testclient.Client,
+				OperatorNameSpace, clientOnePodName, clientPodLabel, serverOnePodName, serverPodLabel)
+			Expect(err).ShouldNot(HaveOccurred())
+			defer cleanupPodsFn()
+
+			sourceCIDRs, err := getPodSourceCIDRs(clientPod, v4Enabled, v6Enabled, isSingleStack)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			ipsFor := func(f ipFamily) (string, string) {
+				if f.v6 {
+					return pods.GetIPV6(clientPod.Status.PodIPs), pods.GetIPV6(serverPod.Status.PodIPs)
+				}
+				return pods.GetIPV4(clientPod.Status.PodIPs), pods.GetIPV4(serverPod.Status.PodIPs)
+			}
+
+			// Positive control, and it has to run before the policy exists. "No fragments
+			// arrived" is the real assertion below, and a broken sender, a missing python3
+			// or a CNI that reassembles fragments upstream would all satisfy it for the
+			// wrong reason.
+			for _, family := range enabledIPFamilies() {
+				sourceIP, destinationIP := ipsFor(family)
+				By(fmt.Sprintf("[%s] Confirming fragments reach the server with no policy applied", family.name))
+				// Retried: this direction can only fail low (a sniffer that bound late
+				// misses the datagrams), so another attempt is a fair retry.
+				Eventually(func() int {
+					collect := transport.SniffFragments(testclient.Client, serverPod, family.v6, sourceIP)
+					if err := transport.SendFragmentedPacket(testclient.Client, family.v6,
+						clientPod, destinationIP, serverPort); err != nil {
+						log.Printf("[%s] %v", family.name, err)
+						return -1
+					}
+					return collect()
+				}, timeout, retryInterval).Should(BeNumerically(">", 0),
+					"Failed: fragments never reached the server unfiltered, so this cluster cannot test fragment filtering")
+			}
+
+			inf := &ingressnodefwv1alpha1.IngressNodeFirewall{}
+			inf.SetName("e2e-inf-fragmentation")
+			inf.SetLabels(testArtifactsLabelMap)
+			infwutils.DefineWithWorkerNodeSelector(inf)
+			infwutils.DefineWithInterface(inf, testInterface)
+			inf.Spec.Ingress = append(inf.Spec.Ingress, ingressnodefwv1alpha1.IngressNodeFirewallRules{
+				SourceCIDRs: sourceCIDRs,
+				FirewallProtocolRules: []ingressnodefwv1alpha1.IngressNodeFirewallProtocolRule{
+					infwutils.GetTransportProtocolBlockPortRule(ingressnodefwv1alpha1.ProtocolTypeTCP, 1, unrelatedPort),
+				},
+			})
+			Eventually(func() error {
+				return infwutils.CreateIngressNodeFirewall(testclient.Client, inf, timeout)
+			}, timeout, retryInterval).ShouldNot(HaveOccurred())
+			defer func() {
+				Eventually(func() bool {
+					return errors.IsNotFound(infwutils.DeleteIngressNodeFirewall(testclient.Client, inf, timeout))
+				}, timeout, retryInterval).Should(BeTrue(), "Failed to delete IngressNodeFirewall rules")
+			}()
+			Eventually(func() bool {
+				fw := &ingressnodefwv1alpha1.IngressNodeFirewall{}
+				if err := infwutils.GetIngressNodeFirewallObj(testclient.Client, inf.Name, fw, timeout); err != nil {
+					return false
+				}
+				return fw.Status.SyncStatus == ingressnodefwv1alpha1.FirewallRulesSyncOK
+			}, timeout, retryInterval).Should(BeTrue(), "failed to sync IngressNodeFirewall rule")
+			checkNodeStateCreate(testclient.Client, &ingressnodefwv1alpha1.IngressNodeFirewallNodeStateList{})
+
+			for _, family := range enabledIPFamilies() {
+				sourceIP, destinationIP := ipsFor(family)
+
+				// The policy only blocks unrelatedPort, so unfragmented traffic to
+				// serverPort must still work. This separates "the firewall dropped the
+				// fragments" from "the firewall broke the whole path".
+				By(fmt.Sprintf("[%s] Confirming unfragmented traffic to port %s is allowed", family.name, serverPort))
+				Eventually(func() bool {
+					return isConnectivitySeen(testclient.Client, ingressnodefwv1alpha1.ProtocolTypeTCP,
+						clientPod, sourceIP, serverPod, destinationIP, serverPort, family.v6)
+				}, timeout, retryInterval).Should(BeTrue(), "Failed: unfragmented traffic should be reachable")
+
+				// UDP only: TCP segments to the MSS rather than fragmenting. Fragments are
+				// rejected before the L4 protocol is read, so this covers every protocol.
+				By(fmt.Sprintf("[%s] Confirming fragmented traffic to port %s is denied", family.name, serverPort))
+				// Deliberately not retried. Eventually would poll until it saw a zero and
+				// so would hide an intermittent leak, which is the failure that matters
+				// most here. -1 means the sniffer never reported and also fails.
+				collect := transport.SniffFragments(testclient.Client, serverPod, family.v6, sourceIP)
+				Expect(transport.SendFragmentedPacket(testclient.Client, family.v6,
+					clientPod, destinationIP, serverPort)).Should(Succeed())
+				Expect(collect()).Should(Equal(0),
+					"Failed: fragments reached the server despite the firewall being attached")
+			}
+		})
+	})
+
 	// NOTE: This test suite requires a disposable cluster and MUST NOT run on shared infrastructure.
 	//
 	// Cluster State Modifications (cannot be fully reverted):
@@ -1542,6 +1671,24 @@ var _ = Describe("Ingress Node Firewall", func() {
 		})
 	})
 })
+
+// ipFamily identifies which of a pod's addresses a check should use.
+type ipFamily struct {
+	name string
+	v6   bool
+}
+
+// enabledIPFamilies returns the IP families the cluster under test supports.
+func enabledIPFamilies() []ipFamily {
+	families := make([]ipFamily, 0, 2)
+	if v4Enabled {
+		families = append(families, ipFamily{"IPV4", false})
+	}
+	if !isSingleStack && v6Enabled {
+		families = append(families, ipFamily{"IPV6", true})
+	}
+	return families
+}
 
 func skipProtocol(protocol ingressnodefwv1alpha1.IngressNodeFirewallRuleProtocolType, v6Disabled bool) bool {
 	if protocol == ingressnodefwv1alpha1.ProtocolTypeICMP6 && v6Disabled {
