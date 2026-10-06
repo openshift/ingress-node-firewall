@@ -91,7 +91,7 @@ func TestGetInterfaceIndices(t *testing.T) {
 		if err := netlink.LinkAdd(slaveDummy); err != nil {
 			t.Fatal(err)
 		}
-		if err := netlink.LinkSetBondSlave(slaveDummy, bond); err != nil {
+		if err := netlink.LinkSetMaster(slaveDummy, bond); err != nil {
 			t.Fatal(err)
 		}
 		slaves = append(slaves, slaveDummy)

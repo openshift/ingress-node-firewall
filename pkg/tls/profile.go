@@ -63,7 +63,11 @@ func GetProfileInfo(ctx context.Context, client ctrlclient.Client) (Profile, err
 	}
 
 	// Only apply TLS config if we should honor the cluster TLS profile
-	if !crypto.ShouldHonorClusterTLSProfile(apiServer.Spec.TLSAdherence) {
+	// ShouldHonorClusterTLSProfile logic inlined (was removed from library-go):
+	// Returns false for NoOpinion or LegacyAdheringComponentsOnly, true otherwise
+	shouldHonor := !(apiServer.Spec.TLSAdherence == configv1.TLSAdherencePolicyNoOpinion ||
+		apiServer.Spec.TLSAdherence == configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly)
+	if !shouldHonor {
 		log.Info("Not honoring TLS profile due to adherence policy", "adherence", apiServer.Spec.TLSAdherence)
 		return profile, nil
 	}
@@ -111,7 +115,11 @@ func (p *Profile) SetupProfileWatch(ctx context.Context, mgr ctrl.Manager, onCha
 
 // GetProfileSpec returns the TLS profile spec, or nil if not honoring the cluster TLS profile.
 func (p *Profile) GetProfileSpec() *configv1.TLSProfileSpec {
-	if !crypto.ShouldHonorClusterTLSProfile(p.adherence) {
+	// ShouldHonorClusterTLSProfile logic inlined (was removed from library-go):
+	// Returns false for NoOpinion or LegacyAdheringComponentsOnly, true otherwise
+	shouldHonor := !(p.adherence == configv1.TLSAdherencePolicyNoOpinion ||
+		p.adherence == configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly)
+	if !shouldHonor {
 		return nil
 	}
 	return p.profileSpec
