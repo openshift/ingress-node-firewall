@@ -32,6 +32,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+
 	//+kubebuilder:scaffold:imports
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -177,6 +178,17 @@ var _ = Describe("Interfaces", func() {
 		It("interfaces config with interface name starts with number", func() {
 			initCIDRICMPRule(inf, ipv4CIDR, validOrder, false, icmpTypeEchoReply, icmpTypeEchoReply, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
 			configInterfaces(inf, []string{"0th"})
+			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+		})
+		It("interfaces config with interface name containing dot", func() {
+			initCIDRICMPRule(inf, ipv4CIDR, validOrder, false, icmpTypeEchoReply, icmpTypeEchoReply, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			configInterfaces(inf, []string{"eth0.100"})
+			Expect(createIngressNodeFirewall(inf)).To(Succeed())
+			Expect(deleteIngressNodeFirewall(inf)).To(Succeed())
+		})
+		It("interfaces config with interface name containing dot placeholder", func() {
+			initCIDRICMPRule(inf, ipv4CIDR, validOrder, false, icmpTypeEchoReply, icmpTypeEchoReply, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
+			configInterfaces(inf, []string{"eth0__dot__100"})
 			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
 		})
 	})

@@ -128,3 +128,31 @@ func cleanup(t *testing.T) {
 		t.Log(err)
 	}
 }
+
+func TestSanitizePinDir(t *testing.T) {
+	tests := []struct {
+		in       string
+		expected string
+	}{
+		{
+			in:       "eth0",
+			expected: "eth0",
+		},
+		{
+			in:       "bond0.100",
+			expected: "bond0__dot__100",
+		},
+		{
+			in:       "eth0__dot__100",
+			expected: "eth0.100",
+		},
+	}
+
+	for _, tc := range tests {
+		result := sanitizePinDir(tc.in)
+		if result != tc.expected {
+			t.Fatalf("Failed to sanitize, expected %s, got %s",
+				tc.expected, result)
+		}
+	}
+}
