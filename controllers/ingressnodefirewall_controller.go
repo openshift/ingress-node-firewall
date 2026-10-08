@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
@@ -266,8 +267,9 @@ func (r *IngressNodeFirewallReconciler) SetupWithManager(mgr ctrl.Manager) error
 		Complete(r)
 }
 
-// buildNodeStates reads a list of *ingressnodefwv1alpha1.IngressNodeFirewallList and builds an appropriate mapping
-// of <nodeName> to IngressNodeFirewallNodeState.
+// buildNodeStates builds desired IngressNodeFirewallNodeStates from a list of
+// firewalls. It sorts owner references so list order cannot change desired
+// state.
 func (r *IngressNodeFirewallReconciler) buildNodeStates(
 	ctx context.Context, infList *infv1alpha1.IngressNodeFirewallList) (map[string]infv1alpha1.IngressNodeFirewallNodeState, error) {
 	var err error
@@ -397,6 +399,25 @@ func (r *IngressNodeFirewallReconciler) buildNodeStates(
 		if err := r.Status().Update(ctx, firewallObj); err != nil {
 			r.Log.Error(err, "failed to update ingress node firewall obj status", "firewall obj", firewallObj.Name)
 		}
+	}
+
+	// The list order of IngressNodeFirewall objects is not stable. Canonicalize
+	// owner references so equivalent desired NodeStates have the same slice order.
+	for nodeName, nodeState := range nodeStates {
+		sort.Slice(nodeState.OwnerReferences, func(i, j int) bool {
+			left, right := nodeState.OwnerReferences[i], nodeState.OwnerReferences[j]
+			if left.APIVersion != right.APIVersion {
+				return left.APIVersion < right.APIVersion
+			}
+			if left.Kind != right.Kind {
+				return left.Kind < right.Kind
+			}
+			if left.Name != right.Name {
+				return left.Name < right.Name
+			}
+			return left.UID < right.UID
+		})
+		nodeStates[nodeName] = nodeState
 	}
 
 	return nodeStates, nil
