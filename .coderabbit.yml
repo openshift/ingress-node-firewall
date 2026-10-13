@@ -1,0 +1,260 @@
+# Inherit settings from the organization-level .coderabbit.yaml configuration.
+inheritance: true
+
+# https://docs.coderabbit.ai/reference/configuration#knowledge-base
+# Feed AGENTS.md (architecture, conventions, gotchas) to CodeRabbit as review
+# context so it doesn't need to be duplicated into path_instructions below.
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "**/AGENTS.md"
+      - "docs/*.md"
+
+# https://docs.coderabbit.ai/reference/configuration#reviews
+reviews:
+  high_level_summary: true
+  high_level_summary_in_walkthrough: true
+  poem: false
+  # https://docs.coderabbit.ai/configuration/path-instructions
+  # Keep these short — they're path-scoping + reviewer-tone hints. Architecture
+  # facts and gotchas live in AGENTS.md (loaded via knowledge_base above); link
+  # to a section there instead of repeating it here.
+  path_instructions:
+    - path: '**'
+      instructions: |
+        This is the OpenShift Ingress Node Firewall (INF) — see AGENTS.md for
+        project overview, repository structure & architecture.
+        - Focus on major issues impacting performance, readability, maintainability and security.
+        - Consider backward compatibility, upgrade safety, and multi-platform support.
+        - Avoid nitpicks and avoid verbosity.
+        - Dual-stack (IPv4+IPv6) must always be considered. Flag changes that only
+          handle single-stack addresses (e.g. joining an IP address and port
+          manually rather than using net.JoinHostPort).
+
+  # https://docs.coderabbit.ai/configuration/path-instructions#path-filters
+  path_filters:
+    - "!vendor/**"
+    - "!bin/**"
+  # https://docs.coderabbit.ai/reference/configuration#auto-review
+  auto_review:
+    drafts: false
+    ignore_title_keywords:
+      - WIP
+      - DNM
+    # To exclude labels, be sure to negate the label with '!'.
+    # Non-negated values turn this into an allowlist.
+    labels:
+      - '!work-in-progress'
+  # https://docs.coderabbit.ai/reference/configuration#slop-detection
+  slop_detection:
+    enabled: true
+    label: "coderabbit/ai-slop"
+  # https://docs.coderabbit.ai/guides/review-instructions#request-changes
+  # When true, CodeRabbit submits a "Request Changes" review on failing
+  # checks, which blocks the PR from merging until resolved or overridden.
+  request_changes_workflow: true
+  # https://docs.coderabbit.ai/pr-reviews/pre-merge-checks
+  # These are gating/process checks (pass-fail mechanics, thresholds) — kept
+  # here rather than in AGENTS.md, which is proactive guidance, not a gate.
+  pre_merge_checks:
+    # Built-in checks
+    title:
+      mode: "error"
+      requirements: >-
+        Use the imperative mood (e.g. "Add", "Fix", "Update"). Keep under 72
+        characters.
+    description:
+      mode: "error"
+    docstrings:
+      mode: "warning"
+      threshold: 80
+    issue_assessment:
+      mode: "error"
+    # Custom checks
+    custom_checks:
+      - name: "PR Quality"
+        mode: "error"
+        instructions: >-
+          Check the PR for overall quality in both description and size:
+
+          Description — must include the following sections:
+
+          1. "Why": A clear explanation of why this change is needed,
+          the motivation or problem being solved. Must go beyond
+          restating the title.
+
+          2. "What": A description of what the PR does, the approach
+          taken, and any key design decisions.
+
+          3. "How to verify it" or "Testing": Which automated CI lanes
+          or jobs in the INF repo are running tests for this PR, and on
+          what platforms (e.g. AWS, GCP, Azure, bare-metal, vSphere,
+          hyperShift). Manual testing alone is not acceptable;
+          tests must run in CI in an automated fashion. Not required
+          for trivial or non-functional changes (typo fix, comment
+          update, CI/review config like .coderabbit.yaml or OWNERS,
+          vendor bump, doc-only change, Makefile/script tweak).
+
+          4. For bug fixes: a description of the root cause and how
+          the fix addresses it. A bug/issue link must be present in
+          either the PR title or the description (not required in
+          both).
+
+          5. For new features or behavioral changes: a description of
+          the user-facing impact and any upgrade/rollback considerations.
+
+          6. Size — the PR must be reasonably scoped. PRs over 7000
+          lines (additions + deletions, excluding vendor/) or
+          implementing an entire large feature end-to-end touching
+          many unrelated components must be split. Large PRs lead to
+          shallow reviews and increase the risk of bugs slipping
+          through.
+
+          Pass: The PR satisfies all applicable criteria above, or is
+          a trivial/non-functional change with a self-explanatory
+          title.
+
+          Fail: Any of the above criteria (1-6) are not met for
+          non-trivial changes.
+      - name: "Commit Message Quality"
+        mode: "error"
+        instructions: >-
+          Check commit messages and structure in this PR for quality:
+
+          1. Each commit must be a logical, self-contained unit of
+          change. Flag commits that bundle unrelated changes together.
+
+          2. Subject line should be concise and descriptive.
+
+          3. Subject should be prefixed with the affected component
+          when scoped (e.g. "ovn-kubernetes: Fix EgressIP race").
+
+          4. Body must be present and explain why the change is needed,
+          not just what was changed. The code diff already shows what.
+
+          5. Flag vague, uninformative, or generic messages like
+          "fix", "update", "wip", "changes", "misc", or "address
+          review comments" that provide no meaningful context. Review
+          feedback must be squashed into the relevant logical commit;
+          do not add a separate "address review comments" commit.
+
+          6. Flag overly verbose commit messages that read like
+          AI-generated changelogs — listing every function name,
+          variable, or line changed. Commit messages should explain
+          intent at a high level, not narrate the diff.
+
+          7. No merge commits (e.g. "Merge branch 'master' into ..."
+          or "Merge remote-tracking branch ..."). The author should
+          rebase onto the target branch instead.
+
+          Fail if any commit violates any of the above points.
+          Pass only if all commits satisfy all 7 criteria.
+      - name: "Unit Tests for Go Changes"
+        mode: "error"
+        instructions: >-
+          If Go source files (*.go) under pkg/, controllers/ or cmd/ are added or
+          modified (excluding vendor/ and *_test.go files), check
+          whether corresponding *_test.go files are also added or
+          modified in this PR. Exclude documentation-only, CI, or
+          script changes.
+
+          Pass only if no production Go files or if test files are
+          included alongside the changes.
+      - name: "E2E Tests for Feature Changes"
+        mode: "error"
+        instructions: >-
+          If Go source files (*.go) under pkg/, controllers/ or cmd/ are added or
+          modified in a way that adds new user-facing behavior, changes
+          existing user-facing behavior, or fixes a bug (excluding
+          vendor/, *_test.go, pure refactors with no behavioral change,
+          and internal-only changes):
+
+          1. Check whether files under test/e2e/ are also added or
+          modified in this PR.
+
+          2. The PR description must include a "Testing" or "How to
+          verify it" section that describes which CI lanes or jobs are
+          running tests for this PR, what platforms have coverage (e.g.
+          AWS, GCP, Azure, bare-metal, vSphere, SNO, HyperShift), and
+          whether the tests passed.
+
+          Fail if user-facing behavior changed or a bug was fixed and
+          either criterion 1 or 2 (or both) is not satisfied. If
+          failing, advise the author: if E2E tests are genuinely not
+          feasible for this change, document the justification in the
+          PR description under "How to verify it" and then, once all
+          other pre-merge checks are also addressed, use
+          "@coderabbitai ignore pre-merge checks" to override.
+
+          Pass only if no user-facing behavior changed and no bug was
+          fixed, or if both E2E test files are included and the PR
+          description contains the required testing context.
+      - name: "RBAC Least Privilege"
+        mode: "warning"
+        instructions: >-
+          In YAML files under bundle/manifests/ and config/rbac/, if ClusterRole or
+          Role rules are added or modified, flag any rule that uses a
+          wildcard verb/resource without justification, and any rule
+          granting mutation verbs (create, update, patch, delete,
+          deletecollection) without the author explaining why mutation
+          access is needed. Read-only verbs (get, list, watch) need no
+          justification.
+
+          Fail if any new RBAC rule uses wildcards without
+          justification or grants mutation access without explanation.
+
+          Pass only if no RBAC rules are changed, or all new rules
+          use specific verbs and resources with appropriate
+          justification for any mutation access.
+      - name: "Docs for Feature and Behavior Changes"
+        mode: "error"
+        instructions: >-
+          If a PR introduces a new feature, changes user-facing behavior,
+          fixes a significant bug that alters expected behavior, or
+          modifies architecture or control flows, check whether files
+          under docs/ are also added or modified.
+
+          Fail if the PR introduces a new INF-specific feature or
+          significantly changes how the operator behaves for users
+          without any docs/ changes. For new features, a new markdown
+          file must be added under docs/ describing the feature. The
+          absence of existing documentation is not an excuse for not
+          adding it — new features must create new docs. If failing,
+          advise the author: if docs are genuinely not required for
+          this change, document the reasoning in the PR description
+          and then use "@coderabbitai ignore pre-merge checks" to
+          override.
+
+          Pass if the change is a bug fix, pure refactor,
+          test-only change, CI/infra change, internal-only change,
+          or any change that does not alter specific user-facing
+          behavior or architecture. Also
+          pass if relevant docs/ files are included.
+      - name: "Stale Project Docs and Config"
+        mode: "error"
+        instructions: >-
+          Check whether changes in this PR make any of the following
+          project files stale or inaccurate:
+          - .coderabbit.yaml (path instructions, pre-merge checks,
+            global review instructions)
+          - docs/**
+          - **/AGENTS.md
+
+          Examples of staleness:
+          1. A file or directory is renamed, moved, or deleted but is
+          still referenced by path in .coderabbit.yaml or AGENTS.md.
+          2. A code entity (CRD, flag, binary, config key) is renamed
+          or removed but still referenced in docs or AGENTS.md.
+          3. Architecture or component boundaries change but
+          AGENTS.md is not updated.
+
+          Fail if any project docs or config become stale due to the
+          changes. If failing, advise the author: update the affected
+          docs files in this PR, or if the flagged staleness
+          is a false positive, explain why in a PR comment and use
+          "@coderabbitai ignore pre-merge checks" to override.
+
+          Pass only if the PR does not introduce any such staleness,
+          or if the affected docs/config files are also updated in
+          this PR.
