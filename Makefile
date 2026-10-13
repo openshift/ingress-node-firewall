@@ -127,13 +127,13 @@ vet: ## Run go vet against code.
 .PHONY: test
 test: manifests generate fmt vet envtest ## Run tests.
 	@set -e; \
-	export KUBEBUILDER_ASSETS=$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir /tmp/envtest-binaries -p path); \
+	export KUBEBUILDER_ASSETS=$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --use-deprecated-gcs=false --bin-dir /tmp/envtest-binaries -p path); \
 	go test ./... -coverprofile cover.out
 
 .PHONY: test-race
 test-race: manifests generate fmt vet envtest ## Run tests and check for race conditions.
 	@set -e; \
-	export KUBEBUILDER_ASSETS=$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir /tmp/envtest-binaries -p path); \
+	export KUBEBUILDER_ASSETS=$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) --use-deprecated-gcs=false --bin-dir /tmp/envtest-binaries -p path); \
 	go test -race ./...
 
 .PHONY: create-kind-cluster 
@@ -283,7 +283,7 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
-	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) GOFLAGS="" go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.19
+	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) GOFLAGS="" go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.17
 
 .PHONY: bundle
 bundle: operator-sdk manifests kustomize ## Generate bundle manifests and metadata, then validate generated files.
