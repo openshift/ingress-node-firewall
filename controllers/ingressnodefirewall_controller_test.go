@@ -3,6 +3,8 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"testing"
 	"time"
 
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
@@ -12,10 +14,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 const (
@@ -595,4 +599,145 @@ func hasIngressNodeFirewallNodeStates(ctx context.Context, k8sClient client.Clie
 		// If we get here, return true.
 		return true
 	}).Should(BeTrue())
+}
+
+// TestBuildNodeStatesCanonicalizesOwnerReferences verifies stable output for
+// reversed inputs and checks that legitimate owner and spec changes remain
+// visible in the generated NodeState.
+func TestBuildNodeStatesCanonicalizesOwnerReferences(t *testing.T) {
+	ctx := context.Background()
+
+	scheme := runtime.NewScheme()
+	if err := v1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := infv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "worker-0",
+			Labels: map[string]string{"test": "true"},
+		},
+	}
+
+	makeFirewall := func(name, uid, iface, sourceCIDR string) *infv1alpha1.IngressNodeFirewall {
+		return &infv1alpha1.IngressNodeFirewall{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: infv1alpha1.GroupVersion.String(),
+				Kind:       "IngressNodeFirewall",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+				UID:  types.UID(uid),
+			},
+			Spec: infv1alpha1.IngressNodeFirewallSpec{
+				NodeSelector: metav1.LabelSelector{MatchLabels: map[string]string{"test": "true"}},
+				Interfaces:   []string{iface},
+				Ingress: []infv1alpha1.IngressNodeFirewallRules{{
+					SourceCIDRs: []string{sourceCIDR},
+					FirewallProtocolRules: []infv1alpha1.IngressNodeFirewallProtocolRule{{
+						Order:          1,
+						ProtocolConfig: infv1alpha1.IngressNodeProtocolConfig{Protocol: infv1alpha1.ProtocolTypeICMP},
+						Action:         infv1alpha1.IngressNodeFirewallAllow,
+					}},
+				}},
+			},
+		}
+	}
+
+	firewallA := makeFirewall("firewall-a", "uid-a", "ens192", "192.0.2.0/24")
+	firewallB := makeFirewall("firewall-b", "uid-b", "br-ex", "198.51.100.0/24")
+	firewallC := makeFirewall("firewall-c", "uid-c", "ens224", "203.0.113.0/24")
+
+	k8sClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(node, firewallA, firewallB, firewallC).
+		WithStatusSubresource(&infv1alpha1.IngressNodeFirewall{}).
+		Build()
+	reconciler := &IngressNodeFirewallReconciler{Client: k8sClient, Namespace: "test"}
+
+	build := func(firewalls ...*infv1alpha1.IngressNodeFirewall) infv1alpha1.IngressNodeFirewallNodeState {
+		t.Helper()
+		items := make([]infv1alpha1.IngressNodeFirewall, 0, len(firewalls))
+		for _, firewall := range firewalls {
+			items = append(items, *firewall.DeepCopy())
+		}
+		nodeStates, err := reconciler.buildNodeStates(ctx, &infv1alpha1.IngressNodeFirewallList{Items: items})
+		if err != nil {
+			t.Fatal(err)
+		}
+		state, ok := nodeStates[node.Name]
+		if !ok {
+			t.Fatalf("no NodeState built for node %q", node.Name)
+		}
+		return state
+	}
+
+	ownerReference := func(firewall *infv1alpha1.IngressNodeFirewall) metav1.OwnerReference {
+		return metav1.OwnerReference{
+			APIVersion: firewall.APIVersion,
+			Kind:       firewall.Kind,
+			Name:       firewall.Name,
+			UID:        firewall.UID,
+		}
+	}
+	assertOwners := func(state infv1alpha1.IngressNodeFirewallNodeState, want ...metav1.OwnerReference) {
+		t.Helper()
+		if !reflect.DeepEqual(state.OwnerReferences, want) {
+			t.Errorf("OwnerReferences = %v, want %v", state.OwnerReferences, want)
+		}
+	}
+
+	// One owner, either two-owner order, and removing either owner all retain
+	// exactly the logical owner set in the generated state.
+	aOnly := build(firewallA)
+	assertOwners(aOnly, ownerReference(firewallA))
+
+	ab := build(firewallA, firewallB)
+	ba := build(firewallB, firewallA)
+	wantAB := []metav1.OwnerReference{ownerReference(firewallA), ownerReference(firewallB)}
+	assertOwners(ab, wantAB...)
+	assertOwners(ba, wantAB...)
+	if !equality.Semantic.DeepEqual(ab, ba) {
+		t.Errorf("NodeStates from [A, B] and [B, A] differ:\n[A, B]: %#v\n[B, A]: %#v", ab, ba)
+	}
+
+	aRemoved := build(firewallB)
+	assertOwners(aRemoved, ownerReference(firewallB))
+	bRemoved := build(firewallA)
+	assertOwners(bRemoved, ownerReference(firewallA))
+
+	// Recreating A changes its UID and therefore the owner identity.
+	replacedA := firewallA.DeepCopy()
+	replacedA.UID = types.UID("uid-a-new")
+	aReplaced := build(replacedA, firewallB)
+	wantReplaced := []metav1.OwnerReference{ownerReference(replacedA), ownerReference(firewallB)}
+	assertOwners(aReplaced, wantReplaced...)
+	if reflect.DeepEqual(ab.OwnerReferences, aReplaced.OwnerReferences) {
+		t.Error("replacing A with a new UID did not change the desired owner references")
+	}
+	if !equality.Semantic.DeepEqual(ab.Spec, aReplaced.Spec) {
+		t.Error("replacing A's UID changed the desired NodeState spec")
+	}
+
+	// The owners remain the same while a change to A's interface changes Spec.
+	changedSpecA := firewallA.DeepCopy()
+	changedSpecA.Spec.Interfaces = []string{"ens224"}
+	ownersSameSpecChanged := build(changedSpecA, firewallB)
+	assertOwners(ownersSameSpecChanged, wantAB...)
+	if equality.Semantic.DeepEqual(ab.Spec, ownersSameSpecChanged.Spec) {
+		t.Error("changing an owner's interface did not change the desired NodeState spec")
+	}
+
+	// A different owner and its rules change both the owner set and merged Spec.
+	differentOwnersAndSpec := build(firewallA, firewallC)
+	assertOwners(differentOwnersAndSpec, ownerReference(firewallA), ownerReference(firewallC))
+	if reflect.DeepEqual(ab.OwnerReferences, differentOwnersAndSpec.OwnerReferences) {
+		t.Error("changing an owner did not change the desired owner references")
+	}
+	if equality.Semantic.DeepEqual(ab.Spec, differentOwnersAndSpec.Spec) {
+		t.Error("changing an owner and its rules did not change the desired NodeState spec")
+	}
 }
