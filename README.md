@@ -70,7 +70,7 @@ You need to install the following packages:
 
 operator-sdk 1.42.2
 
-controller-gen v0.21.0
+controller-gen v0.22.0
 
 For fedora, you will need the following packages
 ```sh
