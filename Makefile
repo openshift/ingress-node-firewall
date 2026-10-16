@@ -8,7 +8,7 @@ CSV_VERSION = $(shell echo $(VERSION) | sed 's/v//')
 ifeq ($(VERSION), latest)
 CSV_VERSION := 0.0.0
 endif
-CERT_MANAGER_VERSION=v1.9.1
+CERT_MANAGER_VERSION=v1.20.2
 IMAGE_ORG ?= $(USER)
 
 # CHANNELS define the bundle channels used in the bundle.
