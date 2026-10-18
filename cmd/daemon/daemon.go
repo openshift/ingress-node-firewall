@@ -60,7 +60,7 @@ func main() {
 	var tlsMinVersion string
 	var tlsCipherSuites string
 	// We are host networked, we set default to loopback by default
-	flag.StringVar(&probeAddr, "health-probe-bind-address", "127.0.0.1:39400", "The address the probe endpoint binds to.")
+	flag.StringVar(&probeAddr, "health-probe-bind-address", "127.0.0.1:9302", "The address the probe endpoint binds to.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":9301", "The address the metric endpoint binds to.")
 	flag.StringVar(&metricsCertDir, "metrics-cert-dir", "/etc/pki/tls/metrics-certs", "Directory containing TLS certificates for metrics endpoint.")
 	flag.BoolVar(&secureMetrics, "metrics-secure", true, "If the metrics endpoint should be served securely.")
