@@ -28,6 +28,7 @@ spec:
           image: '{{.Image}}'
           command: ["/usr/bin/daemon"]
           args:
+            - --health-probe-bind-address=127.0.0.1:9302
             - --metrics-bind-address=:9301
             - --metrics-cert-dir=/etc/pki/tls/metrics-certs
             - --metrics-secure=true
@@ -49,6 +50,8 @@ spec:
             - name: EBPF_MANAGEMENT_MODE
               value: '{{.EBPFProgramManagerMode}}'
           ports:
+            - containerPort: 9302
+              name: healthz
             - containerPort: 9301
               name: metrics
           terminationMessagePolicy: FallbackToLogsOnError
