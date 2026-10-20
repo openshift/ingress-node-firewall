@@ -249,7 +249,7 @@ func (infc *IngNodeFwController) IngressNodeFwRulesLoader(
 
 	// Purge stale keys only after all desired rules have been successfully installed.
 	if err := infc.purgeKeys(staleKeys); err != nil {
-		klog.Infof("Purge keys operation encountered issues, err: %q", err)
+		return fmt.Errorf("failed to purge stale firewall rules: %w", err)
 	}
 
 	return nil
