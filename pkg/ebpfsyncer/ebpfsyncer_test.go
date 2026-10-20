@@ -2,6 +2,7 @@ package ebpfsyncer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -10,6 +11,7 @@ import (
 	"os/user"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	nodefwloader "github.com/openshift/ingress-node-firewall/pkg/ebpf"
 	intutil "github.com/openshift/ingress-node-firewall/pkg/interfaces"
 
+	"github.com/cilium/ebpf"
 	"github.com/vishvananda/netlink"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -724,6 +727,7 @@ func TestResyncInterfaceIngressRulesMultiInterface(t *testing.T) {
 
 // TestVerifyBPFKeysAfterInterfaceIngressRulesUpdate calls the rule attach several times in a row and
 // checks after each call that the keys in the BPF map match the expected keys.
+// It also checks that a client keeps matching a deny rule during CIDR replacements.
 func TestVerifyBPFKeysAfterInterfaceIngressRulesUpdate(t *testing.T) {
 	defer afterEach(t)
 	beforeEach(t)
@@ -983,6 +987,171 @@ func TestVerifyBPFKeysAfterInterfaceIngressRulesUpdate(t *testing.T) {
 			}
 		}
 	}
+
+	t.Run("deny remains present during CIDR replacements", func(t *testing.T) {
+		// Repeatedly replace a /16 deny with a /24 deny and back while continuously
+		// looking up a client IP covered by both prefixes in the BPF map. Every lookup
+		// must return the same deny rule, including during each policy update.
+		ifName := fmt.Sprintf("%s0", interfacePrefix)
+		// Reuse TC6's TCP deny rule, keeping both prefixes around the same client.
+		deny := tcs[6].rules[ifName][0]
+		deny.SourceCIDRs = []string{"10.0.0.0/16"}
+		deny.FirewallProtocolRules = deny.FirewallProtocolRules[:1]
+		rules := map[string][]infv1alpha1.IngressNodeFirewallRules{ifName: {deny}}
+		syncer := GetEbpfSyncer(ctx, zap.New(), nil, nil)
+		if err := syncer.SyncInterfaceIngressRules(rules, false); err != nil {
+			t.Fatal(err)
+		}
+
+		ruleMap, err := ebpf.LoadPinnedMap("/sys/fs/bpf/xdp_ingress_node_firewall_process/ingress_node_firewall_table_map", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer ruleMap.Close()
+		clientKey, err := nodefwloader.BuildEBPFKey(if0Index, "10.0.0.1/32")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var expected nodefwloader.BpfRulesValSt
+		if err := ruleMap.Lookup(clientKey, &expected); err != nil {
+			t.Fatal(err)
+		}
+
+		// The test closes testStopObserverCh to ask the observer goroutine to exit; the observer checks it on each lookup.
+		testStopObserverCh := make(chan struct{})
+		// The observer closes observerReadyCh when it starts; the test waits on it before updating the rules.
+		observerReadyCh := make(chan struct{})
+		// The observer sends its final error (or nil) to observerResultCh; the test receives it to wait for completion.
+		// Neither side closes observerResultCh. The buffer lets the observer report failure before the test finishes updating.
+		observerResultCh := make(chan error, 1)
+		lookups := 0
+		// The BPF map observer goroutine continuously checks that the client still matches
+		// its deny rule while the test goroutine replaces the policy CIDR.
+		go func() {
+			close(observerReadyCh)
+			for {
+				select {
+				case <-testStopObserverCh:
+					observerResultCh <- nil
+					return
+				default:
+				}
+				// A single LPM lookup finds either covering prefix atomically.
+				// Iterating the map could miss both keys as they change between reads.
+				var value nodefwloader.BpfRulesValSt
+				if err := ruleMap.Lookup(clientKey, &value); err != nil {
+					observerResultCh <- fmt.Errorf("client lost its deny rule during replacement: %w", err)
+					return
+				}
+				lookups++
+				if value != expected {
+					observerResultCh <- fmt.Errorf("client matched unexpected rules during replacement: %+v", value)
+					return
+				}
+			}
+		}()
+		observerStopped := false
+		defer func() {
+			if !observerStopped {
+				close(testStopObserverCh)
+				<-observerResultCh
+			}
+		}()
+		<-observerReadyCh
+
+		// Poll without sleeps while repeatedly exercising the short replacement window.
+		// This is a stress check: polling cannot guarantee observing every map mutation.
+		for i := 0; i < 100; i++ {
+			for _, cidr := range []string{"10.0.0.0/24", "10.0.0.0/16"} {
+				rules[ifName][0].SourceCIDRs = []string{cidr}
+				if err := syncer.SyncInterfaceIngressRules(rules, false); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+
+		close(testStopObserverCh)
+		watchErr := <-observerResultCh
+		observerStopped = true
+		if watchErr != nil {
+			t.Error(watchErr)
+		}
+		if lookups == 0 {
+			t.Error("map observer did not perform any lookups")
+		}
+		t.Logf("observed %d uninterrupted deny lookups during CIDR replacements", lookups)
+	})
+
+	t.Run("full map preserves stale deny when replacement fails", func(t *testing.T) {
+		// Fill the real BPF map, then replace a /16 deny with a /24 deny. The desired
+		// rules alone fit, but retaining the stale /16 leaves no room for the /24.
+		// Both the first update and its retry must fail without removing the old deny.
+		beforeEach(t)
+		defer afterEach(t)
+		ifName := fmt.Sprintf("%s0", interfacePrefix)
+		if0Index, err := intutil.GetInterfaceIndex(ifName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		deny := tcs[6].rules[ifName][0]
+		deny.SourceCIDRs = []string{"10.0.0.0/16"}
+		deny.FirewallProtocolRules = deny.FirewallProtocolRules[:1]
+		rules := map[string][]infv1alpha1.IngressNodeFirewallRules{ifName: {deny}}
+		syncer := GetEbpfSyncer(ctx, zap.New(), nil, nil)
+		if err := syncer.SyncInterfaceIngressRules(rules, false); err != nil {
+			t.Fatal(err)
+		}
+
+		ruleMap, err := ebpf.LoadPinnedMap("/sys/fs/bpf/xdp_ingress_node_firewall_process/ingress_node_firewall_table_map", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer ruleMap.Close()
+		oldKey, err := nodefwloader.BuildEBPFKey(if0Index, "10.0.0.0/16")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var expected nodefwloader.BpfRulesValSt
+		if err := ruleMap.Lookup(oldKey, &expected); err != nil {
+			t.Fatal(err)
+		}
+
+		// Keep the filler CIDRs in the desired policy so only the /16 becomes stale.
+		for i := uint32(0); i < ruleMap.MaxEntries()-1; i++ {
+			cidr := fmt.Sprintf("192.0.%d.%d/32", i/256, i%256)
+			key, err := nodefwloader.BuildEBPFKey(if0Index, cidr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := ruleMap.Update(key, expected, ebpf.UpdateNoExist); err != nil {
+				t.Fatal(err)
+			}
+			rules[ifName][0].SourceCIDRs = append(rules[ifName][0].SourceCIDRs, cidr)
+		}
+		content, err := syncer.(*ebpfSingleton).getBPFMapContentForTest()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("BPF map after filling: capacity=%d entries, populated=%d entries", ruleMap.MaxEntries(), len(content))
+		rules[ifName][0].SourceCIDRs[0] = "10.0.0.0/24"
+
+		for attempt := 0; attempt < 2; attempt++ {
+			err := syncer.SyncInterfaceIngressRules(rules, false)
+			if !errors.Is(err, syscall.ENOSPC) {
+				t.Fatalf("attempt %d: expected map capacity error, got %v", attempt+1, err)
+			}
+			content, err := syncer.(*ebpfSingleton).getBPFMapContentForTest()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if value, exists := content[oldKey]; !exists || value != expected {
+				t.Fatalf("attempt %d: old deny was removed or changed after replacement failed", attempt+1)
+			}
+			if len(content) != int(ruleMap.MaxEntries()) {
+				t.Fatalf("attempt %d: expected full map to remain unchanged, got %d entries", attempt+1, len(content))
+			}
+		}
+	})
 }
 
 // TestInterfaceAttachments simulates several scenarios and verifies interface attachment after these scenarios
