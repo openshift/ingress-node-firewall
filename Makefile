@@ -424,13 +424,16 @@ CLANG ?= clang
 CFLAGS := -O2 -g -Wall -Werror $(CFLAGS)
 GOOS ?= linux
 LOCAL_GENERATOR_IMAGE ?= ebpf-generator:latest
+BPF2GO := $(LOCALBIN)/bpf2go
 
 ##@ eBPF development
 .PHONY: prereqs
-prereqs: ## Check if prerequisites are met, and installing missing dependencies
+prereqs: $(BPF2GO) ## Check if prerequisites are met, and installing missing dependencies
 	test -f $(shell go env GOPATH)/bin/golangci-lint || GOFLAGS="" go install github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}
-	test -f $(shell go env GOPATH)/bin/bpf2go || go install github.com/cilium/ebpf/cmd/bpf2go@${CILIUM_EBPF_VERSION}
 	test -f $(shell go env GOPATH)/bin/kind || go install sigs.k8s.io/kind@latest
+
+$(BPF2GO): $(LOCALBIN)
+	GOBIN=$(LOCALBIN) GOFLAGS="" go install github.com/cilium/ebpf/cmd/bpf2go@$(CILIUM_EBPF_VERSION)
 
 
 # As generated artifacts are part of the code repo (pkg/ebpf and pkg/proto packages), you don't have
@@ -440,8 +443,9 @@ prereqs: ## Check if prerequisites are met, and installing missing dependencies
 .PHONY: ebpf-generate
 ebpf-generate: export BPF_CLANG := $(CLANG)
 ebpf-generate: export BPF_CFLAGS := $(CFLAGS)
+ebpf-generate: export PATH := $(LOCALBIN):$(PATH)
 ebpf-generate: prereqs ## Generating BPF Go bindings.
-	@echo "### Generating BPF Go bindings"
+	@echo "### Generating BPF Go bindings with bpf2go $(CILIUM_EBPF_VERSION)"
 	go generate ./pkg/...
 	@echo "### Linting bpf C code"
 	find ./bpf -type f -not -path "./bpf/headers/*" -name "*.[ch]" | xargs clang-format --dry-run --
