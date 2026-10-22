@@ -84,10 +84,9 @@ func LoadBpfObjects(obj interface{}, opts *ebpf.CollectionOptions) error {
 type BpfSpecs struct {
 	BpfProgramSpecs
 	BpfMapSpecs
-	BpfVariableSpecs
 }
 
-// BpfProgramSpecs contains programs before they are loaded into the kernel.
+// BpfSpecs contains programs before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type BpfProgramSpecs struct {
@@ -105,22 +104,12 @@ type BpfMapSpecs struct {
 	IngressNodeFirewallTableMap      *ebpf.MapSpec `ebpf:"ingress_node_firewall_table_map"`
 }
 
-// BpfVariableSpecs contains global variables before they are loaded into the kernel.
-//
-// It can be passed ebpf.CollectionSpec.Assign.
-type BpfVariableSpecs struct {
-	Unused1 *ebpf.VariableSpec `ebpf:"unused1"`
-	Unused2 *ebpf.VariableSpec `ebpf:"unused2"`
-	Unused3 *ebpf.VariableSpec `ebpf:"unused3"`
-}
-
 // BpfObjects contains all objects after they have been loaded into the kernel.
 //
 // It can be passed to LoadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type BpfObjects struct {
 	BpfPrograms
 	BpfMaps
-	BpfVariables
 }
 
 func (o *BpfObjects) Close() error {
@@ -147,15 +136,6 @@ func (m *BpfMaps) Close() error {
 		m.IngressNodeFirewallStatisticsMap,
 		m.IngressNodeFirewallTableMap,
 	)
-}
-
-// BpfVariables contains all global variables after they have been loaded into the kernel.
-//
-// It can be passed to LoadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
-type BpfVariables struct {
-	Unused1 *ebpf.Variable `ebpf:"unused1"`
-	Unused2 *ebpf.Variable `ebpf:"unused2"`
-	Unused3 *ebpf.Variable `ebpf:"unused3"`
 }
 
 // BpfPrograms contains all programs after they have been loaded into the kernel.
