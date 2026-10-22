@@ -992,7 +992,13 @@ func TestVerifyBPFKeysAfterInterfaceIngressRulesUpdate(t *testing.T) {
 		// Repeatedly replace a /16 deny with a /24 deny and back while continuously
 		// looking up a client IP covered by both prefixes in the BPF map. Every lookup
 		// must return the same deny rule, including during each policy update.
+		beforeEach(t)
+		defer afterEach(t)
 		ifName := fmt.Sprintf("%s0", interfacePrefix)
+		if0Index, err := intutil.GetInterfaceIndex(ifName)
+		if err != nil {
+			t.Fatal(err)
+		}
 		// Reuse TC6's TCP deny rule, keeping both prefixes around the same client.
 		deny := tcs[6].rules[ifName][0]
 		deny.SourceCIDRs = []string{"10.0.0.0/16"}
