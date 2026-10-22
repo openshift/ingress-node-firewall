@@ -129,6 +129,96 @@ func testGetProfileInfo() {
 		})
 	})
 
+	Context("with Custom TLS profile including Groups", func() {
+		BeforeEach(func() {
+			t.apiServer.Spec.TLSSecurityProfile = &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileCustomType,
+				Custom: &configv1.CustomTLSProfile{
+					TLSProfileSpec: configv1.TLSProfileSpec{
+						MinTLSVersion: configv1.VersionTLS12,
+						Ciphers: []string{
+							"TLS_AES_128_GCM_SHA256",
+							"TLS_AES_256_GCM_SHA384",
+						},
+						Groups: []configv1.TLSGroup{
+							configv1.TLSGroupSecP256r1,
+							configv1.TLSGroupSecP384r1,
+						},
+					},
+				},
+			}
+		})
+
+		It("should return a profile with CurvePreferences set correctly", func() {
+			profile, err := inftls.GetProfileInfo(newLogContext(), t.tlsClient)
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(profile.GetProfileSpec()).To(Equal(&t.apiServer.Spec.TLSSecurityProfile.Custom.TLSProfileSpec))
+			Expect(profile.GetProfileSpec().Groups).To(Equal([]configv1.TLSGroup{
+				configv1.TLSGroupSecP256r1,
+				configv1.TLSGroupSecP384r1,
+			}))
+
+			tlsConfig := applyTLSOpts(profile.TLSOpts)
+			Expect(tlsConfig.MinVersion).To(Equal(uint16(tls.VersionTLS12)))
+			Expect(tlsConfig.CipherSuites).To(HaveLen(2))
+			// Verify CurvePreferences is set
+			Expect(tlsConfig.CurvePreferences).NotTo(BeEmpty())
+			Expect(tlsConfig.CurvePreferences).To(ContainElements(tls.CurveP256, tls.CurveP384))
+		})
+	})
+
+	Context("with Custom TLS profile including all supported Groups", func() {
+		BeforeEach(func() {
+			t.apiServer.Spec.TLSSecurityProfile = &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileCustomType,
+				Custom: &configv1.CustomTLSProfile{
+					TLSProfileSpec: configv1.TLSProfileSpec{
+						MinTLSVersion: configv1.VersionTLS13,
+						Ciphers: []string{
+							"TLS_AES_128_GCM_SHA256",
+							"TLS_AES_256_GCM_SHA384",
+						},
+						Groups: []configv1.TLSGroup{
+							configv1.TLSGroupX25519,
+							configv1.TLSGroupSecP256r1,
+							configv1.TLSGroupSecP384r1,
+							configv1.TLSGroupSecP521r1,
+							configv1.TLSGroupX25519MLKEM768,
+							configv1.TLSGroupSecP256r1MLKEM768,
+							configv1.TLSGroupSecP384r1MLKEM1024,
+						},
+					},
+				},
+			}
+		})
+
+		It("should support all groups including post-quantum hybrids", func() {
+			profile, err := inftls.GetProfileInfo(newLogContext(), t.tlsClient)
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(profile.GetProfileSpec()).To(Equal(&t.apiServer.Spec.TLSSecurityProfile.Custom.TLSProfileSpec))
+			Expect(profile.GetProfileSpec().Groups).To(HaveLen(7))
+
+			tlsConfig := applyTLSOpts(profile.TLSOpts)
+			Expect(tlsConfig.MinVersion).To(Equal(uint16(tls.VersionTLS13)))
+			// TLS 1.3 cipher suites are handled differently, may be empty in config
+
+			// Verify all curves are set including post-quantum hybrids
+			Expect(tlsConfig.CurvePreferences).NotTo(BeEmpty())
+			Expect(tlsConfig.CurvePreferences).To(ContainElements(
+				tls.X25519,
+				tls.CurveP256,
+				tls.CurveP384,
+				tls.CurveP521,
+				tls.X25519MLKEM768,
+				tls.SecP256r1MLKEM768,
+				tls.SecP384r1MLKEM1024,
+			))
+			Expect(tlsConfig.CurvePreferences).To(HaveLen(7))
+		})
+	})
+
 	Context("with tlsAdherence set to LegacyAdheringComponentsOnly", func() {
 		BeforeEach(func() {
 			t.apiServer.Spec.TLSSecurityProfile.Type = configv1.TLSProfileModernType

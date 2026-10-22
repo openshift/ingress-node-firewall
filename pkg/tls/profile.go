@@ -92,8 +92,8 @@ func (p *Profile) SetupProfileWatch(ctx context.Context, mgr ctrl.Manager, onCha
 		InitialTLSProfileSpec:     *p.profileSpec,
 		InitialTLSAdherencePolicy: p.adherence,
 		OnProfileChange: func(_ context.Context, oldProfile, newProfile configv1.TLSProfileSpec) {
-			log.Info(fmt.Sprintf("TLS security profile changed. Old: MinVersion=%s Ciphers=%d, New: MinVersion=%s Ciphers=%d",
-				oldProfile.MinTLSVersion, len(oldProfile.Ciphers), newProfile.MinTLSVersion, len(newProfile.Ciphers)))
+			log.Info(fmt.Sprintf("TLS security profile changed. Old: MinVersion=%s Ciphers=%d Groups=%v, New: MinVersion=%s Ciphers=%d Groups=%v",
+				oldProfile.MinTLSVersion, len(oldProfile.Ciphers), oldProfile.Groups, newProfile.MinTLSVersion, len(newProfile.Ciphers), newProfile.Groups))
 			onChange()
 		},
 		OnAdherencePolicyChange: func(_ context.Context, oldTLSAdherencePolicy, newTLSAdherencePolicy configv1.TLSAdherencePolicy) {

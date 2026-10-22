@@ -32,7 +32,8 @@ spec:
             - --metrics-cert-dir=/etc/pki/tls/metrics-certs
             - --metrics-secure=true
             - --metrics-tls-min-version={{.TLSMinVersion}}
-            - --metrics-tls-cipher-suites={{default "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384" .TLSCipherSuites}}
+            - --metrics-tls-cipher-suites={{default "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384" .TLSCipherSuites}}{{if ne .TLSCurvePreferences ""}}
+            - --metrics-tls-curve-preferences={{.TLSCurvePreferences}}{{end}}
           env:
             - name: NODE_NAME
               valueFrom:

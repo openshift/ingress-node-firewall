@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/go-logr/logr"
 	configv1 "github.com/openshift/api/config/v1"
+	openshiftcrypto "github.com/openshift/library-go/pkg/crypto"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -108,9 +110,11 @@ func (r *IngressNodeFirewallConfigReconciler) Reconcile(ctx context.Context, req
 		return ctrl.Result{}, nil // Return success to avoid requeue
 	}
 
+	var syncErr error
 	if err = r.syncIngressNodeFwConfigResources(ctx, instance); err != nil {
 		condition = status.ConditionDegraded
 		err = errors.Wrapf(err, "FailedToSyncIngressNodeFirewallConfigResources")
+		syncErr = err
 	} else {
 		err = status.IsIngressNodeFirewallConfigAvailable(ctx, r.Client, req.NamespacedName.Namespace)
 		if err != nil {
@@ -132,6 +136,9 @@ func (r *IngressNodeFirewallConfigReconciler) Reconcile(ctx context.Context, req
 	if err = status.Update(context.TODO(), r.Client, instance, condition, errorMsg, wrappedErrMsg); err != nil {
 		logger.Info("failed to update ingress node firewall config status", "Desired status", status.ConditionAvailable)
 		err = nil
+	}
+	if syncErr != nil {
+		err = syncErr
 	}
 	return ctrResult, err
 }
@@ -160,9 +167,28 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 	if tlsProfileSpec != nil {
 		data.Data["TLSMinVersion"] = string(tlsProfileSpec.MinTLSVersion)
 		data.Data["TLSCipherSuites"] = strings.Join(inftls.ConvertCiphersToIANA(tlsProfileSpec.Ciphers), ",")
+
+		// Convert TLS Groups to curve IDs for curve preferences
+		if len(tlsProfileSpec.Groups) > 0 {
+			curveIDs, unrecognizedGroups := openshiftcrypto.TLSGroupsToCurveIDs(tlsProfileSpec.Groups)
+			if len(curveIDs) == 0 && len(unrecognizedGroups) > 0 {
+				return fmt.Errorf("TLS profile contains no supported TLS groups: %v", unrecognizedGroups)
+			}
+			// Convert tls.CurveID to int32 for the CLI flag
+			curveIDStrings := make([]string, 0, len(curveIDs))
+			for _, curveID := range curveIDs {
+				curveIDStrings = append(curveIDStrings, fmt.Sprintf("%d", int32(curveID)))
+			}
+			data.Data["TLSCurvePreferences"] = strings.Join(curveIDStrings, ",")
+		} else {
+			// Set to empty string when no Groups specified.
+			// Template will check for non-empty before including the flag.
+			data.Data["TLSCurvePreferences"] = ""
+		}
 	} else {
 		data.Data["TLSMinVersion"] = ""
 		data.Data["TLSCipherSuites"] = ""
+		data.Data["TLSCurvePreferences"] = ""
 	}
 	if config.Spec.Debug != nil {
 		data.Data["Debug"] = "0"
