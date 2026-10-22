@@ -146,6 +146,102 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 				))
 			})
 		})
+
+		Context("When TLS profile with curve preferences is configured", func() {
+			BeforeEach(func() {
+				tlsProfile := &configv1.TLSProfileSpec{
+					MinTLSVersion: configv1.VersionTLS13,
+					Ciphers: []string{
+						"TLS_AES_128_GCM_SHA256",
+						"TLS_AES_256_GCM_SHA384",
+					},
+					Groups: []configv1.TLSGroup{
+						configv1.TLSGroupX25519,
+						configv1.TLSGroupSecP384r1,
+					},
+				}
+				tlsProfileSpec.Store(tlsProfile)
+			})
+
+			It("Should apply TLS curve preferences to daemon container args", func() {
+				By("Validating that TLS curve preferences configuration is applied to daemonset")
+				Eventually(func() []string {
+					ds := &appsv1.DaemonSet{}
+					if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: DeamonSetName, Namespace: IngressNodeFwConfigTestNameSpace}, ds); err != nil {
+						return nil
+					}
+					return getContainerArgs(ds, daemonContainerName)
+				}, 5*time.Second, 200*time.Millisecond).Should(And(
+					ContainElement("--metrics-tls-min-version=VersionTLS13"),
+					ContainElement("--metrics-tls-cipher-suites=TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384"),
+					ContainElement(HavePrefix("--metrics-tls-curve-preferences=")),
+				))
+			})
+		})
+
+		Context("When TLS profile with all supported groups is configured", func() {
+			BeforeEach(func() {
+				tlsProfile := &configv1.TLSProfileSpec{
+					MinTLSVersion: configv1.VersionTLS13,
+					Ciphers: []string{
+						"TLS_AES_128_GCM_SHA256",
+						"TLS_AES_256_GCM_SHA384",
+					},
+					Groups: []configv1.TLSGroup{
+						configv1.TLSGroupX25519,
+						configv1.TLSGroupSecP256r1,
+						configv1.TLSGroupSecP384r1,
+						configv1.TLSGroupSecP521r1,
+						configv1.TLSGroupX25519MLKEM768,
+						configv1.TLSGroupSecP256r1MLKEM768,
+						configv1.TLSGroupSecP384r1MLKEM1024,
+					},
+				}
+				tlsProfileSpec.Store(tlsProfile)
+			})
+
+			It("Should apply all curve preferences including post-quantum hybrids", func() {
+				By("Validating that all TLS groups are converted to curve preferences")
+				Eventually(func() []string {
+					ds := &appsv1.DaemonSet{}
+					if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: DeamonSetName, Namespace: IngressNodeFwConfigTestNameSpace}, ds); err != nil {
+						return nil
+					}
+					return getContainerArgs(ds, daemonContainerName)
+				}, 5*time.Second, 200*time.Millisecond).Should(And(
+					ContainElement("--metrics-tls-min-version=VersionTLS13"),
+					ContainElement("--metrics-tls-cipher-suites=TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384"),
+					ContainElement(HavePrefix("--metrics-tls-curve-preferences=")),
+				))
+			})
+		})
+
+		Context("When TLS profile without curve preferences is configured", func() {
+			BeforeEach(func() {
+				tlsProfile := &configv1.TLSProfileSpec{
+					MinTLSVersion: configv1.VersionTLS12,
+					Ciphers: []string{
+						"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+					},
+					Groups: nil,
+				}
+				tlsProfileSpec.Store(tlsProfile)
+			})
+
+			It("Should not include curve preferences flag when groups are not specified", func() {
+				By("Validating that TLS curve preferences flag is absent when groups are nil")
+				Eventually(func() []string {
+					ds := &appsv1.DaemonSet{}
+					if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: DeamonSetName, Namespace: IngressNodeFwConfigTestNameSpace}, ds); err != nil {
+						return nil
+					}
+					return getContainerArgs(ds, daemonContainerName)
+				}, 5*time.Second, 200*time.Millisecond).Should(And(
+					ContainElement("--metrics-tls-min-version=VersionTLS12"),
+					Not(ContainElement(HavePrefix("--metrics-tls-curve-preferences="))),
+				))
+			})
+		})
 	})
 })
 

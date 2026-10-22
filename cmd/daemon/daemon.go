@@ -17,13 +17,13 @@ import (
 	"crypto/tls"
 	"flag"
 	"os"
-	"strings"
 
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/controllers"
 	"github.com/openshift/ingress-node-firewall/pkg/metrics"
 	"github.com/openshift/ingress-node-firewall/pkg/version"
 
+	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -58,20 +58,29 @@ func main() {
 	var secureMetrics bool
 	var metricsCertDir string
 	var tlsMinVersion string
-	var tlsCipherSuites string
+	var tlsCipherSuites []string
+	var tlsCurvePreferences []int32
 	// We are host networked, we set default to loopback by default
-	flag.StringVar(&probeAddr, "health-probe-bind-address", "127.0.0.1:39400", "The address the probe endpoint binds to.")
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":9301", "The address the metric endpoint binds to.")
-	flag.StringVar(&metricsCertDir, "metrics-cert-dir", "/etc/pki/tls/metrics-certs", "Directory containing TLS certificates for metrics endpoint.")
-	flag.BoolVar(&secureMetrics, "metrics-secure", true, "If the metrics endpoint should be served securely.")
-	flag.BoolVar(&enableHTTP2, "metrics-enable-http2", false, "If HTTP/2 should be enabled for the metrics server.")
-	flag.StringVar(&tlsMinVersion, "metrics-tls-min-version", "", "Minimum TLS version for the metrics endpoint (e.g. VersionTLS12, VersionTLS13).")
-	flag.StringVar(&tlsCipherSuites, "metrics-tls-cipher-suites", "", "Comma-separated list of TLS cipher suites for the metrics endpoint.")
+	pflag.StringVar(&probeAddr, "health-probe-bind-address", "127.0.0.1:39400", "The address the probe endpoint binds to.")
+	pflag.StringVar(&metricsAddr, "metrics-bind-address", ":9301", "The address the metric endpoint binds to.")
+	pflag.StringVar(&metricsCertDir, "metrics-cert-dir", "/etc/pki/tls/metrics-certs", "Directory containing TLS certificates for metrics endpoint.")
+	pflag.BoolVar(&secureMetrics, "metrics-secure", true, "If the metrics endpoint should be served securely.")
+	pflag.BoolVar(&enableHTTP2, "metrics-enable-http2", false, "If HTTP/2 should be enabled for the metrics server.")
+	pflag.StringVar(&tlsMinVersion, "metrics-tls-min-version", "", "Minimum TLS version for the metrics endpoint (e.g. VersionTLS12, VersionTLS13).")
+	pflag.StringSliceVar(&tlsCipherSuites, "metrics-tls-cipher-suites", nil, "Comma-separated list of TLS cipher suites for the metrics endpoint.")
+	pflag.Int32SliceVar(&tlsCurvePreferences, "metrics-tls-curve-preferences", nil,
+		"Comma-separated list of numeric Go crypto/tls CurveID values, as the allowed key exchange mechanisms for the server. "+
+			"The supported values depend on the Go version used. "+
+			"See https://pkg.go.dev/crypto/tls#CurveID for values supported for each Go version. "+
+			"The order of the list is ignored, and key exchange mechanisms are chosen by Go from this list using an internal preference order. "+
+			"If omitted, the default Go curves will be used.")
 	opts := zap.Options{
 		Development: true,
 	}
 	opts.BindFlags(flag.CommandLine)
-	flag.Parse()
+	// Add standard flags to pflag
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+	pflag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
@@ -107,14 +116,25 @@ func main() {
 		})
 	}
 
-	if tlsCipherSuites != "" {
-		cipherSuiteIDs, err := cliflag.TLSCipherSuites(strings.Split(tlsCipherSuites, ","))
+	if len(tlsCipherSuites) > 0 {
+		cipherSuiteIDs, err := cliflag.TLSCipherSuites(tlsCipherSuites)
 		if err != nil {
 			setupLog.Error(err, "invalid TLS cipher suites")
 			os.Exit(1)
 		}
 		tlsOpts = append(tlsOpts, func(c *tls.Config) {
 			c.CipherSuites = cipherSuiteIDs
+		})
+	}
+
+	if len(tlsCurvePreferences) > 0 {
+		curveIDs, err := cliflag.TLSCurvePreferences(tlsCurvePreferences)
+		if err != nil {
+			setupLog.Error(err, "invalid TLS curve preferences")
+			os.Exit(1)
+		}
+		tlsOpts = append(tlsOpts, func(c *tls.Config) {
+			c.CurvePreferences = curveIDs
 		})
 	}
 
