@@ -5,6 +5,14 @@ metadata:
   name: ingress-node-firewall-daemon-role-extra
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - update
+- apiGroups:
   - ingressnodefirewall.openshift.io
   resources:
   - ingressnodefirewallnodestates

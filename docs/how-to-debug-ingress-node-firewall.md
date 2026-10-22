@@ -14,6 +14,23 @@ yum install -y bpftool xdp-tools
 You might have to use custom toolbox image to do so please refer to
 https://docs.openshift.com/container-platform/4.14/support/gathering-cluster-data.html#about-toolbox_gathering-cluster-data
 
+## BPF map capacity warnings
+
+When the node daemon cannot apply firewall rules because its BPF rule map is full,
+it emits a Kubernetes Warning event with reason `BPFMapFull` on that node's
+`IngressNodeFirewallNodeState`. Inspect the event in the operator namespace:
+
+```shell
+oc describe ingressnodefirewallnodestate <node-name> -n <operator-namespace>
+```
+
+The daemon retains stale rules when an update fails and retries reconciliation.
+Some desired rules might already have been applied before the failure. Retained
+stale entries can prevent replacements from fitting even when the desired entries
+alone would fit. Retries alone cannot free that capacity; manual intervention is
+required. Remediation requires a node reboot or a reduction in policy rules to
+free map capacity.
+
 ## Inspecting Ingress Node Firewall Tables with `bpftool`
 
 Retrieve the details of the Ingress Node Firewall object:

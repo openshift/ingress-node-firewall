@@ -15,6 +15,7 @@ package controllers
 
 import (
 	"context"
+	"syscall"
 
 	infv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/pkg/ebpfsyncer"
@@ -22,8 +23,10 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -37,6 +40,7 @@ type IngressNodeFirewallNodeStateReconciler struct {
 	Namespace string
 	Log       logr.Logger
 	Stats     *metrics.Statistics
+	Recorder  record.EventRecorder
 }
 
 var ingressNodeFirewallFinalizer = "ingressnodefirewall.openshift.io/finalizer"
@@ -104,6 +108,7 @@ func (r *IngressNodeFirewallNodeStateReconciler) Reconcile(ctx context.Context, 
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *IngressNodeFirewallNodeStateReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.Recorder = mgr.GetEventRecorderFor("ingress-node-firewall-daemon")
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infv1alpha1.IngressNodeFirewallNodeState{}).
 		Complete(r)
@@ -117,6 +122,10 @@ var mock ebpfsyncer.EbpfSyncer = nil
 func (r *IngressNodeFirewallNodeStateReconciler) reconcileResource(
 	ctx context.Context, instance *infv1alpha1.IngressNodeFirewallNodeState, isDelete bool) (ctrl.Result, error) {
 	if err := ebpfsyncer.GetEbpfSyncer(ctx, r.Log, r.Stats, mock).SyncInterfaceIngressRules(instance.Spec.InterfaceIngressRules, isDelete); err != nil {
+		if !isDelete && errors.Is(err, syscall.ENOSPC) && r.Recorder != nil {
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "BPFMapFull",
+				"BPF rule map is full on node %s. Desired rules could not be fully applied; stale rules were retained. Manual intervention is required to free map capacity.", instance.Name)
+		}
 		return ctrl.Result{}, errors.Wrapf(err, "FailedToSyncIngressNodeFirewallResources")
 	}
 	return ctrl.Result{}, nil
