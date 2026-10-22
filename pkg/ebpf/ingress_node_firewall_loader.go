@@ -175,20 +175,21 @@ func NewIngNodeFwController() (*IngNodeFwController, error) {
 
 // IngressNodeFwRulesLoader adds/updates/deletes ingress node firewall rules to the eBPF LPM MAP in an idempotent way.
 // IngressNodeFwRulesLoader executes the following actions in order:
-// i)  Get eBPF objs to create/update eBPF maps and get map info.
+// i) Get eBPF map info.
 // ii) Build a map of valid ebpfKeys pointing to the ebpfRules that should be associated to them (built from
 //
 //	ifaceIngressRules).
 //
 // iii) Get stale keys (= keys inside the eBPF map but not inside the currently desired ruleset).
-// iv) Purge all stale keys from the eBPF map.
-// v) Add/update all keys. This is an idempotent action and non-existing keys are added whereas existing keys
+// iv) Add/update all keys. This is an idempotent action and non-existing keys are added whereas existing keys
 //
 //	are updated.
 //
-// vi) Generate ingress node firewall events.
+// v) Purge all stale keys from the eBPF map only after all additions/updates succeed.
 // In the context of this method, stale keys are keys that figure inside the eBPF map but that are not generated
 // during step ii) from the provided ingressRules slice.
+// If adding/updating rules fails, stale keys are preserved.
+// If purging stale keys fails, the error is returned so reconciliation can retry.
 func (infc *IngNodeFwController) IngressNodeFwRulesLoader(
 	ifaceIngressRules map[string][]v1alpha1.IngressNodeFirewallRules) error {
 	// Get eBPF objs to create/update eBPF maps and get map info.
@@ -234,22 +235,21 @@ func (infc *IngNodeFwController) IngressNodeFwRulesLoader(
 		desiredKeys = append(desiredKeys, desiredKey)
 	}
 
-	// Get stale keys (= keys inside the eBPF map but not inside the currently desired ruleset). Those keys
-	// will be dropped in the next step.
+	// Get stale keys (= keys inside the eBPF map but not inside the currently desired ruleset).
 	staleKeys, err := infc.getStaleKeys(desiredKeys)
 	if err != nil {
 		return err
 	}
 
-	// Purge all stale keys from the eBPF map.
-	if err := infc.purgeKeys(staleKeys); err != nil {
-		klog.Infof("Purge keys operation encountered issues, err: %q", err)
-	}
-
 	// Add/update all keys. This is an idempotent action and non-existing keys are added whereas existing keys
-	// are updated.
+	// are updated. Preserve stale keys if an update fails so existing deny rules remain in place.
 	if err := infc.addOrUpdateRules(ebpfKeyToRules); err != nil {
 		return err
+	}
+
+	// Purge stale keys only after all desired rules have been successfully installed.
+	if err := infc.purgeKeys(staleKeys); err != nil {
+		return fmt.Errorf("failed to purge stale firewall rules: %w", err)
 	}
 
 	return nil
@@ -263,7 +263,7 @@ func (infc *IngNodeFwController) addOrUpdateRules(ebpfKeyToRules map[BpfLpmIpKey
 	for ebpfKey, ebpfRules := range ebpfKeyToRules {
 		log.Printf("Adding or updating ingress firewall rules for key %v", ebpfKey)
 		if err := infc.objs.BpfMaps.IngressNodeFirewallTableMap.Update(ebpfKey, ebpfRules, ebpf.UpdateAny); err != nil {
-			return fmt.Errorf("Failed Adding/Updating ingress firewall rules: %v", err)
+			return fmt.Errorf("Failed Adding/Updating ingress firewall rules: %w", err)
 		}
 	}
 	return nil

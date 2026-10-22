@@ -44,6 +44,14 @@ metadata:
   namespace: system
 rules:
   - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+      - update
+  - apiGroups:
       - ingressnodefirewall.openshift.io
     resources:
       - ingressnodefirewallnodestates
