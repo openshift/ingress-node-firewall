@@ -34,6 +34,7 @@ import (
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
 
 	//+kubebuilder:scaffold:imports
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -168,7 +169,11 @@ var _ = Describe("Interfaces", func() {
 		It("interfaces config with empty strings", func() {
 			initCIDRICMPRule(inf, ipv4CIDR, validOrder, false, icmpTypeEchoReply, icmpTypeEchoReply, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
 			configInterfaces(inf, []string{""})
-			Expect(createIngressNodeFirewall(inf)).ToNot(Succeed())
+			err := createIngressNodeFirewall(inf)
+			Expect(err).To(HaveOccurred())
+			Expect(apierrors.IsInvalid(err)).To(BeTrue())
+			Expect(err.Error()).To(ContainSubstring("spec.interfaces[0]"))
+			Expect(err.Error()).To(ContainSubstring("interface name must not be empty"))
 		})
 		It("interfaces config with too long interface name", func() {
 			initCIDRICMPRule(inf, ipv4CIDR, validOrder, false, icmpTypeEchoReply, icmpTypeEchoReply, ingressnodefwv1alpha1.IngressNodeFirewallAllow)
