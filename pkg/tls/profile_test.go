@@ -112,6 +112,10 @@ func testGetProfileInfo() {
 							"ECDHE-RSA-AES128-GCM-SHA256",
 							"Unknown",
 						},
+						Groups: []configv1.TLSGroup{
+							configv1.TLSGroupSecP256r1,
+							configv1.TLSGroupSecP384r1,
+						},
 					},
 				},
 			}
@@ -122,10 +126,15 @@ func testGetProfileInfo() {
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(profile.GetProfileSpec()).To(Equal(&t.apiServer.Spec.TLSSecurityProfile.Custom.TLSProfileSpec))
+			Expect(profile.GetProfileSpec().Groups).To(Equal([]configv1.TLSGroup{
+				configv1.TLSGroupSecP256r1,
+				configv1.TLSGroupSecP384r1,
+			}))
 
 			tlsConfig := applyTLSOpts(profile.TLSOpts)
 			Expect(tlsConfig.MinVersion).To(Equal(uint16(tls.VersionTLS11)))
 			Expect(tlsConfig.CipherSuites).To(HaveLen(2))
+			Expect(tlsConfig.CurvePreferences).To(ContainElements(tls.CurveP256, tls.CurveP384))
 		})
 	})
 

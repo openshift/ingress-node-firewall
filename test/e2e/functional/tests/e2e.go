@@ -1334,6 +1334,148 @@ var _ = Describe("Ingress Node Firewall", func() {
 		})
 	})
 
+	// NOTE: This test requires a disposable cluster and MUST NOT run on shared infrastructure.
+	//
+	// Cluster State Modifications (cannot be fully reverted):
+	// - FeatureGate/cluster: Changed to CustomNoUpgrade with TLSGroupPreferences enabled (IRREVERSIBLE)
+	// - APIServer/cluster: Custom TLS profile with specific groups configured (reversible but not restored)
+	// - MachineConfigPools: Rolled out with new kubelet TLS configuration
+	//
+	// The test is marked [Serial] and [OCPFeatureGate:TLSGroupPreferences] to ensure it runs on
+	// dedicated CI infrastructure that is destroyed after test completion.
+	Context("[OCPFeatureGate:TLSGroupPreferences][Serial] TLS Group Preferences Compliance", func() {
+		var config *ingressnodefwv1alpha1.IngressNodeFirewallConfig
+
+		BeforeEach(func() {
+			if !tls.IsOpenShiftCluster(testclient.Client) {
+				Skip("TLS Profile Compliance testing requires OpenShift cluster with config.openshift.io APIs")
+			}
+
+			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
+			Expect(infwutils.LoadIngressNodeFirewallConfigFromFile(config,
+				inftestconsts.IngressNodeFirewallConfigCRFile)).Should(Succeed())
+			config.SetNamespace(OperatorNameSpace)
+			config.SetLabels(testArtifactsLabelMap)
+			Expect(infwutils.EnsureIngressNodeFirewallConfigExists(testclient.Client, config, timeout)).Should(Succeed())
+			infDaemonSet := &appsv1.DaemonSet{}
+			infDaemonSet.SetName(inftestconsts.IngressNodeFirewallDaemonsetName)
+			infDaemonSet.SetNamespace(OperatorNameSpace)
+			Expect(daemonset.WaitForDaemonSetReady(testclient.Client, infDaemonSet, retryInterval, timeout)).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			if config != nil {
+				infwutils.DeleteIngressNodeFirewallConfig(testclient.Client, config, retryInterval, timeout)
+			}
+		})
+
+		It("should verify TLS group preferences compliance with restricted groups (X25519, secp256r1)", func() {
+			groups := []string{"X25519", "secp256r1"}
+
+			By("Step 1: Enabling TLSGroupPreferences feature gate")
+			_, err := tls.EnableTLSGroupPreferencesFeatureGate(testclient.Client)
+			Expect(err).NotTo(HaveOccurred(), "Failed to enable TLSGroupPreferences feature gate")
+
+			// Check if EXACT groups are already configured (not more, not less)
+			By("Checking if exact TLS groups are already configured")
+			exactGroupsConfigured := false
+			err = tls.VerifyAPIServerTLSGroups(testclient.Client, groups)
+			if err == nil {
+				log.Println("Exact TLS groups [X25519, secp256r1] are already configured")
+				exactGroupsConfigured = true
+			} else {
+				log.Printf("TLS groups need configuration: %v", err)
+			}
+
+			if !exactGroupsConfigured {
+				By("Step 2: Configuring APIServer with custom TLS profile and groups")
+				err = tls.ConfigureAPIServerWithTLSGroups(testclient.Client, groups, configv1.VersionTLS12, nil)
+				Expect(err).NotTo(HaveOccurred(), "Failed to configure APIServer with TLS groups")
+
+				By("Step 3: Verifying TLS groups configuration in APIServer")
+				err = tls.VerifyAPIServerTLSGroups(testclient.Client, groups)
+				Expect(err).NotTo(HaveOccurred(), "Failed to verify TLS groups configuration")
+
+				By("Step 4: Restarting daemon pods to pick up new TLS configuration")
+				infDaemonSet := &appsv1.DaemonSet{}
+				infDaemonSet.SetName("ingress-node-firewall-daemon")
+				infDaemonSet.SetNamespace(OperatorNameSpace)
+				err = tls.RestartDaemonPods(testclient.Client, OperatorNameSpace, "app=ingress-node-firewall-daemon")
+				Expect(err).ShouldNot(HaveOccurred())
+				err = daemonset.WaitForDaemonSetReady(testclient.Client, infDaemonSet, retryInterval, timeout)
+				Expect(err).ShouldNot(HaveOccurred())
+			} else {
+				By("Step 2-4: Skipped - exact groups already configured, verifying daemon is ready")
+				infDaemonSet := &appsv1.DaemonSet{}
+				infDaemonSet.SetName("ingress-node-firewall-daemon")
+				infDaemonSet.SetNamespace(OperatorNameSpace)
+				err = daemonset.WaitForDaemonSetReady(testclient.Client, infDaemonSet, retryInterval, timeout)
+				Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			By("Step 5: Testing TLS handshakes on worker node")
+			err = tls.VerifyTLSGroupsOnWorkerNode(testclient.Client, OperatorNameSpace)
+			Expect(err).NotTo(HaveOccurred(), "TLS group preferences verification failed")
+		})
+
+		It("should verify all TLS groups work when all are enabled", func() {
+			allGroups := []string{
+				"X25519",
+				"secp256r1",
+				"secp384r1",
+				"secp521r1",
+				"X25519MLKEM768",
+				"SecP256r1MLKEM768",
+				"SecP384r1MLKEM1024",
+			}
+
+			By("Step 1: Enabling TLSGroupPreferences feature gate")
+			_, err := tls.EnableTLSGroupPreferencesFeatureGate(testclient.Client)
+			Expect(err).NotTo(HaveOccurred(), "Failed to enable TLSGroupPreferences feature gate")
+
+			// Check if EXACT groups are already configured (all 7, not more, not less)
+			By("Checking if all 7 TLS groups are already configured")
+			exactGroupsConfigured := false
+			err = tls.VerifyAPIServerTLSGroups(testclient.Client, allGroups)
+			if err == nil {
+				log.Println("All 7 TLS groups are already configured")
+				exactGroupsConfigured = true
+			} else {
+				log.Printf("TLS groups need configuration: %v", err)
+			}
+
+			if !exactGroupsConfigured {
+				By("Step 2: Configuring APIServer with ALL TLS groups")
+				err = tls.ConfigureAPIServerWithTLSGroups(testclient.Client, allGroups, configv1.VersionTLS12, nil)
+				Expect(err).NotTo(HaveOccurred(), "Failed to configure APIServer with all TLS groups")
+
+				By("Step 3: Verifying all TLS groups configuration in APIServer")
+				err = tls.VerifyAPIServerTLSGroups(testclient.Client, allGroups)
+				Expect(err).NotTo(HaveOccurred(), "Failed to verify all TLS groups configuration")
+
+				By("Step 4: Restarting daemon pods to pick up new TLS configuration")
+				infDaemonSet := &appsv1.DaemonSet{}
+				infDaemonSet.SetName("ingress-node-firewall-daemon")
+				infDaemonSet.SetNamespace(OperatorNameSpace)
+				err = tls.RestartDaemonPods(testclient.Client, OperatorNameSpace, "app=ingress-node-firewall-daemon")
+				Expect(err).ShouldNot(HaveOccurred())
+				err = daemonset.WaitForDaemonSetReady(testclient.Client, infDaemonSet, retryInterval, timeout)
+				Expect(err).ShouldNot(HaveOccurred())
+			} else {
+				By("Step 2-4: Skipped - all groups already configured, verifying daemon is ready")
+				infDaemonSet := &appsv1.DaemonSet{}
+				infDaemonSet.SetName("ingress-node-firewall-daemon")
+				infDaemonSet.SetNamespace(OperatorNameSpace)
+				err = daemonset.WaitForDaemonSetReady(testclient.Client, infDaemonSet, retryInterval, timeout)
+				Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			By("Step 5: Testing TLS handshakes for all supported groups on worker node")
+			err = tls.VerifyAllTLSGroupsOnWorkerNode(testclient.Client, OperatorNameSpace)
+			Expect(err).NotTo(HaveOccurred(), "Comprehensive TLS groups verification failed")
+		})
+	})
+
 	Context("Statistics", func() {
 		var config *ingressnodefwv1alpha1.IngressNodeFirewallConfig
 		var configCRExisted bool
