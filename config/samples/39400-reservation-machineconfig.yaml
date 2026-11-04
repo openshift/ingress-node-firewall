@@ -1,0 +1,33 @@
+# Optional boot-time protection. Apply to each MachineConfigPool hosting INF
+# (change the role label and name for other pools). This is not installed by the
+# operator: MachineConfig changes require a planned node rollout.
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  name: 80-worker-inf-health-probe-reservation
+  labels:
+    machineconfiguration.openshift.io/role: worker
+spec:
+  config:
+    ignition:
+      version: 3.2.0
+    systemd:
+      units:
+        - name: inf-health-probe-reservation.service
+          enabled: true
+          contents: |
+            [Unit]
+            Description=Reserve INF health probe source port
+            DefaultDependencies=no
+            After=systemd-sysctl.service
+            Before=sysinit.target network-pre.target kubelet.service
+
+            [Service]
+            Type=oneshot
+            # Append to the effective list after systemd-sysctl has applied node
+            # configuration. The kernel normalizes duplicate/overlapping entries.
+            ExecStart=/bin/bash -ec 'p=/proc/sys/net/ipv4/ip_local_reserved_ports; read -r current < "$$p"; echo "$${current:+$$current,}39400" > "$$p"'
+            RemainAfterExit=yes
+
+            [Install]
+            WantedBy=sysinit.target

@@ -16,12 +16,15 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"net"
 	"os"
+	"strconv"
 	"strings"
 
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/controllers"
 	"github.com/openshift/ingress-node-firewall/pkg/metrics"
+	"github.com/openshift/ingress-node-firewall/pkg/utils"
 	"github.com/openshift/ingress-node-firewall/pkg/version"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -59,8 +62,10 @@ func main() {
 	var metricsCertDir string
 	var tlsMinVersion string
 	var tlsCipherSuites string
+	var reservedPortsPath string
 	// We are host networked, we set default to loopback by default
 	flag.StringVar(&probeAddr, "health-probe-bind-address", "127.0.0.1:39400", "The address the probe endpoint binds to.")
+	flag.StringVar(&reservedPortsPath, "reserved-ports-path", "", "Path to the host ip_local_reserved_ports sysctl; reserve the health probe port before starting.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":9301", "The address the metric endpoint binds to.")
 	flag.StringVar(&metricsCertDir, "metrics-cert-dir", "/etc/pki/tls/metrics-certs", "Directory containing TLS certificates for metrics endpoint.")
 	flag.BoolVar(&secureMetrics, "metrics-secure", true, "If the metrics endpoint should be served securely.")
@@ -76,6 +81,21 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	setupLog.Info("Version", "version.Version", version.Version)
+	if reservedPortsPath != "" && probeAddr != "0" && probeAddr != "" {
+		_, portString, err := net.SplitHostPort(probeAddr)
+		if err != nil {
+			setupLog.Error(err, "invalid health probe address")
+			os.Exit(1)
+		}
+		port, err := strconv.Atoi(portString)
+		if err == nil {
+			err = utils.ReservePort(reservedPortsPath, port)
+		}
+		if err != nil {
+			setupLog.Error(err, "unable to reserve health probe port")
+			os.Exit(1)
+		}
+	}
 
 	nodeName, ok := os.LookupEnv("NODE_NAME")
 	if !ok {

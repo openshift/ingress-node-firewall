@@ -28,6 +28,8 @@ spec:
           image: '{{.Image}}'
           command: ["/usr/bin/daemon"]
           args:
+            - --health-probe-bind-address=127.0.0.1:39400
+            - --reserved-ports-path=/host-ip-local-reserved-ports
             - --metrics-bind-address=:9301
             - --metrics-cert-dir=/etc/pki/tls/metrics-certs
             - --metrics-secure=true
@@ -49,10 +51,14 @@ spec:
             - name: EBPF_MANAGEMENT_MODE
               value: '{{.EBPFProgramManagerMode}}'
           ports:
+            - containerPort: 39400
+              name: healthz
             - containerPort: 9301
               name: metrics
           terminationMessagePolicy: FallbackToLogsOnError
           volumeMounts:
+            - name: reserved-ports
+              mountPath: /host-ip-local-reserved-ports
             - name: syslog-socket
               mountPath: /var/run
             - name: ingress-node-firewall-daemon-metrics-certs
@@ -71,6 +77,12 @@ spec:
             - name: syslog-socket
               mountPath: /var/run
       volumes:
+        # The container's /proc/sys is read-only. Mount only the required host
+        # sysctl; hostNetwork makes this the daemon's network namespace too.
+        - name: reserved-ports
+          hostPath:
+            path: /proc/sys/net/ipv4/ip_local_reserved_ports
+            type: File
         - name: ingress-node-firewall-daemon-metrics-certs
           secret:
             secretName: ingress-node-firewall-daemon-metrics-certs
