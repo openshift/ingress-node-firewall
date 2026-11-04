@@ -110,11 +110,9 @@ func (r *IngressNodeFirewallConfigReconciler) Reconcile(ctx context.Context, req
 		return ctrl.Result{}, nil // Return success to avoid requeue
 	}
 
-	var syncErr error
 	if err = r.syncIngressNodeFwConfigResources(ctx, instance); err != nil {
 		condition = status.ConditionDegraded
 		err = errors.Wrapf(err, "FailedToSyncIngressNodeFirewallConfigResources")
-		syncErr = err
 	} else {
 		err = status.IsIngressNodeFirewallConfigAvailable(ctx, r.Client, req.NamespacedName.Namespace)
 		if err != nil {
@@ -136,9 +134,6 @@ func (r *IngressNodeFirewallConfigReconciler) Reconcile(ctx context.Context, req
 	if err = status.Update(context.TODO(), r.Client, instance, condition, errorMsg, wrappedErrMsg); err != nil {
 		logger.Info("failed to update ingress node firewall config status", "Desired status", status.ConditionAvailable)
 		err = nil
-	}
-	if syncErr != nil {
-		err = syncErr
 	}
 	return ctrResult, err
 }

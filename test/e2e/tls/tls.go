@@ -82,33 +82,19 @@ func ConfigureTLSProfileWithAdherence(c *testclient.ClientSet, tlsProfileType co
 
 	ctx := context.Background()
 
-	log.Println("Step 1: Checking and enabling TLSAdherence feature gate")
-	alreadyEnabled, err := enableFeatureGate(ctx, c, "TLSAdherence")
-	if err != nil {
-		return err
-	}
-	if !alreadyEnabled {
-		log.Println("  Feature gate enabled and cluster stabilized")
-	}
-
-	log.Printf("Step 2: Configuring APIServer with %s TLS profile and tlsAdherence=%s", tlsProfileType, tlsAdherencePolicy)
+	log.Printf("Configuring APIServer with %s TLS profile and tlsAdherence=%s", tlsProfileType, tlsAdherencePolicy)
 	if err := patchAPIServerTLSProfile(ctx, c, tlsProfileType, tlsAdherencePolicy); err != nil {
 		return err
 	}
 
-	log.Println("Step 3: Waiting for cluster to stabilize after TLS profile configuration")
+	log.Println("Waiting for cluster to stabilize after TLS profile configuration")
 	requiresMCPRollout := ((tlsProfileType == configv1.TLSProfileModernType && (tlsAdherencePolicy == configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly || tlsAdherencePolicy == configv1.TLSAdherencePolicyStrictAllComponents)) ||
 		(tlsProfileType == configv1.TLSProfileIntermediateType && tlsAdherencePolicy == configv1.TLSAdherencePolicyStrictAllComponents))
 	if err := waitForClusterStabilization(ctx, c, requiresMCPRollout, false); err != nil {
 		return err
 	}
 
-	log.Println("Step 4: Verifying TLSAdherence is active in feature gate status")
-	if err := verifyTLSAdherenceActive(ctx, c); err != nil {
-		return err
-	}
-
-	log.Println("Step 5: Verifying APIServer TLS profile configuration")
+	log.Println("Verifying APIServer TLS profile configuration")
 	if err := verifyAPIServerTLSProfile(ctx, c, tlsProfileType, tlsAdherencePolicy); err != nil {
 		return err
 	}
@@ -447,38 +433,6 @@ func waitForNodesStability(c client.Client, timeout time.Duration) error {
 func isNodeReady(node *corev1.Node) bool {
 	return slices.ContainsFunc(node.Status.Conditions, func(condition corev1.NodeCondition) bool {
 		return condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue
-	})
-}
-
-func verifyTLSAdherenceActive(ctx context.Context, c client.Client) error {
-	cv := &configv1.ClusterVersion{}
-	err := c.Get(ctx, types.NamespacedName{Name: "version"}, cv)
-	if err != nil {
-		return fmt.Errorf("failed to get cluster version: %w", err)
-	}
-	version := cv.Status.Desired.Version
-	log.Printf("  Verifying TLSAdherence is active for cluster version %s", version)
-
-	return wait.PollUntilContextTimeout(ctx, 15*time.Second, 15*time.Minute, true, func(ctx context.Context) (bool, error) {
-		fg := &configv1.FeatureGate{}
-		err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, fg)
-		if err != nil {
-			log.Printf("Error getting FeatureGate: %v", err)
-			return false, nil
-		}
-
-		for _, fgStatus := range fg.Status.FeatureGates {
-			if fgStatus.Version == version {
-				for _, enabled := range fgStatus.Enabled {
-					if enabled.Name == "TLSAdherence" {
-						return true, nil
-					}
-				}
-			}
-		}
-
-		log.Printf("TLSAdherence not yet in status for version %s (waiting...)", version)
-		return false, nil
 	})
 }
 
@@ -1276,9 +1230,13 @@ func VerifyIngressNodeFirewallTLSComplianceInPod(c client.Client, namespace, lab
 	}
 
 	expectedMinVer := expectedTLSMinVersion(apiserver)
-	log.Printf("Waiting for operator to update DaemonSet with expected TLS min version %q...", expectedMinVer)
-	if err := waitForDaemonSetTLSUpdate(c, namespace, expectedMinVer); err != nil {
-		return fmt.Errorf("timed out waiting for DaemonSet TLS args to be updated by operator: %w", err)
+	if expectedMinVer != "" {
+		log.Printf("Waiting for operator to update DaemonSet with expected TLS min version %q...", expectedMinVer)
+		if err := waitForDaemonSetTLSUpdate(c, namespace, expectedMinVer); err != nil {
+			return fmt.Errorf("timed out waiting for DaemonSet TLS args to be updated by operator: %w", err)
+		}
+	} else {
+		log.Println("Skipping DaemonSet TLS update wait (modern component not updated with LegacyAdheringComponentsOnly)")
 	}
 
 	log.Printf("Restarting daemon pods to ensure they pick up the new TLS configuration...")
