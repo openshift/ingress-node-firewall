@@ -1235,21 +1235,21 @@ func VerifyIngressNodeFirewallTLSComplianceInPod(c client.Client, namespace, lab
 		if err := waitForDaemonSetTLSUpdate(c, namespace, expectedMinVer); err != nil {
 			return fmt.Errorf("timed out waiting for DaemonSet TLS args to be updated by operator: %w", err)
 		}
-	} else {
-		log.Println("Skipping DaemonSet TLS update wait (modern component not updated with LegacyAdheringComponentsOnly)")
-	}
 
-	log.Printf("Restarting daemon pods to ensure they pick up the new TLS configuration...")
-	if err := RestartDaemonPods(c, namespace, labelSelector); err != nil {
-		return fmt.Errorf("failed to restart daemon pods: %w", err)
+		log.Printf("Restarting daemon pods to ensure they pick up the new TLS configuration...")
+		if err := RestartDaemonPods(c, namespace, labelSelector); err != nil {
+			return fmt.Errorf("failed to restart daemon pods: %w", err)
+		}
+
+		log.Printf("Waiting for TLS configuration to propagate to restarted pods...")
+		if err := waitForTLSConfigurationReady(c, namespace, labelSelector); err != nil {
+			return fmt.Errorf("failed waiting for TLS configuration to propagate: %w", err)
+		}
+	} else {
+		log.Println("Skipping DaemonSet update, restart, and wait (modern component not updated with LegacyAdheringComponentsOnly)")
 	}
 
 	expectTLS12Reject, description := determineTLSTestBehavior(apiserver)
-
-	log.Printf("Waiting for TLS configuration to propagate to restarted pods...")
-	if err := waitForTLSConfigurationReady(c, namespace, labelSelector); err != nil {
-		return fmt.Errorf("failed waiting for TLS configuration to propagate: %w", err)
-	}
 
 	profileTypeLabel := "<unset>"
 	if apiserver.Spec.TLSSecurityProfile != nil {
