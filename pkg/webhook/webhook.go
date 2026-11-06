@@ -72,29 +72,29 @@ func validateIngressNodeFirewall(ctx context.Context, inf *ingressnodefwv1alpha1
 	return nil
 }
 
+// validateINFInterfaces returns field-level validation errors for interface names.
 func validateINFInterfaces(ctx context.Context, infInterfaces []string, infName string, kubeClient client.Client) field.ErrorList {
 	var allErrs field.ErrorList
 
 	for index, inf := range infInterfaces {
+		interfacePath := field.NewPath("spec").Child("interfaces").Index(index)
 		if inf == "" {
 			allErrs = append(allErrs,
-				field.Invalid(field.NewPath("Spec").Child("interfaces").Index(index),
-					infName, "can not use blank interfae names"))
+				field.Invalid(interfacePath, inf, "interface name must not be empty"))
+			continue
 		}
 		if len(inf) > unix.IFNAMSIZ {
 			allErrs = append(allErrs,
-				field.Invalid(field.NewPath("Spec").Child("interfaces").Index(index),
-					infName, fmt.Sprintf("interface %q is too long", inf)))
+				field.Invalid(interfacePath, inf, "interface name is too long"))
 		}
 		if inf[0] >= '0' && inf[0] <= '9' {
 			allErrs = append(allErrs,
-				field.Invalid(field.NewPath("Spec").Child("interfaces").Index(index),
-					infName, fmt.Sprintf("interface %q can't start with a number", inf)))
+				field.Invalid(interfacePath, inf, "interface name can't start with a number"))
 		}
 		if strings.Contains(inf, constants.PinDirDotPlaceholder) {
 			allErrs = append(allErrs,
-				field.Invalid(field.NewPath("Spec").Child("interfaces").Index(index),
-					infName, fmt.Sprintf("interface %q can't contain '%s'", inf, constants.PinDirDotPlaceholder)))
+				field.Invalid(interfacePath,
+					inf, fmt.Sprintf("interface name can't contain '%s'", constants.PinDirDotPlaceholder)))
 		}
 	}
 	return allErrs
