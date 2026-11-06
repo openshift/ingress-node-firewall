@@ -2,7 +2,9 @@ package controllers
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"strconv"
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -88,6 +90,7 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 			}, 5*time.Second, 200*time.Millisecond).Should(And(
 				ContainElement("--metrics-tls-min-version="),
 				ContainElement(HavePrefix("--metrics-tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256")),
+				Not(ContainElement(HavePrefix("--metrics-tls-curve-preferences="))),
 			))
 
 			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
@@ -128,6 +131,10 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 						"TLS_AES_128_GCM_SHA256",
 						"TLS_AES_256_GCM_SHA384",
 					},
+					Groups: []configv1.TLSGroup{
+						configv1.TLSGroupX25519,
+						configv1.TLSGroupSecP384r1,
+					},
 				}
 				tlsProfileSpec.Store(tlsProfile)
 			})
@@ -143,6 +150,9 @@ var _ = Describe("Ingress nodefirewall config Controller", func() {
 				}, 5*time.Second, 200*time.Millisecond).Should(And(
 					ContainElement("--metrics-tls-min-version=VersionTLS13"),
 					ContainElement("--metrics-tls-cipher-suites=TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384"),
+					ContainElement(fmt.Sprintf("--metrics-tls-curve-preferences=%s,%s",
+						strconv.Itoa(int(tls.X25519)),
+						strconv.Itoa(int(tls.CurveP384)))),
 				))
 			})
 		})

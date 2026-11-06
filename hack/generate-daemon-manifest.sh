@@ -1,11 +1,23 @@
 #!/bin/bash
+set -euo pipefail
+
 MANIFEST_FILE="daemonset.yaml"
 MANIFEST_PATH="bindata/manifests/daemon"
+MANIFEST="${MANIFEST_PATH}/${MANIFEST_FILE}"
 
-if ! command -v yq &> /dev/null
-then
-    echo "yq binary not found, installing... "
-    go install -mod='' github.com/mikefarah/yq/v4@v4.13.3
+# Use temp file approach for cross-platform compatibility
+# (sed -i behavior differs between GNU sed on Linux and BSD sed on macOS)
+TEMP_FILE=$(mktemp)
+trap 'rm -f "${TEMP_FILE}"' EXIT
+
+# This ensures the daemon container image field is set to {{.Image}}
+if ! sed "s|image:.*|image: '{{.Image}}'|g" "${MANIFEST}" > "${TEMP_FILE}"; then
+    echo "Error: Failed to substitute image in ${MANIFEST}" >&2
+    exit 1
 fi
 
-yq e --inplace '. | (select(.kind == "DaemonSet" and .metadata.name == "ingress-node-firewall-daemon") | .spec.template.spec.containers[] | select(.name == "daemon").image)|="{{.Image}}"' ${MANIFEST_PATH}/${MANIFEST_FILE}
+# Replace original file
+if ! mv "${TEMP_FILE}" "${MANIFEST}"; then
+    echo "Error: Failed to update ${MANIFEST}" >&2
+    exit 1
+fi
