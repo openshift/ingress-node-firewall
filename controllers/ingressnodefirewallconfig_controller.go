@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"os"
 	"strings"
@@ -32,7 +33,6 @@ import (
 
 	"github.com/go-logr/logr"
 	configv1 "github.com/openshift/api/config/v1"
-	openshiftcrypto "github.com/openshift/library-go/pkg/crypto"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -59,6 +59,35 @@ const (
 )
 
 var ManifestPath = IngressNodeFirewallManifestPath
+
+// tlsGroupsToCurveIDs converts OpenShift TLS group names to Go crypto/tls CurveID values.
+// Returns recognized curve IDs and a list of unrecognized group names.
+func tlsGroupsToCurveIDs(groups []configv1.TLSGroup) ([]tls.CurveID, []string) {
+	var curveIDs []tls.CurveID
+	var unrecognized []string
+
+	// Map OpenShift TLS groups to Go's crypto/tls curve IDs
+	groupToCurve := map[configv1.TLSGroup]tls.CurveID{
+		configv1.TLSGroupX25519:    tls.X25519,
+		configv1.TLSGroupSecP256r1: tls.CurveP256,
+		configv1.TLSGroupSecP384r1: tls.CurveP384,
+		configv1.TLSGroupSecP521r1: tls.CurveP521,
+		// Post-quantum hybrid curves (available in Go 1.23+):
+		// configv1.TLSGroupX25519MLKEM768:    tls.X25519MLKEM768,
+		// configv1.TLSGroupSecP256r1MLKEM768: tls.CurveP256MLKEM768,
+		// configv1.TLSGroupSecP384r1MLKEM1024: tls.CurveP384MLKEM1024,
+	}
+
+	for _, group := range groups {
+		if curveID, ok := groupToCurve[group]; ok {
+			curveIDs = append(curveIDs, curveID)
+		} else {
+			unrecognized = append(unrecognized, string(group))
+		}
+	}
+
+	return curveIDs, unrecognized
+}
 
 // IngressNodeFirewallConfigReconciler reconciles a IngressNodeFirewallConfig object
 type IngressNodeFirewallConfigReconciler struct {
@@ -165,7 +194,7 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 
 		// Convert TLS Groups to curve IDs for curve preferences
 		if len(tlsProfileSpec.Groups) > 0 {
-			curveIDs, unrecognizedGroups := openshiftcrypto.TLSGroupsToCurveIDs(tlsProfileSpec.Groups)
+			curveIDs, unrecognizedGroups := tlsGroupsToCurveIDs(tlsProfileSpec.Groups)
 			if len(unrecognizedGroups) > 0 {
 				logger.Info("TLS profile contains unrecognized groups that will be ignored",
 					"unrecognizedGroups", unrecognizedGroups,

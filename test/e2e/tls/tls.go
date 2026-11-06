@@ -445,46 +445,47 @@ func EnableTLSGroupPreferencesFeatureGate(c *testclient.ClientSet) (bool, error)
 	return enableFeatureGate(ctx, c, "TLSGroupPreferences")
 }
 
-// ConfigureAPIServerWithTLSGroups configures the APIServer with custom TLS profile including groups and waits for cluster stabilization.
-func ConfigureAPIServerWithTLSGroups(c *testclient.ClientSet, groups []string, minTLSVersion configv1.TLSProtocolVersion, ciphers []string) error {
-	ctx := context.Background()
-
-	log.Printf("Configuring APIServer with TLS groups: %v", groups)
+// ConfigureAPIServerWithTLSGroups configures the APIServer with custom TLS profile including groups.
+// It checks if the requested groups are already configured (idempotent) and only updates if needed.
+// Returns (true, nil) if APIServer was updated, (false, nil) if already configured, or (false, error) on failure.
+func ConfigureAPIServerWithTLSGroups(ctx context.Context, c *testclient.ClientSet, tlsGroups []configv1.TLSGroup) (bool, error) {
+	log.Printf("Configuring APIServer with TLS groups: %v", tlsGroups)
 
 	apiserver := &configv1.APIServer{}
 	err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, apiserver)
 	if err != nil {
-		return fmt.Errorf("failed to get apiserver: %w", err)
+		return false, fmt.Errorf("failed to get apiserver: %w", err)
 	}
 
-	// Convert string groups to TLSGroup type
-	tlsGroups := make([]configv1.TLSGroup, len(groups))
-	for i, g := range groups {
-		tlsGroups[i] = configv1.TLSGroup(g)
+	// Check if already configured (idempotent)
+	if apiserver.Spec.TLSSecurityProfile != nil &&
+		apiserver.Spec.TLSSecurityProfile.Type == configv1.TLSProfileCustomType &&
+		apiserver.Spec.TLSSecurityProfile.Custom != nil &&
+		slices.Equal(apiserver.Spec.TLSSecurityProfile.Custom.Groups, tlsGroups) &&
+		apiserver.Spec.TLSAdherence == configv1.TLSAdherencePolicyStrictAllComponents {
+		log.Println("APIServer TLS groups already configured, no update needed")
+		return false, nil
 	}
 
 	// If no ciphers specified, use a default set that satisfies OpenShift requirements
 	// OpenShift requires at least one HTTP/2-compatible cipher (AES_128_GCM_SHA256)
-	if ciphers == nil || len(ciphers) == 0 {
-		ciphers = []string{
-			"TLS_AES_128_GCM_SHA256",
-			"TLS_AES_256_GCM_SHA384",
-			"TLS_CHACHA20_POLY1305_SHA256",
-			"ECDHE-ECDSA-AES128-GCM-SHA256",
-			"ECDHE-RSA-AES128-GCM-SHA256",
-			"ECDHE-ECDSA-AES256-GCM-SHA384",
-			"ECDHE-RSA-AES256-GCM-SHA384",
-		}
-		log.Printf("  No ciphers specified, using default cipher suite")
+	ciphers := []string{
+		"TLS_AES_128_GCM_SHA256",
+		"TLS_AES_256_GCM_SHA384",
+		"TLS_CHACHA20_POLY1305_SHA256",
+		"ECDHE-ECDSA-AES128-GCM-SHA256",
+		"ECDHE-RSA-AES128-GCM-SHA256",
+		"ECDHE-ECDSA-AES256-GCM-SHA384",
+		"ECDHE-RSA-AES256-GCM-SHA384",
 	}
 
 	apiserver.Spec.TLSSecurityProfile = &configv1.TLSSecurityProfile{
 		Type: configv1.TLSProfileCustomType,
 		Custom: &configv1.CustomTLSProfile{
 			TLSProfileSpec: configv1.TLSProfileSpec{
-				MinTLSVersion: minTLSVersion,
-				Groups:        tlsGroups,
+				MinTLSVersion: configv1.VersionTLS12,
 				Ciphers:       ciphers,
+				Groups:        tlsGroups,
 			},
 		},
 	}
@@ -492,57 +493,22 @@ func ConfigureAPIServerWithTLSGroups(c *testclient.ClientSet, groups []string, m
 
 	err = c.Update(ctx, apiserver)
 	if err != nil {
-		return fmt.Errorf("failed to update apiserver: %w", err)
+		return false, fmt.Errorf("failed to update apiserver: %w", err)
 	}
 
-	// Always wait for cluster to stabilize after TLS configuration changes
+	log.Println("APIServer TLS groups updated successfully")
 	log.Println("Waiting for cluster to stabilize after TLS configuration")
 	log.Println("  This may take time if MCP rollout is triggered")
-	return waitForClusterStabilization(ctx, c, true, true)
-}
-
-// VerifyAPIServerTLSGroups verifies that the APIServer has the expected TLS groups configured.
-func VerifyAPIServerTLSGroups(c *testclient.ClientSet, expectedGroups []string) error {
-	ctx := context.Background()
-
-	log.Printf("Verifying APIServer TLS groups configuration")
-
-	apiserver := &configv1.APIServer{}
-	err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, apiserver)
+	err = waitForClusterStabilization(ctx, c, true, true)
 	if err != nil {
-		return fmt.Errorf("failed to get APIServer: %w", err)
+		return true, err
 	}
 
-	if apiserver.Spec.TLSSecurityProfile == nil {
-		return fmt.Errorf("APIServer TLS security profile is nil")
-	}
-
-	if apiserver.Spec.TLSSecurityProfile.Type != configv1.TLSProfileCustomType {
-		return fmt.Errorf("APIServer TLS profile type is not Custom: %s", apiserver.Spec.TLSSecurityProfile.Type)
-	}
-
-	if apiserver.Spec.TLSSecurityProfile.Custom == nil {
-		return fmt.Errorf("APIServer Custom TLS profile is nil")
-	}
-
-	actualGroups := apiserver.Spec.TLSSecurityProfile.Custom.Groups
-	if len(actualGroups) != len(expectedGroups) {
-		return fmt.Errorf("APIServer TLS groups count mismatch: actual=%d, expected=%d", len(actualGroups), len(expectedGroups))
-	}
-
-	for i, expected := range expectedGroups {
-		if string(actualGroups[i]) != expected {
-			return fmt.Errorf("APIServer TLS group mismatch at index %d: actual=%s, expected=%s", i, actualGroups[i], expected)
-		}
-	}
-
-	log.Printf("  TLS groups verified: %v", actualGroups)
-	return nil
+	return true, nil
 }
 
 // selectWorkerNode selects the first available worker node.
-func selectWorkerNode(c *testclient.ClientSet) (string, error) {
-	ctx := context.Background()
+func selectWorkerNode(ctx context.Context, c *testclient.ClientSet) (string, error) {
 	nodeList := &corev1.NodeList{}
 	err := c.List(ctx, nodeList, client.MatchingLabels{"node-role.kubernetes.io/worker": ""})
 	if err != nil {
@@ -557,69 +523,64 @@ func selectWorkerNode(c *testclient.ClientSet) (string, error) {
 }
 
 // VerifyTLSGroupsOnWorkerNode tests TLS handshake behavior on a worker node using openssl s_client.
-// It verifies that only the configured curves are accepted.
-func VerifyTLSGroupsOnWorkerNode(c *testclient.ClientSet, namespace string) error {
-	log.Println("Testing TLS groups compliance on worker node")
+// It verifies that each allowed group can successfully handshake and that rejected groups fail.
+func VerifyTLSGroupsOnWorkerNode(ctx context.Context, c *testclient.ClientSet, allowedGroups []configv1.TLSGroup, rejectedGroup configv1.TLSGroup) error {
+	log.Printf("Testing TLS groups compliance on worker node (allowed: %v, rejected: %s)", allowedGroups, rejectedGroup)
 
-	workerNode, err := selectWorkerNode(c)
+	workerNode, err := selectWorkerNode(ctx, c)
 	if err != nil {
 		return err
 	}
 	log.Printf("  Testing on worker node: %s", workerNode)
 
-	// Test 1: secp256r1 should succeed (it's in the configured groups)
-	log.Println("  Test 1: TLS 1.3 with secp256r1 curve (should succeed)")
-	output, err := execOpensslOnNode(c, workerNode, "secp256r1")
-	if err != nil {
-		return fmt.Errorf("test 1 failed: %w\nOutput: %s", err, output)
+	// Helper to get expected output name for a group
+	// secp256r1 is special - openssl outputs "prime256v1", all others use the group name
+	getExpectedOutputName := func(group configv1.TLSGroup) string {
+		if group == configv1.TLSGroupSecP256r1 {
+			return "prime256v1"
+		}
+		return string(group)
 	}
-	if !strings.Contains(output, "CONNECTION ESTABLISHED") {
-		return fmt.Errorf("test 1: expected connection established, but handshake failed\nOutput: %s", output)
-	}
-	if !strings.Contains(output, "prime256v1") {
-		return fmt.Errorf("test 1: expected negotiated key prime256v1, got different key\nOutput: %s", output)
-	}
-	log.Println("  ✓ Test 1 passed: secp256r1 handshake succeeded with prime256v1")
 
-	// Test 2: secp384r1:secp256r1 should succeed and use secp256r1
-	log.Println("  Test 2: TLS 1.3 with secp384r1:secp256r1 curves (should succeed with secp256r1)")
-	output, err = execOpensslOnNode(c, workerNode, "secp384r1:secp256r1")
-	if err != nil {
-		return fmt.Errorf("test 2 failed: %w\nOutput: %s", err, output)
+	// Test each allowed group individually
+	for _, group := range allowedGroups {
+		log.Printf("  TLS 1.3 with %s curve (should succeed)", group)
+		output, err := execOpensslOnNode(ctx, c, workerNode, string(group))
+		if err != nil {
+			return fmt.Errorf("%s handshake failed: %w\nOutput: %s", group, err, output)
+		}
+		if !strings.Contains(output, "CONNECTION ESTABLISHED") {
+			return fmt.Errorf("%s: expected connection established, but handshake failed\nOutput: %s", group, output)
+		}
+		expectedOutputName := getExpectedOutputName(group)
+		if !strings.Contains(output, expectedOutputName) {
+			return fmt.Errorf("%s: expected negotiated key %s, got different key\nOutput: %s", group, expectedOutputName, output)
+		}
+		log.Printf("  ✓ %s handshake succeeded with %s", group, expectedOutputName)
 	}
-	if !strings.Contains(output, "CONNECTION ESTABLISHED") {
-		return fmt.Errorf("test 2: expected connection established, but handshake failed\nOutput: %s", output)
-	}
-	if !strings.Contains(output, "prime256v1") {
-		return fmt.Errorf("test 2: expected negotiated key prime256v1 (secp256r1), got different key\nOutput: %s", output)
-	}
-	log.Println("  ✓ Test 2 passed: secp384r1:secp256r1 handshake succeeded using secp256r1")
 
-	// Test 3: secp384r1 should fail (not in configured groups)
-	log.Println("  Test 3: TLS 1.3 with secp384r1 curve (should fail)")
-	output, err = execOpensslOnNode(c, workerNode, "secp384r1")
+	// Test rejected group - should fail
+	log.Printf("  TLS 1.3 with %s curve (should fail)", rejectedGroup)
+	output, err := execOpensslOnNode(ctx, c, workerNode, string(rejectedGroup))
 	if err == nil {
-		return fmt.Errorf("test 3: expected handshake to fail, but it succeeded\nOutput: %s", output)
+		return fmt.Errorf("%s: expected handshake to fail, but it succeeded\nOutput: %s", rejectedGroup, output)
 	}
 	if !strings.Contains(output, "handshake failure") && !strings.Contains(output, "alert") && !strings.Contains(output, "error") {
-		return fmt.Errorf("test 3: expected handshake failure, but got unexpected output\nOutput: %s", output)
+		return fmt.Errorf("%s: expected handshake failure, but got unexpected output\nOutput: %s", rejectedGroup, output)
 	}
-	log.Println("  ✓ Test 3 passed: secp384r1 handshake correctly rejected")
+	log.Printf("  ✓ %s handshake correctly rejected", rejectedGroup)
 
 	log.Println("All TLS groups compliance tests passed")
 	return nil
 }
 
 // execOpensslOnNode executes openssl s_client on a node using a debug pod.
-// This creates a privileged debug pod on the node and runs the openssl command in it.
-func execOpensslOnNode(c *testclient.ClientSet, nodeName, groups string) (string, error) {
-	ctx := context.Background()
+// This creates a debug pod on the node with HostNetwork access and runs openssl from the container.
+func execOpensslOnNode(ctx context.Context, c *testclient.ClientSet, nodeName, groups string) (string, error) {
 
 	// Create unique debug pod name
 	debugPodName := fmt.Sprintf("tls-groups-debug-%d", time.Now().UnixNano())
 
-	// Create a privileged pod that has access to the host filesystem
-	privileged := true
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      debugPodName,
@@ -627,33 +588,14 @@ func execOpensslOnNode(c *testclient.ClientSet, nodeName, groups string) (string
 		},
 		Spec: corev1.PodSpec{
 			NodeName:      nodeName,
-			HostNetwork:   true,
-			HostPID:       true,
+			HostNetwork:   true, // Needed to connect to daemon on 127.0.0.1:9301
 			RestartPolicy: corev1.RestartPolicyNever,
 			Containers: []corev1.Container{
 				{
-					Name:    "debug",
-					Image:   "registry.redhat.io/rhel8/support-tools:latest",
-					Command: []string{"/bin/bash", "-c", "sleep 600"},
-					SecurityContext: &corev1.SecurityContext{
-						Privileged: &privileged,
-					},
-					VolumeMounts: []corev1.VolumeMount{
-						{
-							Name:      "host-root",
-							MountPath: "/host",
-						},
-					},
-				},
-			},
-			Volumes: []corev1.Volume{
-				{
-					Name: "host-root",
-					VolumeSource: corev1.VolumeSource{
-						HostPath: &corev1.HostPathVolumeSource{
-							Path: "/",
-						},
-					},
+					Name:  "debug",
+					Image: "registry.access.redhat.com/ubi8/ubi:latest",
+					// Install openssl first, then sleep. UBI8 doesn't have openssl by default.
+					Command: []string{"/bin/bash", "-c", "microdnf install -y openssl && sleep 600"},
 				},
 			},
 		},
@@ -706,14 +648,13 @@ func execOpensslOnNode(c *testclient.ClientSet, nodeName, groups string) (string
 
 	log.Printf("    Debug pod is ready")
 
-	// Execute openssl command using chroot to access host binaries
-	// We need to use sh -c because we need the pipe and proper input handling
-	opensslCmd := fmt.Sprintf("echo Q | chroot /host openssl s_client -connect 127.0.0.1:9301 -tls1_3 -groups %s -brief 2>&1", groups)
+	// Execute openssl command to test TLS handshake
+	opensslCmd := fmt.Sprintf("echo Q | openssl s_client -connect 127.0.0.1:9301 -tls1_3 -groups %s -brief 2>&1", groups)
 	cmd := []string{
 		"sh", "-c", opensslCmd,
 	}
 
-	log.Printf("    Executing: echo Q | chroot /host openssl s_client -connect 127.0.0.1:9301 -tls1_3 -groups %s -brief", groups)
+	log.Printf("    Executing: echo Q | openssl s_client -connect 127.0.0.1:9301 -tls1_3 -groups %s -brief", groups)
 
 	stdout, stderr, execErr := executil.RunExecCommand(c, readyPod, cmd...)
 	fullOutput := stdout + stderr
@@ -736,10 +677,10 @@ func execOpensslOnNode(c *testclient.ClientSet, nodeName, groups string) (string
 
 // VerifyAllTLSGroupsOnWorkerNode tests that all configured TLS groups work correctly.
 // This is a comprehensive test to validate that when all groups are enabled, each one can successfully handshake.
-func VerifyAllTLSGroupsOnWorkerNode(c *testclient.ClientSet, namespace string) error {
+func VerifyAllTLSGroupsOnWorkerNode(ctx context.Context, c *testclient.ClientSet, namespace string) error {
 	log.Println("Testing comprehensive TLS groups compliance on worker node")
 
-	workerNode, err := selectWorkerNode(c)
+	workerNode, err := selectWorkerNode(ctx, c)
 	if err != nil {
 		return err
 	}
@@ -805,7 +746,7 @@ func VerifyAllTLSGroupsOnWorkerNode(c *testclient.ClientSet, namespace string) e
 
 	for i, tc := range testCases {
 		log.Printf("  Test %d: Testing TLS 1.3 with %s", i+1, tc.description)
-		output, err := execOpensslOnNode(c, workerNode, tc.opensslGroup)
+		output, err := execOpensslOnNode(ctx, c, workerNode, tc.opensslGroup)
 
 		// Check if this is a post-quantum group that OpenSSL doesn't recognize
 		isPQGroup := strings.Contains(tc.name, "MLKEM")
