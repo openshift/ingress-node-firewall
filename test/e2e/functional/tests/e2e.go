@@ -1326,6 +1326,15 @@ var _ = Describe("Ingress Node Firewall", func() {
 				}
 				Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Failed to configure %s TLS profile with %s", profile.profileType, profile.adherencePolicy))
 
+				By("Waiting for ingress-node-firewall-daemon DaemonSet to be ready after cluster stabilization")
+				infDaemonSet := &appsv1.DaemonSet{}
+				infDaemonSet.SetName("ingress-node-firewall-daemon")
+				infDaemonSet.SetNamespace(OperatorNameSpace)
+				// Use longer timeout after MCP rollout - nodes were rebooted, pods need time to recreate
+				daemonSetTimeout := time.Minute * 10
+				err = daemonset.WaitForDaemonSetReady(testclient.Client, infDaemonSet, retryInterval, daemonSetTimeout)
+				Expect(err).NotTo(HaveOccurred(), "DaemonSet not ready after cluster stabilization")
+
 				By(fmt.Sprintf("Testing TLS compliance for ingress-node-firewall-daemon in %s (port 9301)", OperatorNameSpace))
 				err = tls.VerifyIngressNodeFirewallTLSComplianceInPod(testclient.Client, OperatorNameSpace, daemonLabelSelector)
 				Expect(err).NotTo(HaveOccurred(), "TLS compliance verification failed")
