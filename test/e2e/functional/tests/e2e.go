@@ -1278,13 +1278,12 @@ var _ = Describe("Ingress Node Firewall", func() {
 	// NOTE: This test suite requires a disposable cluster and MUST NOT run on shared infrastructure.
 	//
 	// Cluster State Modifications (cannot be fully reverted):
-	// - FeatureGate/cluster: Changed to CustomNoUpgrade with TLSAdherence enabled (IRREVERSIBLE)
 	// - APIServer/cluster: TLS profile and adherence policy modified (reversible but not restored)
 	// - MachineConfigPools: Rolled out with new kubelet TLS configuration
 	//
 	// The test is marked [Serial] and [OCPFeatureGate:TLSAdherence] to ensure it runs on
 	// dedicated CI infrastructure that is destroyed after test completion.
-	Context("[OCPFeatureGate:TLSAdherence][Serial] TLS Profile Compliance", func() {
+	Context("[OCPFeatureGate:TLSGroupPreferences][Serial] TLS Profile Compliance", func() {
 		var config *ingressnodefwv1alpha1.IngressNodeFirewallConfig
 
 		BeforeEach(func() {
@@ -1340,6 +1339,42 @@ var _ = Describe("Ingress Node Firewall", func() {
 				err = tls.VerifyIngressNodeFirewallTLSComplianceInPod(testclient.Client, OperatorNameSpace, daemonLabelSelector)
 				Expect(err).NotTo(HaveOccurred(), "TLS compliance verification failed")
 			}
+		})
+
+		It("should verify TLS group preferences compliance with restricted groups (secp521r1, secp256r1)", func() {
+			groups := []configv1.TLSGroup{configv1.TLSGroupSecP521r1, configv1.TLSGroupSecP256r1}
+
+			By("Enabling TLSGroupPreferences feature gate")
+			_, err := tls.EnableTLSGroupPreferencesFeatureGate(testclient.Client)
+			Expect(err).NotTo(HaveOccurred(), "Failed to enable TLSGroupPreferences feature gate")
+
+			By("Configuring APIServer with custom TLS profile and groups")
+			ctx := context.Background()
+			updated, err := tls.ConfigureAPIServerWithTLSGroups(ctx, testclient.Client, groups)
+			Expect(err).NotTo(HaveOccurred(), "Failed to configure APIServer with TLS groups")
+
+			if updated {
+				By("Restarting daemon pods to pick up new TLS configuration")
+				err = tls.RestartDaemonPods(testclient.Client, OperatorNameSpace, "app=ingress-node-firewall-daemon")
+				Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			By("Verifying daemon is ready")
+			err = daemonset.WaitForDaemonSetReady(testclient.Client,
+				&appsv1.DaemonSet{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ingress-node-firewall-daemon",
+						Namespace: OperatorNameSpace,
+					},
+				}, retryInterval, timeout)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("Testing TLS handshakes on worker node")
+			// Reuse groups from configuration to avoid duplication
+			allowedGroups := groups
+			rejectedGroup := configv1.TLSGroupSecP384r1
+			err = tls.VerifyTLSGroupsOnWorkerNode(ctx, testclient.Client, allowedGroups, rejectedGroup)
+			Expect(err).NotTo(HaveOccurred(), "TLS group preferences verification failed")
 		})
 	})
 
