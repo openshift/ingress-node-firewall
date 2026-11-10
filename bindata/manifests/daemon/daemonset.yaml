@@ -7,8 +7,8 @@ spec:
   selector:
     matchLabels:
       app: ingress-node-firewall-daemon
-    updateStrategy:
-      type: RollingUpdate
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       labels:

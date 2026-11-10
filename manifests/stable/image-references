@@ -4,6 +4,9 @@ apiVersion: image.openshift.io/v1
 spec:
   tags:
   - name: ingress-node-firewall
+    annotations:
+      testextension.redhat.io/component: openshift/payload/ingress-node-firewall
+      testextension.redhat.io/binary: /usr/bin/ingress-node-firewall-tests.gz
     from:
       kind: DockerImage
       name: quay.io/openshift/origin-ingress-node-firewall:latest

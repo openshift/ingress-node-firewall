@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	configv1 "github.com/openshift/api/config/v1"
 	ingressnodefwv1alpha1 "github.com/openshift/ingress-node-firewall/api/v1alpha1"
 	"github.com/openshift/ingress-node-firewall/pkg/failsaferules"
 	infmetrics "github.com/openshift/ingress-node-firewall/pkg/metrics"
@@ -23,7 +22,6 @@ import (
 	infwutils "github.com/openshift/ingress-node-firewall/test/e2e/ingress-node-firewall"
 	"github.com/openshift/ingress-node-firewall/test/e2e/node"
 	"github.com/openshift/ingress-node-firewall/test/e2e/pods"
-	"github.com/openshift/ingress-node-firewall/test/e2e/tls"
 	"github.com/openshift/ingress-node-firewall/test/e2e/transport"
 
 	. "github.com/onsi/ginkgo" //nolint:staticcheck
@@ -1271,65 +1269,6 @@ var _ = Describe("Ingress Node Firewall", func() {
 					clientPod, destinationIP, serverPort)).Should(Succeed())
 				Expect(collect()).Should(Equal(0),
 					"Failed: fragments reached the server despite the firewall being attached")
-			}
-		})
-	})
-
-	// NOTE: This test suite requires a disposable cluster and MUST NOT run on shared infrastructure.
-	//
-	// Cluster State Modifications (cannot be fully reverted):
-	// - FeatureGate/cluster: Changed to CustomNoUpgrade with TLSAdherence enabled (IRREVERSIBLE)
-	// - APIServer/cluster: TLS profile and adherence policy modified (reversible but not restored)
-	// - MachineConfigPools: Rolled out with new kubelet TLS configuration
-	//
-	// The test is marked [Serial] and [OCPFeatureGate:TLSAdherence] to ensure it runs on
-	// dedicated CI infrastructure that is destroyed after test completion.
-	Context("[OCPFeatureGate:TLSAdherence][Serial] TLS Profile Compliance", func() {
-		var config *ingressnodefwv1alpha1.IngressNodeFirewallConfig
-
-		BeforeEach(func() {
-			if !tls.IsOpenShiftCluster(testclient.Client) {
-				Skip("TLS Profile Compliance testing requires OpenShift cluster with config.openshift.io APIs")
-			}
-
-			config = &ingressnodefwv1alpha1.IngressNodeFirewallConfig{}
-			err := infwutils.LoadIngressNodeFirewallConfigFromFile(config, inftestconsts.IngressNodeFirewallConfigCRFile)
-			Expect(err).ShouldNot(HaveOccurred())
-			config.SetNamespace(OperatorNameSpace)
-			config.SetLabels(testArtifactsLabelMap)
-			err = infwutils.EnsureIngressNodeFirewallConfigExists(testclient.Client, config, timeout)
-			Expect(err).ShouldNot(HaveOccurred())
-		})
-
-		AfterEach(func() {
-			if config != nil {
-				infwutils.DeleteIngressNodeFirewallConfig(testclient.Client, config, retryInterval, timeout)
-			}
-		})
-
-		type tlsProfileTest struct {
-			profileType     configv1.TLSProfileType
-			adherencePolicy configv1.TLSAdherencePolicy
-		}
-
-		tlsProfiles := []tlsProfileTest{
-			{configv1.TLSProfileModernType, configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly},
-			{configv1.TLSProfileModernType, configv1.TLSAdherencePolicyStrictAllComponents},
-			{configv1.TLSProfileIntermediateType, configv1.TLSAdherencePolicyStrictAllComponents},
-		}
-
-		It("should verify ingress-node-firewall TLS compliance across all profiles", func() {
-			for _, profile := range tlsProfiles {
-				By(fmt.Sprintf("Configuring %s TLS profile with %s", profile.profileType, profile.adherencePolicy))
-				err := tls.ConfigureTLSProfileWithAdherence(testclient.Client, profile.profileType, profile.adherencePolicy)
-				if tls.IsTLSAdherenceNotSupported(err) {
-					Skip(fmt.Sprintf("Skipping test - tlsAdherence API field not supported in this cluster version: %s", err.Error()))
-				}
-				Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Failed to configure %s TLS profile with %s", profile.profileType, profile.adherencePolicy))
-
-				By(fmt.Sprintf("Testing TLS compliance for ingress-node-firewall-daemon in %s (port 9301)", OperatorNameSpace))
-				err = tls.VerifyIngressNodeFirewallTLSComplianceInPod(testclient.Client, OperatorNameSpace, daemonLabelSelector)
-				Expect(err).NotTo(HaveOccurred(), "TLS compliance verification failed")
 			}
 		})
 	})
