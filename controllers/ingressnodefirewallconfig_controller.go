@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/go-logr/logr"
 	configv1 "github.com/openshift/api/config/v1"
+	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -160,9 +162,30 @@ func (r *IngressNodeFirewallConfigReconciler) syncIngressNodeFwConfigResources(c
 	if tlsProfileSpec != nil {
 		data.Data["TLSMinVersion"] = string(tlsProfileSpec.MinTLSVersion)
 		data.Data["TLSCipherSuites"] = strings.Join(inftls.ConvertCiphersToIANA(tlsProfileSpec.Ciphers), ",")
+
+		// Convert TLS Groups to curve IDs for curve preferences
+		if len(tlsProfileSpec.Groups) > 0 {
+			curveIDs, unrecognizedGroups := libgocrypto.TLSGroupsToCurveIDs(tlsProfileSpec.Groups)
+			if len(unrecognizedGroups) > 0 {
+				logger.Info("TLS profile contains unrecognized groups that will be ignored",
+					"unrecognizedGroups", unrecognizedGroups,
+					"recognizedGroups", curveIDs)
+			}
+			// Convert tls.CurveID to int32 for the CLI flag
+			curveIDStrings := make([]string, 0, len(curveIDs))
+			for _, curveID := range curveIDs {
+				curveIDStrings = append(curveIDStrings, fmt.Sprintf("%d", int32(curveID)))
+			}
+			data.Data["TLSCurvePreferences"] = strings.Join(curveIDStrings, ",")
+		} else {
+			// Set to empty string when no Groups specified.
+			// Template will check for non-empty before including the flag.
+			data.Data["TLSCurvePreferences"] = ""
+		}
 	} else {
 		data.Data["TLSMinVersion"] = ""
 		data.Data["TLSCipherSuites"] = ""
+		data.Data["TLSCurvePreferences"] = ""
 	}
 	if config.Spec.Debug != nil {
 		data.Data["Debug"] = "0"

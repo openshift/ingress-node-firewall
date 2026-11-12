@@ -108,7 +108,7 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: manifests
-manifests: controller-gen generate-daemon-manifest ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	cp bundle/manifests/* manifests/stable
 
@@ -378,11 +378,6 @@ else
 OPERATOR_SDK = $(shell which operator-sdk)
 endif
 endif
-
-.PHONY: generate-daemon-manifest
-generate-daemon-manifest: ## Generate DaemonSet manifest.
-	@echo "==== Generating DaemonSet manifest"
-	hack/generate-daemon-manifest.sh
 
 .PHONY: lint
 lint: ## Run golangci-lint against code.
