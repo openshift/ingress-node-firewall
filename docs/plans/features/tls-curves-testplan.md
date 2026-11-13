@@ -84,15 +84,6 @@ This test plan focuses on the Ingress Node Firewall webhook server for TLS curve
 **Component Under Test:**
 - Ingress Node Firewall webhook server (admission webhook for IngressNodeFirewall resources)
 
-### Supported TLS Curves/Groups
-
-| Curve / Group | Type | Feature Gate Required | Availability |
-|---------------|------|----------------------|--------------|
-| **X25519** | Classical (non-NIST) | No | All OCP versions |
-| **secp256r1** | Classical (NIST P-256) | No | All OCP versions |
-| **secp384r1** | Classical (NIST P-384) | No | All OCP versions |
-| **secp521r1** | Classical (NIST P-521) | No | All OCP versions |
-
 ### E2E Test Cases
 
 #### E1: Verify TLS curve preferences for Ingress Node Firewall webhook server
@@ -187,7 +178,7 @@ Test the webhook server with different TLS groups using `openssl s_client`:
 ```bash
 oc debug node/<worknode>
 openssl s_client \
-   -connect <webhook-service-ip>:443 \
+   -connect localhost:9443 \
    -tls1_3 \
    -groups secp256r1 \
    -brief </dev/null
@@ -197,7 +188,7 @@ openssl s_client \
 ```bash
 oc debug node/<worknode>
 openssl s_client \
-   -connect <webhook-service-ip>:443 \
+   -connect localhost:9443 \
    -tls1_3 \
    -groups secp521r1 \
    -brief </dev/null
@@ -207,7 +198,129 @@ openssl s_client \
 ```bash
 oc debug node/<worknode>
 openssl s_client \
-   -connect <webhook-service-ip>:443 \
+   -connect localhost:9443 \
+   -tls1_3 \
+   -groups secp384r1 \
+   -brief </dev/null
+```
+
+**Expected Test Results:**
+- **Pass groups:** `secp256r1` and `secp521r1` — TLS handshake succeeds
+- **Fail groups:** `secp384r1` — TLS handshake fails (not in configured groups list)
+
+#### E2: Verify TLS curve preferences for Ingress Node Firewall metrics port
+
+**Component:** `ingress-node-firewall` metrics server  
+**Namespace:** `openshift-ingress-node-firewall`
+
+**Objective:**  
+Validates that the Ingress Node Firewall metrics server correctly applies TLS curve preferences during HTTPS connections for metrics collection.
+
+**Test Coverage:**
+- ✓ Verify all supported TLS curves/groups (see [Supported TLS Curves/Groups](#supported-tls-curvesgroups))
+- ✓ Validate successful TLS handshakes using the configured curves
+
+**Test Environments:**
+- OCP cluster
+
+**Expected Results:**
+- TLS connections successfully negotiate using configured curves
+
+**Test Steps:**
+
+**Step 1: Enable TLSGroupPreferences Feature Gate**
+
+If the `TLSGroupPreferences` feature gate is not enabled, enable it:
+
+```bash
+oc patch featuregate cluster --type=merge -p '
+{
+  "spec": {
+    "featureSet": "CustomNoUpgrade",
+    "customNoUpgrade": {
+      "enabled": ["TLSGroupPreferences"]
+    }
+  }
+}'
+```
+
+**Step 2: Wait for Cluster Stability**
+
+Use existing functions to wait for MCP, nodes, and operators to reboot and return to healthy state.
+
+**Step 3: Configure TLS Groups**
+
+Apply custom TLS group preferences via the API server:
+
+```bash
+oc patch apiserver cluster --type=merge -p '
+{
+  "spec": {
+    "tlsSecurityProfile": {
+      "type": "Custom",
+      "custom": {
+        "minTLSVersion": "VersionTLS12",
+        "groups": [
+          "secp521r1",
+          "secp256r1"
+        ],
+        "ciphers": [
+          "TLS_AES_128_GCM_SHA256",
+          "TLS_AES_256_GCM_SHA384",
+          "TLS_CHACHA20_POLY1305_SHA256",
+          "ECDHE-ECDSA-AES128-GCM-SHA256",
+          "ECDHE-RSA-AES128-GCM-SHA256",
+          "ECDHE-ECDSA-AES256-GCM-SHA384",
+          "ECDHE-RSA-AES256-GCM-SHA384"
+        ]
+      }
+    },
+    "tlsAdherence": "StrictAllComponents"
+  }
+}'
+```
+
+**Step 4: Wait for Cluster Reconciliation**
+
+Use existing functions to wait for MCP, nodes, and operators to reboot and return to healthy state.
+
+**Step 5: Validate API TLS Group Configuration**
+
+Verify the configured TLS groups:
+
+```bash
+oc get apiserver/cluster -o jsonpath='{.spec.tlsSecurityProfile.custom.groups}' | jq .
+```
+
+**Step 6: Test Ingress Node Firewall Metrics Server**
+
+Test the metrics server with different TLS groups using `openssl s_client`:
+
+**Test with secp256r1 (should pass):**
+```bash
+oc debug node/<worknode>
+openssl s_client \
+   -connect localhost:9301 \
+   -tls1_3 \
+   -groups secp256r1 \
+   -brief </dev/null
+```
+
+**Test with secp521r1 (should pass):**
+```bash
+oc debug node/<worknode>
+openssl s_client \
+   -connect localhost:9301 \
+   -tls1_3 \
+   -groups secp521r1 \
+   -brief </dev/null
+```
+
+**Test with secp384r1 (should fail - not in configured groups):**
+```bash
+oc debug node/<worknode>
+openssl s_client \
+   -connect localhost:9301 \
    -tls1_3 \
    -groups secp384r1 \
    -brief </dev/null
@@ -220,15 +333,6 @@ openssl s_client \
 ## Out of Scope
 
 The following components and scenarios are **explicitly excluded** from this test plan:
-
-### Other OpenShift Components
-| Component | Reason |
-|-----------|--------|
-| **API Server TLS** | Covered by separate API server test plans |
-| **CNO Managed Components** | multus-admission-controller, ovn-kubernetes, CNO, and networking-console-plugin are covered in separate CNO test plan |
-| **Ingress Controller TLS** | Covered by ingress/router team test plans |
-| **etcd TLS Configuration** | Managed separately from Ingress Node Firewall |
-| **Service Mesh / Istio TLS** | Not related to Ingress Node Firewall |
 
 ### Additional Exclusions
 - **User Workload TLS** — Applications deployed by users manage their own TLS configuration
