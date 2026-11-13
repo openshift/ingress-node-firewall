@@ -26,7 +26,6 @@
 |------|-----------|-------------|
 | **Enhancement Proposal** | [api-tls-curves-config.md](https://github.com/openshift/enhancements/blob/master/enhancements/security/api-tls-curves-config.md) | TLS curve/group preferences configuration API |
 | **Parent Jira** | [OCPSTRAT-3145](https://redhat.atlassian.net/browse/OCPSTRAT-3145) | TLSGroupPreferences field for TLS 1.3 |
-| **Feature Gate** | `TLSCurvePreferences` | Required for PQC hybrid curves (DevPreviewNoUpgrade / TechPreviewNoUpgrade) |
 | **Repository** | [openshift/ingress-node-firewall](https://github.com/openshift/ingress-node-firewall) | Ingress Node Firewall webhook server |
 
 ## Introduction
@@ -44,10 +43,6 @@ The TLS curve/group preferences feature enables cluster administrators to config
 2. **Specify classical curves:**
    - NIST curves: `secp256r1`, `secp384r1`, `secp521r1`
    - Non-NIST curves: `X25519`
-3. **Enable post-quantum cryptography (PQC) hybrid curves** when the `TLSCurvePreferences` feature gate is active:
-   - `X25519MLKEM768`
-   - `SecP256r1MLKEM768`
-   - `SecP384r1MLKEM1024`
 
 ### Affected Component
 
@@ -64,8 +59,7 @@ The TLS curve preferences apply to the **Ingress Node Firewall webhook server**:
 This test plan validates that the Ingress Node Firewall webhook server correctly:
 
 1. **Apply** configured TLS curves from the cluster-level `tlsSecurityProfile`
-2. **Enforce** feature gate requirements for PQC hybrid curves
-3. **Negotiate** TLS handshakes using the configured curves
+2. **Negotiate** TLS handshakes using the configured curves
 
 ### Test Methodology
 
@@ -73,7 +67,6 @@ This test plan validates that the Ingress Node Firewall webhook server correctly
 
 **Environment Coverage:** The webhook server will be verified in:
 - OCP clusters
-- Hypershift environments
 
 **Curve Coverage:** All supported TLS curves/groups will be tested (see [Supported TLS Curves/Groups](#supported-tls-curvesgroups))
 
@@ -99,9 +92,6 @@ This test plan focuses on the Ingress Node Firewall webhook server for TLS curve
 | **secp256r1** | Classical (NIST P-256) | No | All OCP versions |
 | **secp384r1** | Classical (NIST P-384) | No | All OCP versions |
 | **secp521r1** | Classical (NIST P-521) | No | All OCP versions |
-| **X25519MLKEM768** | PQC Hybrid | Yes | OCP 5.1+ |
-| **SecP256r1MLKEM768** | PQC Hybrid | Yes | Requires Go 1.26+ |
-| **SecP384r1MLKEM1024** | PQC Hybrid | Yes | OCP 5.1+ |
 
 ### E2E Test Cases
 
@@ -116,15 +106,116 @@ Validates that the Ingress Node Firewall admission webhook server correctly appl
 **Test Coverage:**
 - ✓ Verify all supported TLS curves/groups (see [Supported TLS Curves/Groups](#supported-tls-curvesgroups))
 - ✓ Validate successful TLS handshakes using the configured curves
-- ✓ Verify feature gate enforcement for PQC hybrid curves
 
 **Test Environments:**
 - OCP cluster
-- Hypershift
 
 **Expected Results:**
 - TLS connections successfully negotiate using configured curves
-- PQC hybrid curves require `TLSCurvePreferences` feature gate
+
+**Test Steps:**
+
+**Step 1: Enable TLSGroupPreferences Feature Gate**
+
+If the `TLSGroupPreferences` feature gate is not enabled, enable it:
+
+```bash
+oc patch featuregate cluster --type=merge -p '
+{
+  "spec": {
+    "featureSet": "CustomNoUpgrade",
+    "customNoUpgrade": {
+      "enabled": ["TLSGroupPreferences"]
+    }
+  }
+}'
+```
+
+**Step 2: Wait for Cluster Stability**
+
+Use existing functions to wait for MCP, nodes, and operators to reboot and return to healthy state.
+
+**Step 3: Configure TLS Groups**
+
+Apply custom TLS group preferences via the API server:
+
+```bash
+oc patch apiserver cluster --type=merge -p '
+{
+  "spec": {
+    "tlsSecurityProfile": {
+      "type": "Custom",
+      "custom": {
+        "minTLSVersion": "VersionTLS12",
+        "groups": [
+          "secp521r1",
+          "secp256r1"
+        ],
+        "ciphers": [
+          "TLS_AES_128_GCM_SHA256",
+          "TLS_AES_256_GCM_SHA384",
+          "TLS_CHACHA20_POLY1305_SHA256",
+          "ECDHE-ECDSA-AES128-GCM-SHA256",
+          "ECDHE-RSA-AES128-GCM-SHA256",
+          "ECDHE-ECDSA-AES256-GCM-SHA384",
+          "ECDHE-RSA-AES256-GCM-SHA384"
+        ]
+      }
+    },
+    "tlsAdherence": "StrictAllComponents"
+  }
+}'
+```
+
+**Step 4: Wait for Cluster Reconciliation**
+
+Use existing functions to wait for MCP, nodes, and operators to reboot and return to healthy state.
+
+**Step 5: Validate API TLS Group Configuration**
+
+Verify the configured TLS groups:
+
+```bash
+oc get apiserver/cluster -o jsonpath='{.spec.tlsSecurityProfile.custom.groups}' | jq .
+```
+
+**Step 6: Test Ingress Node Firewall Webhook Server**
+
+Test the webhook server with different TLS groups using `openssl s_client`:
+
+**Test with secp256r1 (should pass):**
+```bash
+oc debug node/<worknode>
+openssl s_client \
+   -connect <webhook-service-ip>:443 \
+   -tls1_3 \
+   -groups secp256r1 \
+   -brief </dev/null
+```
+
+**Test with secp521r1 (should pass):**
+```bash
+oc debug node/<worknode>
+openssl s_client \
+   -connect <webhook-service-ip>:443 \
+   -tls1_3 \
+   -groups secp521r1 \
+   -brief </dev/null
+```
+
+**Test with secp384r1 (should fail - not in configured groups):**
+```bash
+oc debug node/<worknode>
+openssl s_client \
+   -connect <webhook-service-ip>:443 \
+   -tls1_3 \
+   -groups secp384r1 \
+   -brief </dev/null
+```
+
+**Expected Test Results:**
+- **Pass groups:** `secp256r1` and `secp521r1` — TLS handshake succeeds
+- **Fail groups:** `secp384r1` — TLS handshake fails (not in configured groups list)
 
 ## Out of Scope
 
@@ -167,7 +258,6 @@ The following components and scenarios are **explicitly excluded** from this tes
 |------|--------|-------|-------|
 | Test plan creation and review | ☐ | QE Team | This document |
 | Execute e2e tests on OCP cluster | ☐ | QE Team | Ingress Node Firewall webhook server |
-| Execute e2e tests on Hypershift | ☐ | QE Team | Hosted control plane |
 | Automate curve validation script | ☐ | QE Team | For Ingress Node Firewall webhook server |
 | Document test results | ☐ | QE Team | Create test execution report |
 | File bugs for failures | ☐ | QE Team | Track issues in Jira |
@@ -181,7 +271,6 @@ The feature is considered **ready for release** when all of the following condit
 
 - ✓ **Zero critical or major defects** remain open in Jira
 - ✓ **All e2e test cases** pass consistently in Prow CI
-- ✓ **Feature gate enforcement verified** — PQC hybrid curves require `TLSCurvePreferences` feature gate
 - ✓ **Test automation complete** — All tests merged into `ingress-node-firewall` repository
 - ✓ **Documentation feedback provided** — Configuration examples and known limitations shared with Docs team
 - ✓ **Test execution report published** — Comprehensive results documented
@@ -191,7 +280,6 @@ The feature is considered **ready for release** when all of the following condit
 The feature is **NOT ready for release** if any of the following occur:
 
 - ✗ **Critical defects** that block core TLS functionality
-- ✗ **Feature gate bypass** — PQC curves work without required feature gate
 - ✗ **Consistent test failures** on Prow CI
 - ✗ **Security vulnerabilities** identified in TLS configuration handling
 
@@ -199,9 +287,7 @@ The feature is **NOT ready for release** if any of the following occur:
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
-| **Go version dependency** | `SecP256r1MLKEM768` requires Go 1.26+ | Medium | Document as future availability; test other PQC curves |
 | **Platform-specific issues** | Different behavior on ARM64, s390x, ppc64le | Low | Test on all supported architectures |
-| **Third-party client compatibility** | Older clients may not support PQC curves | Medium | Ensure graceful fallback to classical curves |
 
 ### Current Status
 
