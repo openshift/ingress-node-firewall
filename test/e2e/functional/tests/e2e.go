@@ -39,7 +39,8 @@ import (
 )
 
 const (
-	daemonLabelSelector = "app=ingress-node-firewall-daemon"
+	daemonLabelSelector   = "app=ingress-node-firewall-daemon"
+	operatorLabelSelector = "control-plane=controller-manager"
 )
 
 var (
@@ -1357,6 +1358,10 @@ var _ = Describe("Ingress Node Firewall", func() {
 				By("Restarting daemon pods to pick up new TLS configuration")
 				err = tls.RestartDaemonPods(testclient.Client, OperatorNameSpace, "app=ingress-node-firewall-daemon")
 				Expect(err).ShouldNot(HaveOccurred())
+
+				By("Restarting operator pods to pick up new TLS configuration")
+				err = tls.RestartOperatorPods(testclient.Client, OperatorNameSpace, "control-plane=controller-manager")
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			By("Verifying daemon is ready")
@@ -1369,12 +1374,16 @@ var _ = Describe("Ingress Node Firewall", func() {
 				}, retryInterval, timeout)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			By("Testing TLS handshakes on worker node")
+			By("Testing TLS handshakes on worker node for daemon port 9301")
 			// Reuse groups from configuration to avoid duplication
 			allowedGroups := groups
 			rejectedGroup := configv1.TLSGroupSecP384r1
 			err = tls.VerifyTLSGroupsOnWorkerNode(ctx, testclient.Client, allowedGroups, rejectedGroup)
-			Expect(err).NotTo(HaveOccurred(), "TLS group preferences verification failed")
+			Expect(err).NotTo(HaveOccurred(), "TLS group preferences verification failed for port 9301")
+
+			By("Testing TLS handshakes for operator webhook port 9443")
+			err = tls.VerifyTLSGroupsForOperatorWebhook(ctx, testclient.Client, allowedGroups, rejectedGroup)
+			Expect(err).NotTo(HaveOccurred(), "TLS group preferences verification failed for port 9443")
 		})
 	})
 

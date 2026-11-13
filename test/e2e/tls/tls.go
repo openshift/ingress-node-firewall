@@ -42,6 +42,10 @@ const (
 	DaemonMetricsPort      = "9301"
 	DaemonMetricsContainer = "daemon"
 	DaemonSetName          = "ingress-node-firewall-daemon"
+
+	OperatorWebhookPort      = "9443"
+	OperatorWebhookContainer = "manager"
+	OperatorDeploymentName   = "ingress-node-firewall-controller-manager"
 )
 
 type TLSAdherenceNotSupportedError struct {
@@ -537,12 +541,64 @@ func VerifyTLSGroupsOnWorkerNode(ctx context.Context, c *testclient.ClientSet, a
 	return nil
 }
 
-// execOpensslOnNode executes openssl s_client on a node using a debug pod.
+// VerifyTLSGroupsForOperatorWebhook tests TLS handshake behavior for the operator webhook on port 9443.
+// It verifies that each allowed group can successfully handshake and that rejected groups fail.
+func VerifyTLSGroupsForOperatorWebhook(ctx context.Context, c *testclient.ClientSet, allowedGroups []configv1.TLSGroup, rejectedGroup configv1.TLSGroup) error {
+	log.Printf("Testing TLS groups compliance for operator webhook on port 9443 (allowed: %v, rejected: %s)", allowedGroups, rejectedGroup)
+
+	workerNode, err := selectWorkerNode(ctx, c)
+	if err != nil {
+		return err
+	}
+	log.Printf("  Testing on worker node: %s", workerNode)
+
+	// Helper to get expected output name for a group
+	// secp256r1 is special - openssl outputs "prime256v1", all others use the group name
+	getExpectedOutputName := func(group configv1.TLSGroup) string {
+		if group == configv1.TLSGroupSecP256r1 {
+			return "prime256v1"
+		}
+		return string(group)
+	}
+
+	// Test each allowed group individually
+	for _, group := range allowedGroups {
+		log.Printf("  TLS 1.3 with %s curve on port 9443 (should succeed)", group)
+		output, err := execOpensslOnNodeForWebhook(ctx, c, workerNode, string(group))
+		if err != nil {
+			return fmt.Errorf("%s handshake failed on port 9443: %w\nOutput: %s", group, err, output)
+		}
+		if !strings.Contains(output, "CONNECTION ESTABLISHED") {
+			return fmt.Errorf("%s: expected connection established on port 9443, but handshake failed\nOutput: %s", group, output)
+		}
+		expectedOutputName := getExpectedOutputName(group)
+		if !strings.Contains(output, expectedOutputName) {
+			return fmt.Errorf("%s: expected negotiated key %s on port 9443, got different key\nOutput: %s", group, expectedOutputName, output)
+		}
+		log.Printf("  ✓ %s handshake succeeded with %s on port 9443", group, expectedOutputName)
+	}
+
+	// Test rejected group - should fail
+	log.Printf("  TLS 1.3 with %s curve on port 9443 (should fail)", rejectedGroup)
+	output, err := execOpensslOnNodeForWebhook(ctx, c, workerNode, string(rejectedGroup))
+	if err == nil {
+		return fmt.Errorf("%s: expected handshake to fail on port 9443, but it succeeded\nOutput: %s", rejectedGroup, output)
+	}
+	if !strings.Contains(output, "handshake failure") && !strings.Contains(output, "alert") && !strings.Contains(output, "error") {
+		return fmt.Errorf("%s: expected handshake failure on port 9443, but got unexpected output\nOutput: %s", rejectedGroup, output)
+	}
+	log.Printf("  ✓ %s handshake correctly rejected on port 9443", rejectedGroup)
+
+	log.Println("All TLS groups compliance tests passed for port 9443")
+	return nil
+}
+
+// execOpensslOnNodeForPort executes openssl s_client on a node for the specified port.
 // This creates a privileged debug pod on the node and runs the openssl command in it.
-func execOpensslOnNode(ctx context.Context, c *testclient.ClientSet, nodeName, groups string) (string, error) {
+func execOpensslOnNodeForPort(ctx context.Context, c *testclient.ClientSet, nodeName, groups, port, podNamePrefix string) (string, error) {
 
 	// Create unique debug pod name
-	debugPodName := fmt.Sprintf("tls-groups-debug-%d", time.Now().UnixNano())
+	debugPodName := fmt.Sprintf("%s-%d", podNamePrefix, time.Now().UnixNano())
 
 	// Create a privileged pod that has access to the host filesystem
 	privileged := true
@@ -634,12 +690,12 @@ func execOpensslOnNode(ctx context.Context, c *testclient.ClientSet, nodeName, g
 
 	// Execute openssl command using chroot to access host binaries
 	// We need to use sh -c because we need the pipe and proper input handling
-	opensslCmd := fmt.Sprintf("echo Q | chroot /host openssl s_client -connect 127.0.0.1:9301 -tls1_3 -groups %s -brief 2>&1", groups)
+	opensslCmd := fmt.Sprintf("echo Q | chroot /host openssl s_client -connect 127.0.0.1:%s -tls1_3 -groups %s -brief 2>&1", port, groups)
 	cmd := []string{
 		"sh", "-c", opensslCmd,
 	}
 
-	log.Printf("    Executing: echo Q | chroot /host openssl s_client -connect 127.0.0.1:9301 -tls1_3 -groups %s -brief", groups)
+	log.Printf("    Executing: echo Q | chroot /host openssl s_client -connect 127.0.0.1:%s -tls1_3 -groups %s -brief", port, groups)
 
 	stdout, stderr, execErr := executil.RunExecCommand(c, readyPod, cmd...)
 	fullOutput := stdout + stderr
@@ -652,12 +708,22 @@ func execOpensslOnNode(ctx context.Context, c *testclient.ClientSet, nodeName, g
 
 	if execErr != nil {
 		// For rejected handshakes, openssl returns an error, so we return both output and error
-		// This is expected for test 3 (secp384r1 should fail)
+		// This is expected for rejected groups
 		log.Printf("    Exec error: %v", execErr)
 		return fullOutput, execErr
 	}
 
 	return fullOutput, nil
+}
+
+// execOpensslOnNodeForWebhook executes openssl s_client on a node for the webhook port 9443.
+func execOpensslOnNodeForWebhook(ctx context.Context, c *testclient.ClientSet, nodeName, groups string) (string, error) {
+	return execOpensslOnNodeForPort(ctx, c, nodeName, groups, "9443", "tls-groups-webhook-debug")
+}
+
+// execOpensslOnNode executes openssl s_client on a node using a debug pod for daemon metrics port 9301.
+func execOpensslOnNode(ctx context.Context, c *testclient.ClientSet, nodeName, groups string) (string, error) {
+	return execOpensslOnNodeForPort(ctx, c, nodeName, groups, "9301", "tls-groups-debug")
 }
 
 func determineTLSTestBehavior(apiserver *configv1.APIServer) (expectTLS12Reject bool, description string) {
@@ -1057,4 +1123,59 @@ func VerifyIngressNodeFirewallTLSComplianceInPod(c client.Client, namespace, lab
 		log.Printf("TLS 1.2 and TLS 1.3 compliance verified for pod %s/%s on port %s", namespace, testPod, port)
 	}
 	return nil
+}
+
+func RestartOperatorPods(c client.Client, namespace, labelSelector string) error {
+	log.Printf("Restarting operator pods with selector %s in namespace %s", labelSelector, namespace)
+
+	ctx := context.Background()
+	podList := &corev1.PodList{}
+	err := c.List(ctx, podList, client.InNamespace(namespace), client.MatchingLabels(parseLabelSelector(labelSelector)))
+	if err != nil {
+		return fmt.Errorf("failed to list pods: %w", err)
+	}
+
+	oldPodUIDs := make(map[string]bool)
+	for _, pod := range podList.Items {
+		oldPodUIDs[string(pod.UID)] = true
+		log.Printf("  Deleting pod %s (UID: %s)", pod.Name, pod.UID)
+		if err := c.Delete(ctx, &pod, client.GracePeriodSeconds(0)); err != nil {
+			log.Printf("  Warning: failed to delete pod %s: %v", pod.Name, err)
+		}
+	}
+
+	log.Printf("Waiting for new operator pods to be created and ready...")
+	timeout := 5 * time.Minute
+	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		newPodList := &corev1.PodList{}
+		err := c.List(ctx, newPodList, client.InNamespace(namespace), client.MatchingLabels(parseLabelSelector(labelSelector)))
+		if err != nil {
+			log.Printf("Error listing pods: %v", err)
+			return false, nil
+		}
+
+		if len(newPodList.Items) == 0 {
+			log.Printf("No pods found yet, waiting...")
+			return false, nil
+		}
+
+		allNewAndReady := true
+		for _, pod := range newPodList.Items {
+			if oldPodUIDs[string(pod.UID)] {
+				log.Printf("Pod %s is still the old pod (UID: %s), waiting for deletion...", pod.Name, pod.UID)
+				allNewAndReady = false
+				continue
+			}
+
+			if pod.Status.Phase != corev1.PodRunning || !podutil.IsPodReady(&pod) {
+				allNewAndReady = false
+			}
+		}
+
+		if allNewAndReady {
+			log.Printf("All %d new operator pods are ready", len(newPodList.Items))
+			return true, nil
+		}
+		return false, nil
+	})
 }
