@@ -593,11 +593,12 @@ func VerifyTLSGroupsForOperatorWebhook(ctx context.Context, c *testclient.Client
 	return nil
 }
 
-// execOpensslOnNodeForWebhook executes openssl s_client on a node for the webhook port 9443.
-func execOpensslOnNodeForWebhook(ctx context.Context, c *testclient.ClientSet, nodeName, groups string) (string, error) {
+// execOpensslOnNodeForPort executes openssl s_client on a node for the specified port.
+// This creates a privileged debug pod on the node and runs the openssl command in it.
+func execOpensslOnNodeForPort(ctx context.Context, c *testclient.ClientSet, nodeName, groups, port, podNamePrefix string) (string, error) {
 
 	// Create unique debug pod name
-	debugPodName := fmt.Sprintf("tls-groups-webhook-debug-%d", time.Now().UnixNano())
+	debugPodName := fmt.Sprintf("%s-%d", podNamePrefix, time.Now().UnixNano())
 
 	// Create a privileged pod that has access to the host filesystem
 	privileged := true
@@ -689,12 +690,12 @@ func execOpensslOnNodeForWebhook(ctx context.Context, c *testclient.ClientSet, n
 
 	// Execute openssl command using chroot to access host binaries
 	// We need to use sh -c because we need the pipe and proper input handling
-	opensslCmd := fmt.Sprintf("echo Q | chroot /host openssl s_client -connect 127.0.0.1:9443 -tls1_3 -groups %s -brief 2>&1", groups)
+	opensslCmd := fmt.Sprintf("echo Q | chroot /host openssl s_client -connect 127.0.0.1:%s -tls1_3 -groups %s -brief 2>&1", port, groups)
 	cmd := []string{
 		"sh", "-c", opensslCmd,
 	}
 
-	log.Printf("    Executing: echo Q | chroot /host openssl s_client -connect 127.0.0.1:9443 -tls1_3 -groups %s -brief", groups)
+	log.Printf("    Executing: echo Q | chroot /host openssl s_client -connect 127.0.0.1:%s -tls1_3 -groups %s -brief", port, groups)
 
 	stdout, stderr, execErr := executil.RunExecCommand(c, readyPod, cmd...)
 	fullOutput := stdout + stderr
@@ -715,127 +716,14 @@ func execOpensslOnNodeForWebhook(ctx context.Context, c *testclient.ClientSet, n
 	return fullOutput, nil
 }
 
-// execOpensslOnNode executes openssl s_client on a node using a debug pod.
-// This creates a privileged debug pod on the node and runs the openssl command in it.
+// execOpensslOnNodeForWebhook executes openssl s_client on a node for the webhook port 9443.
+func execOpensslOnNodeForWebhook(ctx context.Context, c *testclient.ClientSet, nodeName, groups string) (string, error) {
+	return execOpensslOnNodeForPort(ctx, c, nodeName, groups, "9443", "tls-groups-webhook-debug")
+}
+
+// execOpensslOnNode executes openssl s_client on a node using a debug pod for daemon metrics port 9301.
 func execOpensslOnNode(ctx context.Context, c *testclient.ClientSet, nodeName, groups string) (string, error) {
-
-	// Create unique debug pod name
-	debugPodName := fmt.Sprintf("tls-groups-debug-%d", time.Now().UnixNano())
-
-	// Create a privileged pod that has access to the host filesystem
-	privileged := true
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      debugPodName,
-			Namespace: "default",
-		},
-		Spec: corev1.PodSpec{
-			NodeName:      nodeName,
-			HostNetwork:   true,
-			HostPID:       true,
-			RestartPolicy: corev1.RestartPolicyNever,
-			Containers: []corev1.Container{
-				{
-					Name:    "debug",
-					Image:   "registry.redhat.io/rhel8/support-tools:latest",
-					Command: []string{"/bin/bash", "-c", "sleep 600"},
-					SecurityContext: &corev1.SecurityContext{
-						Privileged: &privileged,
-					},
-					VolumeMounts: []corev1.VolumeMount{
-						{
-							Name:      "host-root",
-							MountPath: "/host",
-						},
-					},
-				},
-			},
-			Volumes: []corev1.Volume{
-				{
-					Name: "host-root",
-					VolumeSource: corev1.VolumeSource{
-						HostPath: &corev1.HostPathVolumeSource{
-							Path: "/",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	log.Printf("    Creating debug pod %s on node %s", debugPodName, nodeName)
-
-	// Create the pod
-	err := c.Create(ctx, pod)
-	if err != nil {
-		return "", fmt.Errorf("failed to create debug pod: %w", err)
-	}
-
-	// Ensure pod is deleted on return
-	defer func() {
-		log.Printf("    Cleaning up debug pod %s", debugPodName)
-		deletePolicy := metav1.DeletePropagationForeground
-		deleteOptions := &client.DeleteOptions{
-			PropagationPolicy: &deletePolicy,
-		}
-		deleteErr := c.Delete(ctx, pod, deleteOptions)
-		if deleteErr != nil {
-			log.Printf("    Warning: failed to delete debug pod %s: %v", debugPodName, deleteErr)
-		}
-	}()
-
-	// Wait for pod to be running and ready
-	log.Printf("    Waiting for debug pod to be ready...")
-	var readyPod *corev1.Pod
-	pollErr := wait.PollUntilContextTimeout(ctx, 2*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
-		tempPod := &corev1.Pod{}
-		getErr := c.Get(ctx, types.NamespacedName{Name: debugPodName, Namespace: "default"}, tempPod)
-		if getErr != nil {
-			log.Printf("    Pod not found yet: %v", getErr)
-			return false, nil
-		}
-
-		if tempPod.Status.Phase == corev1.PodRunning && podutil.IsPodReady(tempPod) {
-			readyPod = tempPod
-			return true, nil
-		}
-
-		log.Printf("    Pod status: %s, Ready: %v", tempPod.Status.Phase, podutil.IsPodReady(tempPod))
-		return false, nil
-	})
-
-	if pollErr != nil {
-		return "", fmt.Errorf("debug pod did not become ready within timeout: %w", pollErr)
-	}
-
-	log.Printf("    Debug pod is ready")
-
-	// Execute openssl command using chroot to access host binaries
-	// We need to use sh -c because we need the pipe and proper input handling
-	opensslCmd := fmt.Sprintf("echo Q | chroot /host openssl s_client -connect 127.0.0.1:9301 -tls1_3 -groups %s -brief 2>&1", groups)
-	cmd := []string{
-		"sh", "-c", opensslCmd,
-	}
-
-	log.Printf("    Executing: echo Q | chroot /host openssl s_client -connect 127.0.0.1:9301 -tls1_3 -groups %s -brief", groups)
-
-	stdout, stderr, execErr := executil.RunExecCommand(c, readyPod, cmd...)
-	fullOutput := stdout + stderr
-
-	log.Printf("    Command output length: stdout=%d, stderr=%d", len(stdout), len(stderr))
-	if len(fullOutput) > 0 {
-		// Log full output for debugging
-		log.Printf("    Full output:\n%s", fullOutput)
-	}
-
-	if execErr != nil {
-		// For rejected handshakes, openssl returns an error, so we return both output and error
-		// This is expected for test 3 (secp384r1 should fail)
-		log.Printf("    Exec error: %v", execErr)
-		return fullOutput, execErr
-	}
-
-	return fullOutput, nil
+	return execOpensslOnNodeForPort(ctx, c, nodeName, groups, "9301", "tls-groups-debug")
 }
 
 func determineTLSTestBehavior(apiserver *configv1.APIServer) (expectTLS12Reject bool, description string) {
