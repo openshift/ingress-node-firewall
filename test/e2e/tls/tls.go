@@ -1,18 +1,19 @@
 package tls
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"log"
+	"net"
+	"os/exec"
 	"slices"
 	"strings"
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
 	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
-
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -22,26 +23,25 @@ import (
 
 	testclient "github.com/openshift/ingress-node-firewall/test/e2e/client"
 	executil "github.com/openshift/ingress-node-firewall/test/e2e/exec"
+	"github.com/openshift/ingress-node-firewall/test/e2e/pods"
+	remoteexec "k8s.io/client-go/util/exec"
 )
 
 const (
-	MCPRolloutStartTimeout          = 10 * time.Minute
-	MCPRolloutCompleteTimeout       = 120 * time.Minute // Increased from 60 to match Origin
-	NodeStabilityTimeout            = 90 * time.Minute  // Increased from 60 to match Origin
-	OperatorSettleTimeMinutes       = 60
-	OperatorProgressingStartTimeout = 5 * time.Minute  // Added to match Origin
-	APIServerOperatorTimeout        = 10 * time.Minute // Added to match Origin
+	MCPRolloutStartTimeout    = 10 * time.Minute
+	MCPRolloutCompleteTimeout = 120 * time.Minute // Increased from 60 to match Origin
+	NodeStabilityTimeout      = 90 * time.Minute  // Increased from 60 to match Origin
+	OperatorSettleTimeMinutes = 60
 
-	PodExecMaxRetries = 3
-	PodExecBaseDelay  = 5 * time.Second
-
-	MCPPollingInterval      = 10 * time.Second
-	OperatorPollingInterval = 10 * time.Second
-	NodePollingInterval     = 5 * time.Second
+	MCPPollingInterval = 10 * time.Second
 
 	DaemonMetricsPort      = "9301"
 	DaemonMetricsContainer = "daemon"
-	DaemonSetName          = "ingress-node-firewall-daemon"
+	DaemonSetLabelSelector = "app=ingress-node-firewall-daemon"
+
+	OperatorWebhookPort      = "9443"
+	OperatorWebhookContainer = "manager"
+	OperatorLabelSelector    = "control-plane=controller-manager"
 )
 
 type TLSAdherenceNotSupportedError struct {
@@ -75,7 +75,8 @@ func IsOpenShiftCluster(c *testclient.ClientSet) bool {
 	return err == nil
 }
 
-func ConfigureTLSProfileWithAdherence(c *testclient.ClientSet, tlsProfileType configv1.TLSProfileType, tlsAdherencePolicy configv1.TLSAdherencePolicy) error {
+func ConfigureTLSProfileWithAdherence(c *testclient.ClientSet, tlsProfileType configv1.TLSProfileType,
+	tlsAdherencePolicy configv1.TLSAdherencePolicy) (*configv1.APIServerSpec, error) {
 	overallStartTime := time.Now()
 	log.Printf("=== Configuring %s TLS Profile with %s (started: %s) ===",
 		tlsProfileType, tlsAdherencePolicy, overallStartTime.Format("15:04:05"))
@@ -84,7 +85,7 @@ func ConfigureTLSProfileWithAdherence(c *testclient.ClientSet, tlsProfileType co
 
 	log.Printf("Configuring APIServer with %s TLS profile and tlsAdherence=%s", tlsProfileType, tlsAdherencePolicy)
 	if err := patchAPIServerTLSProfile(ctx, c, tlsProfileType, tlsAdherencePolicy); err != nil {
-		return err
+		return nil, err
 	}
 
 	log.Println("Waiting for cluster to stabilize after TLS profile configuration")
@@ -92,17 +93,24 @@ func ConfigureTLSProfileWithAdherence(c *testclient.ClientSet, tlsProfileType co
 		tlsAdherencePolicy == configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly) ||
 		(tlsProfileType == configv1.TLSProfileIntermediateType && tlsAdherencePolicy == configv1.TLSAdherencePolicyStrictAllComponents))
 	if err := waitForClusterStabilization(ctx, c, requiresMCPRollout, false); err != nil {
-		return err
+		return nil, err
 	}
 
 	log.Println("Verifying APIServer TLS profile configuration")
 	if err := verifyAPIServerTLSProfile(ctx, c, tlsProfileType, tlsAdherencePolicy); err != nil {
-		return err
+		return nil, err
 	}
 
 	log.Printf("=== %s TLS Profile successfully configured (total time: %v) ===",
 		tlsProfileType, time.Since(overallStartTime))
-	return nil
+
+	apiserver := &configv1.APIServer{}
+	err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, apiserver)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get APIServer config: %w", err)
+	}
+
+	return &apiserver.Spec, nil
 }
 
 // enableFeatureGate enables a feature gate and waits for cluster stabilization.
@@ -415,13 +423,13 @@ func EnableTLSGroupPreferencesFeatureGate(c *testclient.ClientSet) (bool, error)
 // ConfigureAPIServerWithTLSGroups configures the APIServer with custom TLS profile including groups.
 // It checks if the requested groups are already configured (idempotent) and only updates if needed.
 // Returns (true, nil) if APIServer was updated, (false, nil) if already configured, or (false, error) on failure.
-func ConfigureAPIServerWithTLSGroups(ctx context.Context, c *testclient.ClientSet, tlsGroups []configv1.TLSGroup) (bool, error) {
+func ConfigureAPIServerWithTLSGroups(ctx context.Context, c *testclient.ClientSet, tlsGroups []configv1.TLSGroup) error {
 	log.Printf("Configuring APIServer with TLS groups: %v", tlsGroups)
 
 	apiserver := &configv1.APIServer{}
 	err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, apiserver)
 	if err != nil {
-		return false, fmt.Errorf("failed to get apiserver: %w", err)
+		return fmt.Errorf("failed to get apiserver: %w", err)
 	}
 
 	// Check if already configured (idempotent)
@@ -431,7 +439,7 @@ func ConfigureAPIServerWithTLSGroups(ctx context.Context, c *testclient.ClientSe
 		slices.Equal(apiserver.Spec.TLSSecurityProfile.Custom.Groups, tlsGroups) &&
 		apiserver.Spec.TLSAdherence == configv1.TLSAdherencePolicyStrictAllComponents {
 		log.Println("APIServer TLS groups already configured, no update needed")
-		return false, nil
+		return nil
 	}
 
 	// If no ciphers specified, use a default set that satisfies OpenShift requirements
@@ -460,14 +468,14 @@ func ConfigureAPIServerWithTLSGroups(ctx context.Context, c *testclient.ClientSe
 
 	err = c.Update(ctx, apiserver)
 	if err != nil {
-		return false, fmt.Errorf("failed to update apiserver: %w", err)
+		return fmt.Errorf("failed to update apiserver: %w", err)
 	}
 
 	log.Println("APIServer TLS groups updated successfully")
 	log.Println("Waiting for cluster to stabilize after TLS configuration")
 	log.Println("  This may take time if MCP rollout is triggered")
 
-	return true, waitForClusterStabilization(ctx, c, true, true)
+	return waitForClusterStabilization(ctx, c, true, true)
 }
 
 // selectWorkerNode selects the first available worker node.
@@ -485,17 +493,10 @@ func selectWorkerNode(ctx context.Context, c *testclient.ClientSet) (string, err
 	return nodeList.Items[0].Name, nil
 }
 
-// VerifyTLSGroupsOnWorkerNode tests TLS handshake behavior on a worker node using openssl s_client.
-// It verifies that each allowed group can successfully handshake and that rejected groups fail.
-func VerifyTLSGroupsOnWorkerNode(ctx context.Context, c *testclient.ClientSet, allowedGroups []configv1.TLSGroup, rejectedGroup configv1.TLSGroup) error {
-	log.Printf("Testing TLS groups compliance on worker node (allowed: %v, rejected: %s)", allowedGroups, rejectedGroup)
-
-	workerNode, err := selectWorkerNode(ctx, c)
-	if err != nil {
-		return err
-	}
-	log.Printf("  Testing on worker node: %s", workerNode)
-
+// verifyTLSGroups tests TLS group compliance using the provided executor function.
+// It verifies that allowed groups succeed and rejected groups fail with proper TLS errors.
+func verifyTLSGroups(ctx context.Context, allowedGroups []configv1.TLSGroup, rejectedGroup configv1.TLSGroup,
+	execOpenssl func(context.Context, string) (string, error)) error {
 	// Helper to get expected output name for a group
 	// secp256r1 is special - openssl outputs "prime256v1", all others use the group name
 	getExpectedOutputName := func(group configv1.TLSGroup) string {
@@ -508,7 +509,7 @@ func VerifyTLSGroupsOnWorkerNode(ctx context.Context, c *testclient.ClientSet, a
 	// Test each allowed group individually
 	for _, group := range allowedGroups {
 		log.Printf("  TLS 1.3 with %s curve (should succeed)", group)
-		output, err := execOpensslOnNode(ctx, c, workerNode, string(group))
+		output, err := execOpenssl(ctx, string(group))
 		if err != nil {
 			return fmt.Errorf("%s handshake failed: %w\nOutput: %s", group, err, output)
 		}
@@ -524,17 +525,195 @@ func VerifyTLSGroupsOnWorkerNode(ctx context.Context, c *testclient.ClientSet, a
 
 	// Test rejected group - should fail
 	log.Printf("  TLS 1.3 with %s curve (should fail)", rejectedGroup)
-	output, err := execOpensslOnNode(ctx, c, workerNode, string(rejectedGroup))
+	output, err := execOpenssl(ctx, string(rejectedGroup))
 	if err == nil {
 		return fmt.Errorf("%s: expected handshake to fail, but it succeeded\nOutput: %s", rejectedGroup, output)
 	}
-	if !strings.Contains(output, "handshake failure") && !strings.Contains(output, "alert") && !strings.Contains(output, "error") {
-		return fmt.Errorf("%s: expected handshake failure, but got unexpected output\nOutput: %s", rejectedGroup, output)
+	// Require specific TLS handshake failure, not generic connection errors
+	if strings.Contains(output, "CONNECTION ESTABLISHED") {
+		return fmt.Errorf("%s: connection was established, but should have been rejected\nOutput: %s", rejectedGroup, output)
+	}
+	if !strings.Contains(output, "handshake failure") {
+		return fmt.Errorf("%s: expected TLS handshake failure, got different error (may be transport/connection failure)\nOutput: %s",
+			rejectedGroup, output)
 	}
 	log.Printf("  ✓ %s handshake correctly rejected", rejectedGroup)
 
 	log.Println("All TLS groups compliance tests passed")
 	return nil
+}
+
+func VerifyTLSGroupsOnWorkerNode(ctx context.Context, c *testclient.ClientSet, allowedGroups []configv1.TLSGroup, rejectedGroup configv1.TLSGroup) error {
+	log.Printf("Testing TLS groups compliance on worker node (allowed: %v, rejected: %s)", allowedGroups, rejectedGroup)
+
+	workerNode, err := selectWorkerNode(ctx, c)
+	if err != nil {
+		return err
+	}
+	log.Printf("  Testing on worker node: %s", workerNode)
+
+	return verifyTLSGroups(ctx, allowedGroups, rejectedGroup, func(ctx context.Context, group string) (string, error) {
+		return execOpensslOnNode(ctx, c, workerNode, group)
+	})
+}
+
+// awaitPortReady polls the given address to check if it accepts connections.
+// Returns nil when the port is ready, or an error if it times out.
+func awaitPortReady(ctx context.Context, address string) error {
+	timeout := 10 * time.Second
+	err := wait.PollUntilContextTimeout(ctx, 300*time.Millisecond, timeout, true, func(ctx context.Context) (done bool, err error) {
+		conn, err := net.DialTimeout("tcp", address, 500*time.Millisecond)
+		if err == nil {
+			conn.Close()
+			log.Printf("    Address %s is ready", address)
+			return true, nil
+		}
+		return false, nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("address %s did not become ready within %v: %w", address, timeout, err)
+	}
+	return nil
+}
+
+// VerifyTLSGroupsForOperatorWebhook tests TLS handshake behavior for the operator webhook on port 9443.
+// It uses kubectl port-forward to create a local tunnel to the specified controller-manager pod
+// and verifies that each allowed group can successfully handshake and that rejected groups fail.
+func VerifyTLSGroupsForOperatorWebhook(ctx context.Context, c *testclient.ClientSet, namespace string, allowedGroups []configv1.TLSGroup,
+	rejectedGroup configv1.TLSGroup) error {
+	pod, err := pods.GetReadyPodWithLabel(ctx, c, namespace, OperatorLabelSelector)
+	if err != nil {
+		return fmt.Errorf("failed to get ready operator pod: %w", err)
+	}
+
+	log.Printf("Testing TLS groups compliance for operator webhook on port 9443 (pod: %s, allowed: %v, rejected: %s)",
+		pod.Name, allowedGroups, rejectedGroup)
+
+	return verifyTLSGroups(ctx, allowedGroups, rejectedGroup, func(ctx context.Context, group string) (string, error) {
+		return execOpensslViaPortForward(ctx, namespace, pod.Name, group)
+	})
+}
+
+// execOpensslViaPortForward uses kubectl port-forward to test the webhook port 9443.
+// It creates a local tunnel to the specified controller-manager pod and tests TLS handshake via localhost.
+func execOpensslViaPortForward(ctx context.Context, namespace, podName, groups string) (string, error) {
+	log.Printf("    Using port-forward to pod %s", podName)
+
+	// Let kubectl pick an available port to avoid TOCTOU race
+	// Use :9443 syntax so kubectl selects the local port
+	portForwardCmd := exec.CommandContext(ctx, "kubectl", "port-forward", "-n", namespace,
+		fmt.Sprintf("pod/%s", podName), fmt.Sprintf(":%s", OperatorWebhookPort))
+
+	// Capture stdout to parse the actual port kubectl chose
+	stdoutPipe, err := portForwardCmd.StdoutPipe()
+	if err != nil {
+		return "", fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+
+	// Capture stderr for debugging
+	stderrPipe, err := portForwardCmd.StderrPipe()
+	if err != nil {
+		return "", fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
+
+	if err := portForwardCmd.Start(); err != nil {
+		return "", fmt.Errorf("failed to start port-forward: %w", err)
+	}
+
+	// Ensure port-forward process is killed and reaped on return
+	defer func() {
+		log.Printf("    Stopping port-forward")
+		if portForwardCmd.Process != nil {
+			if killErr := portForwardCmd.Process.Kill(); killErr != nil {
+				log.Printf("    Warning: failed to kill port-forward process: %v", killErr)
+			}
+		}
+		// Wait for the process to exit and release resources
+		// This is required after Start() to prevent resource leaks
+		if waitErr := portForwardCmd.Wait(); waitErr != nil {
+			// Ignore the expected "signal: killed" error after Kill()
+			if !strings.Contains(waitErr.Error(), "signal: killed") {
+				log.Printf("    Warning: unexpected error waiting for port-forward: %v", waitErr)
+			}
+		}
+	}()
+
+	// Read stdout to parse the actual endpoint kubectl selected
+	// kubectl outputs: "Forwarding from 127.0.0.1:PORT -> 9443" or "Forwarding from [::1]:PORT -> 9443"
+	scanner := bufio.NewScanner(stdoutPipe)
+	var localEndpoint string
+	done := make(chan error, 1)
+	go func() {
+		for scanner.Scan() {
+			line := scanner.Text()
+			log.Printf("    kubectl: %s", line)
+			// Parse "Forwarding from 127.0.0.1:12345 -> 9443" or "Forwarding from [::1]:12345 -> 9443"
+			if strings.Contains(line, "Forwarding from") {
+				// Extract the endpoint before " -> "
+				parts := strings.Split(line, " -> ")
+				if len(parts) >= 2 {
+					// Get the local endpoint after "Forwarding from "
+					endpoint := strings.TrimSpace(strings.TrimPrefix(parts[0], "Forwarding from "))
+					// Validate it's a valid host:port using net.SplitHostPort
+					// This handles both IPv4 (127.0.0.1:12345) and IPv6 ([::1]:12345)
+					if _, _, err := net.SplitHostPort(endpoint); err == nil {
+						localEndpoint = endpoint
+						done <- nil
+						return
+					}
+				}
+			}
+		}
+		done <- fmt.Errorf("failed to parse endpoint from kubectl output")
+	}()
+
+	// Also read stderr to prevent pipe blocking
+	go func() {
+		scanner := bufio.NewScanner(stderrPipe)
+		for scanner.Scan() {
+			log.Printf("    kubectl stderr: %s", scanner.Text())
+		}
+	}()
+
+	// Wait for endpoint parsing with timeout
+	select {
+	case err := <-done:
+		if err != nil {
+			return "", fmt.Errorf("failed to get endpoint from kubectl: %w", err)
+		}
+	case <-time.After(30 * time.Second):
+		return "", fmt.Errorf("timeout waiting for kubectl to report endpoint")
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+
+	log.Printf("    kubectl selected local endpoint %s", localEndpoint)
+
+	// Poll for port readiness using the same endpoint kubectl bound to
+	if err := awaitPortReady(ctx, localEndpoint); err != nil {
+		return "", fmt.Errorf("port-forward did not become ready: %w", err)
+	}
+
+	// Test TLS handshake with bounded timeout to prevent hanging
+	// Create a timeout context even if caller passed Background()
+	probeCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	// Execute openssl directly (not via bash) for proper signal handling
+	// Use the same endpoint that kubectl bound to (supports both IPv4 and IPv6)
+	log.Printf("    Executing: openssl s_client -connect %s -tls1_3 -groups %s -brief", localEndpoint, groups)
+	cmd := exec.CommandContext(probeCtx, "openssl", "s_client",
+		"-connect", localEndpoint,
+		"-tls1_3",
+		"-groups", groups,
+		"-brief")
+
+	// Provide "Q" as stdin to make openssl exit after handshake
+	cmd.Stdin = strings.NewReader("Q\n")
+
+	output, execErr := cmd.CombinedOutput()
+	return string(output), execErr
 }
 
 // execOpensslOnNode executes openssl s_client on a node using a debug pod.
@@ -596,13 +775,16 @@ func execOpensslOnNode(ctx context.Context, c *testclient.ClientSet, nodeName, g
 	// Ensure pod is deleted on return
 	defer func() {
 		log.Printf("    Cleaning up debug pod %s", debugPodName)
+
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
 		deletePolicy := metav1.DeletePropagationForeground
 		deleteOptions := &client.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		}
-		deleteErr := c.Delete(ctx, pod, deleteOptions)
-		if deleteErr != nil {
-			log.Printf("    Warning: failed to delete debug pod %s: %v", debugPodName, deleteErr)
+		if err := c.Delete(cleanupCtx, pod, deleteOptions); err != nil {
+			log.Printf("    Warning: failed to delete debug pod %s: %v", debugPodName, err)
 		}
 	}()
 
@@ -641,7 +823,7 @@ func execOpensslOnNode(ctx context.Context, c *testclient.ClientSet, nodeName, g
 
 	log.Printf("    Executing: echo Q | chroot /host openssl s_client -connect 127.0.0.1:9301 -tls1_3 -groups %s -brief", groups)
 
-	stdout, stderr, execErr := executil.RunExecCommand(c, readyPod, cmd...)
+	stdout, stderr, execErr := executil.RunExecCommandWithContext(ctx, c, readyPod, cmd...)
 	fullOutput := stdout + stderr
 
 	log.Printf("    Command output length: stdout=%d, stderr=%d", len(stdout), len(stderr))
@@ -660,13 +842,13 @@ func execOpensslOnNode(ctx context.Context, c *testclient.ClientSet, nodeName, g
 	return fullOutput, nil
 }
 
-func determineTLSTestBehavior(apiserver *configv1.APIServer) (expectTLS12Reject bool, description string) {
-	if apiserver.Spec.TLSSecurityProfile == nil {
+func determineTLSTestBehavior(apiServerSpec *configv1.APIServerSpec) (expectTLS12Reject bool, description string) {
+	if apiServerSpec.TLSSecurityProfile == nil {
 		return false, "No TLS security profile configured: both TLS 1.2 and TLS 1.3 should work"
 	}
 
-	tlsAdherence := apiserver.Spec.TLSAdherence
-	profileType := apiserver.Spec.TLSSecurityProfile.Type
+	tlsAdherence := apiServerSpec.TLSAdherence
+	profileType := apiServerSpec.TLSSecurityProfile.Type
 
 	if profileType == configv1.TLSProfileModernType && tlsAdherence == configv1.TLSAdherencePolicyStrictAllComponents {
 		return true, "Modern with StrictAllComponents: TLS 1.3 only, TLS 1.2 should be rejected"
@@ -675,219 +857,22 @@ func determineTLSTestBehavior(apiserver *configv1.APIServer) (expectTLS12Reject 
 	return false, "Both TLS 1.2 and TLS 1.3 should work"
 }
 
-func expectedTLSMinVersion(apiserver *configv1.APIServer) string {
-	if apiserver.Spec.TLSSecurityProfile == nil {
-		return ""
-	}
-	if apiserver.Spec.TLSAdherence != configv1.TLSAdherencePolicyStrictAllComponents {
-		return ""
-	}
-	switch apiserver.Spec.TLSSecurityProfile.Type {
-	case configv1.TLSProfileModernType:
-		return "VersionTLS13"
-	case configv1.TLSProfileIntermediateType:
-		return "VersionTLS12"
-	case configv1.TLSProfileOldType:
-		return "VersionTLS10"
-	case configv1.TLSProfileCustomType:
-		if apiserver.Spec.TLSSecurityProfile.Custom != nil {
-			return string(apiserver.Spec.TLSSecurityProfile.Custom.MinTLSVersion)
-		}
-		return ""
-	default:
-		return ""
-	}
-}
-
-func waitForDaemonSetTLSUpdate(c client.Client, namespace string, expectedMinVersion string) error {
-	expectedArg := fmt.Sprintf("--metrics-tls-min-version=%s", expectedMinVersion)
-	log.Printf("Waiting for DaemonSet args to contain %s ...", expectedArg)
-
-	return wait.PollUntilContextTimeout(context.Background(), 5*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
-		ds := &appsv1.DaemonSet{}
-		if err := c.Get(ctx, types.NamespacedName{Name: DaemonSetName, Namespace: namespace}, ds); err != nil {
-			log.Printf("  DaemonSet not found: %v", err)
-			return false, nil
-		}
-
-		for _, container := range ds.Spec.Template.Spec.Containers {
-			if container.Name != DaemonMetricsContainer {
-				continue
-			}
-			for _, arg := range container.Args {
-				if arg == expectedArg {
-					log.Printf("  DaemonSet args match expected TLS configuration")
-					return true, nil
-				}
-			}
-		}
-
-		log.Printf("  DaemonSet args do not yet reflect expected TLS min version, waiting...")
-		return false, nil
-	})
-}
-
-func findRunningPod(c client.Client, namespace, labelSelector string) (string, error) {
-	ctx := context.Background()
-	podList := &corev1.PodList{}
-	err := c.List(ctx, podList, client.InNamespace(namespace), client.MatchingLabels(parseLabelSelector(labelSelector)))
+func execCommandInPod(ctx context.Context, c *testclient.ClientSet, namespace, labelSelector, containerName string,
+	command []string) (string, error) {
+	pod, err := pods.GetReadyPodWithLabel(ctx, c, namespace, labelSelector)
 	if err != nil {
-		return "", fmt.Errorf("failed to list pods with selector %s: %w", labelSelector, err)
+		return "", fmt.Errorf("no ready pod found: %w", err)
 	}
 
-	if len(podList.Items) == 0 {
-		return "", fmt.Errorf("no pods found with selector %s in namespace %s", labelSelector, namespace)
-	}
-
-	for _, pod := range podList.Items {
-		if pod.Status.Phase == corev1.PodRunning && podutil.IsPodReady(&pod) {
-			return pod.Name, nil
-		}
-	}
-
-	return "", fmt.Errorf("no running pods found with selector %s", labelSelector)
+	log.Printf("Executing command in pod %s/%s (container: %s)", namespace, pod.Name, containerName)
+	stdout, stderr, err := executil.RunExecCommandWithContext(ctx, c, pod, command...)
+	return stdout + stderr, err
 }
 
-func isTransientExecError(err error) bool {
-	if err == nil {
-		return false
-	}
-	errStr := err.Error()
-	return strings.Contains(errStr, "container not found") ||
-		strings.Contains(errStr, "pod not found") ||
-		strings.Contains(errStr, "unable to upgrade connection") ||
-		strings.Contains(errStr, "exit code 7") ||
-		strings.Contains(errStr, "connection refused") ||
-		strings.Contains(errStr, "connection reset")
-}
-
-func execCommandInPodWithRetry(c client.Client, namespace, labelSelector, podName, containerName string, command []string) (string, error) {
-	const maxRetries = PodExecMaxRetries
-	const baseDelay = PodExecBaseDelay
-
-	var lastErr error
-	currentPodName := podName
-	currentContainerName := containerName
-
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		if attempt > 0 {
-			delay := baseDelay * time.Duration(1<<uint(attempt-1))
-			log.Printf("Retry attempt %d/%d after waiting up to %v for pod readiness (previous error: %v)", attempt+1, maxRetries, delay, lastErr)
-
-			var findErr error
-			ctx := context.Background()
-			pollErr := wait.PollUntilContextTimeout(ctx, 1*time.Second, delay, true, func(ctx context.Context) (bool, error) {
-				currentPodName, findErr = findRunningPod(c, namespace, labelSelector)
-				if findErr != nil {
-					return false, nil
-				}
-
-				pod := &corev1.Pod{}
-				getPodErr := c.Get(ctx, types.NamespacedName{Name: currentPodName, Namespace: namespace}, pod)
-				if getPodErr != nil {
-					return false, nil
-				}
-
-				if pod.Status.Phase != corev1.PodRunning {
-					return false, nil
-				}
-
-				return podutil.IsPodReady(pod), nil
-			})
-
-			if pollErr != nil {
-				lastErr = fmt.Errorf("failed to find ready pod within %v (last discovery error: %v): %w", delay, findErr, pollErr)
-				continue
-			}
-			log.Printf("Re-discovered ready pod %s/%s (container: %s)", namespace, currentPodName, currentContainerName)
-		}
-
-		pod := &corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      currentPodName,
-				Namespace: namespace,
-			},
-			Spec: corev1.PodSpec{
-				Containers: []corev1.Container{{Name: currentContainerName}},
-			},
-		}
-
-		stdout, stderr, err := executil.RunExecCommand(testclient.Client, pod, command...)
-		if err == nil {
-			return stdout + stderr, nil
-		}
-
-		if isTransientExecError(err) {
-			lastErr = fmt.Errorf("transient connection/SSL issue: %w", err)
-			log.Printf("Detected transient connection/SSL issue, will retry...")
-			continue
-		}
-
-		return stdout + stderr, err
-	}
-
-	return "", fmt.Errorf("exec command failed after %d retries: %w", maxRetries, lastErr)
-}
-
-func RestartDaemonPods(c client.Client, namespace, labelSelector string) error {
-	log.Printf("Restarting daemon pods with selector %s in namespace %s", labelSelector, namespace)
-
-	ctx := context.Background()
-	podList := &corev1.PodList{}
-	err := c.List(ctx, podList, client.InNamespace(namespace), client.MatchingLabels(parseLabelSelector(labelSelector)))
-	if err != nil {
-		return fmt.Errorf("failed to list pods: %w", err)
-	}
-
-	oldPodUIDs := make(map[string]bool)
-	for _, pod := range podList.Items {
-		oldPodUIDs[string(pod.UID)] = true
-		log.Printf("  Deleting pod %s (UID: %s)", pod.Name, pod.UID)
-		if err := c.Delete(ctx, &pod, client.GracePeriodSeconds(0)); err != nil {
-			log.Printf("  Warning: failed to delete pod %s: %v", pod.Name, err)
-		}
-	}
-
-	log.Printf("Waiting for new daemon pods to be created and ready...")
-	timeout := 5 * time.Minute
-	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
-		newPodList := &corev1.PodList{}
-		err := c.List(ctx, newPodList, client.InNamespace(namespace), client.MatchingLabels(parseLabelSelector(labelSelector)))
-		if err != nil {
-			log.Printf("Error listing pods: %v", err)
-			return false, nil
-		}
-
-		if len(newPodList.Items) == 0 {
-			log.Printf("No pods found yet, waiting...")
-			return false, nil
-		}
-
-		allNewAndReady := true
-		for _, pod := range newPodList.Items {
-			if oldPodUIDs[string(pod.UID)] {
-				log.Printf("Pod %s is still the old pod (UID: %s), waiting for deletion...", pod.Name, pod.UID)
-				allNewAndReady = false
-				continue
-			}
-
-			if pod.Status.Phase != corev1.PodRunning || !podutil.IsPodReady(&pod) {
-				allNewAndReady = false
-			}
-		}
-
-		if allNewAndReady {
-			log.Printf("All %d new daemon pods are ready", len(newPodList.Items))
-			return true, nil
-		}
-		return false, nil
-	})
-}
-
-func testTLS13Connection(c client.Client, namespace, labelSelector, podName, containerName, port, portDescription string) error {
+func testTLS13Connection(ctx context.Context, c *testclient.ClientSet, namespace, labelSelector, containerName, port string) error {
 	log.Printf("Testing TLS 1.3 connection on port %s using curl...", port)
 	cmd := []string{"curl", "-v", "--tls-max", "1.3", "--tlsv1.3", "-k", "https://localhost:" + port + "/metrics"}
-	output, err := execCommandInPodWithRetry(c, namespace, labelSelector, podName, containerName, cmd)
+	output, err := execCommandInPod(ctx, c, namespace, labelSelector, containerName, cmd)
 	if err != nil {
 		return fmt.Errorf("TLS 1.3 connection on port %s failed: %v\nOutput: %s", port, err, output)
 	}
@@ -899,40 +884,29 @@ func testTLS13Connection(c client.Client, namespace, labelSelector, podName, con
 	return nil
 }
 
-func testTLS12Connection(c client.Client, namespace, labelSelector, podName, containerName, port string, expectReject bool) error {
+func testTLS12Connection(ctx context.Context, c *testclient.ClientSet, namespace, labelSelector, containerName, port string, expectReject bool) error {
 	if expectReject {
 		log.Printf("Testing TLS 1.2 connection on port %s using curl (should be REJECTED)...", port)
 		cmd := []string{"curl", "-v", "--tls-max", "1.2", "--tlsv1.2", "-k", "https://localhost:" + port + "/metrics"}
-		output, err := execCommandInPodWithRetry(c, namespace, labelSelector, podName, containerName, cmd)
+		output, err := execCommandInPod(ctx, c, namespace, labelSelector, containerName, cmd)
 
-		// When expecting rejection, SSL errors (exit code 35, 60) are acceptable
-		if err != nil {
-			errStr := err.Error()
-			// Exit code 35 means SSL handshake failed - this is expected for rejection
-			if strings.Contains(errStr, "exit code 35") || strings.Contains(errStr, "exit code 60") {
-				log.Printf("Port %s TLS 1.2 connection correctly rejected (SSL handshake failed with exit code 35/60)", port)
-				return nil
-			}
-
-			if output != "" && (strings.Contains(output, "SSL") || strings.Contains(output, "alert") || strings.Contains(output, "error")) {
-				// SSL error with output is expected for rejection - this is success
-				log.Printf("Port %s TLS 1.2 connection correctly rejected (SSL handshake failed)", port)
-				return nil
-			}
-			// Error with no useful output and not exit code 35/60 - unexpected failure
-			if output == "" {
-				return fmt.Errorf("TLS 1.2 rejection check on port %s produced no curl output; exec failed: %w", port, err)
-			}
+		if err == nil {
+			return fmt.Errorf("TLS 1.2 connection on port %s SUCCEEDED but should have been REJECTED\nOutput: %s", port, output)
 		}
 
-		if strings.Contains(output, "TLSv1.2") || (strings.Contains(output, "HTTP/") && !strings.Contains(output, "SSL") && !strings.Contains(output, "alert")) {
-			return fmt.Errorf("TLS 1.2 connection on port %s SUCCEEDED but should have been REJECTED", port)
+		// Require BOTH exit code 35 AND explicit protocol version alert
+		var exitErr remoteexec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitStatus() == 35 &&
+			strings.Contains(strings.ToLower(output), "tlsv1 alert protocol version") {
+			log.Printf("Port %s TLS 1.2 correctly rejected (protocol version)", port)
+			return nil
 		}
-		log.Printf("Port %s TLS 1.2 connection correctly rejected", port)
+
+		return fmt.Errorf("TLS 1.2 rejection check on port %s failed without confirming protocol rejection: %w\nOutput: %s", port, err, output)
 	} else {
 		log.Printf("Testing TLS 1.2 connection on port %s using curl...", port)
 		cmd := []string{"curl", "-v", "--tls-max", "1.2", "--tlsv1.2", "-k", "https://localhost:" + port + "/metrics"}
-		output, err := execCommandInPodWithRetry(c, namespace, labelSelector, podName, containerName, cmd)
+		output, err := execCommandInPod(ctx, c, namespace, labelSelector, containerName, cmd)
 		if err != nil {
 			return fmt.Errorf("TLS 1.2 connection on port %s failed: %v\nOutput: %s", port, err, output)
 		}
@@ -945,116 +919,55 @@ func testTLS12Connection(c client.Client, namespace, labelSelector, podName, con
 	return nil
 }
 
-func waitForTLSConfigurationReady(c client.Client, namespace, labelSelector string) error {
-	ctx := context.Background()
-	timeout := 2 * time.Minute
-	interval := 5 * time.Second
+func VerifyIngressNodeFirewallTLSComplianceInPod(ctx context.Context, c *testclient.ClientSet, namespace string,
+	apiServerSpec *configv1.APIServerSpec) error {
 
-	return wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
-		podName, err := findRunningPod(c, namespace, labelSelector)
-		if err != nil {
-			log.Printf("  Waiting for pod to be ready: %v", err)
-			return false, nil
-		}
-
-		containerName := DaemonMetricsContainer
-		port := DaemonMetricsPort
-		cmd := []string{"curl", "-v", "--tls-max", "1.3", "--tlsv1.3", "-k", "https://localhost:" + port + "/metrics"}
-
-		output, err := execCommandInPodWithRetry(c, namespace, labelSelector, podName, containerName, cmd)
-		if err != nil {
-			log.Printf("  TLS configuration not ready yet, retrying...")
-			return false, nil
-		}
-
-		if strings.Contains(output, "TLSv1.3") || strings.Contains(output, "HTTP/") || strings.Contains(output, "Unauthorized") {
-			log.Printf("  TLS configuration ready")
-			return true, nil
-		}
-
-		log.Printf("  TLS handshake incomplete, retrying...")
-		return false, nil
-	})
-}
-
-func VerifyIngressNodeFirewallTLSComplianceInPod(c client.Client, namespace, labelSelector string) error {
-	ctx := context.Background()
-
-	apiserver := &configv1.APIServer{}
-	err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, apiserver)
-	if err != nil {
-		return fmt.Errorf("failed to get APIServer config: %w", err)
-	}
-
-	expectedMinVer := expectedTLSMinVersion(apiserver)
-	if expectedMinVer != "" {
-		log.Printf("Waiting for operator to update DaemonSet with expected TLS min version %q...", expectedMinVer)
-		if err := waitForDaemonSetTLSUpdate(c, namespace, expectedMinVer); err != nil {
-			return fmt.Errorf("timed out waiting for DaemonSet TLS args to be updated by operator: %w", err)
-		}
-
-		log.Printf("Restarting daemon pods to ensure they pick up the new TLS configuration...")
-		if err := RestartDaemonPods(c, namespace, labelSelector); err != nil {
-			return fmt.Errorf("failed to restart daemon pods: %w", err)
-		}
-
-		log.Printf("Waiting for TLS configuration to propagate to restarted pods...")
-		if err := waitForTLSConfigurationReady(c, namespace, labelSelector); err != nil {
-			return fmt.Errorf("failed waiting for TLS configuration to propagate: %w", err)
-		}
-	} else {
-		log.Println("Skipping DaemonSet update, restart, and wait (modern component not updated with LegacyAdheringComponentsOnly)")
-	}
-
-	expectTLS12Reject, description := determineTLSTestBehavior(apiserver)
+	expectTLS12Reject, description := determineTLSTestBehavior(apiServerSpec)
 
 	profileTypeLabel := "<unset>"
-	if apiserver.Spec.TLSSecurityProfile != nil {
-		profileTypeLabel = string(apiserver.Spec.TLSSecurityProfile.Type)
+	if apiServerSpec.TLSSecurityProfile != nil {
+		profileTypeLabel = string(apiServerSpec.TLSSecurityProfile.Type)
 	}
 	log.Printf("Testing with profile: %s (%s)", profileTypeLabel, description)
 
-	podList := &corev1.PodList{}
-	err = c.List(ctx, podList, client.InNamespace(namespace), client.MatchingLabels(parseLabelSelector(labelSelector)))
-	if err != nil {
-		return fmt.Errorf("failed to list pods with selector %s: %w", labelSelector, err)
+	// Test both daemon and operator components
+	components := []struct {
+		name          string
+		labelSelector string
+		containerName string
+		port          string
+	}{
+		{
+			name:          "daemon",
+			labelSelector: DaemonSetLabelSelector,
+			containerName: DaemonMetricsContainer,
+			port:          DaemonMetricsPort,
+		},
+		{
+			name:          "operator webhook",
+			labelSelector: OperatorLabelSelector,
+			containerName: OperatorWebhookContainer,
+			port:          OperatorWebhookPort,
+		},
 	}
-	pods := podList.Items
 
-	if len(pods) == 0 {
-		return fmt.Errorf("no pods found with selector %s in namespace %s", labelSelector, namespace)
-	}
+	for _, comp := range components {
+		log.Printf("Testing TLS compliance for %s on port %s", comp.name, comp.port)
 
-	var testPod string
-	for _, pod := range pods {
-		if pod.Status.Phase == "Running" {
-			testPod = pod.Name
-			break
+		if err := testTLS13Connection(ctx, c, namespace, comp.labelSelector, comp.containerName, comp.port); err != nil {
+			return err
+		}
+
+		if err := testTLS12Connection(ctx, c, namespace, comp.labelSelector, comp.containerName, comp.port, expectTLS12Reject); err != nil {
+			return err
+		}
+
+		if expectTLS12Reject {
+			log.Printf("%s port %s: TLS 1.3 works, TLS 1.2 correctly rejected", comp.name, comp.port)
+		} else {
+			log.Printf("%s port %s: TLS 1.2 and TLS 1.3 compliance verified", comp.name, comp.port)
 		}
 	}
 
-	if testPod == "" {
-		return fmt.Errorf("no running pods found with selector %s", labelSelector)
-	}
-
-	containerName := DaemonMetricsContainer
-	port := DaemonMetricsPort
-	portDescription := "Daemon Metrics"
-
-	log.Printf("Testing pod %s/%s (container: %s) on localhost:%s (%s)", namespace, testPod, containerName, port, portDescription)
-
-	if err := testTLS13Connection(c, namespace, labelSelector, testPod, containerName, port, portDescription); err != nil {
-		return err
-	}
-
-	if err := testTLS12Connection(c, namespace, labelSelector, testPod, containerName, port, expectTLS12Reject); err != nil {
-		return err
-	}
-
-	if expectTLS12Reject {
-		log.Printf("TLS 1.3 works, TLS 1.2 correctly rejected for pod %s/%s on port %s", namespace, testPod, port)
-	} else {
-		log.Printf("TLS 1.2 and TLS 1.3 compliance verified for pod %s/%s on port %s", namespace, testPod, port)
-	}
 	return nil
 }

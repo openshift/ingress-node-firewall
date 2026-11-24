@@ -3,6 +3,7 @@ package exec
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 
@@ -13,8 +14,8 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-// ExecCommand runs command in the pod and returns buffer output
-func RunExecCommand(cs *testclient.ClientSet, pod *corev1.Pod, command ...string) (string, string, error) {
+// RunExecCommandWithContext runs command in the pod with context-aware deadline handling
+func RunExecCommandWithContext(ctx context.Context, cs *testclient.ClientSet, pod *corev1.Pod, command ...string) (string, string, error) {
 	var buf, errbuf bytes.Buffer
 	req := cs.CoreV1Interface.RESTClient().
 		Post().
@@ -36,18 +37,30 @@ func RunExecCommand(cs *testclient.ClientSet, pod *corev1.Pod, command ...string
 		return buf.String(), errbuf.String(), err
 	}
 
-	err = exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdin:  os.Stdin,
 		Stdout: &buf,
 		Stderr: &errbuf,
-		Tty:    true,
+		Tty:    false,
 	})
 
 	if err != nil {
+		// On context cancellation, StreamWithContext can return without waiting for
+		// stdout/stderr copy goroutines to finish. Reading buffers would race with
+		// those goroutines. Return the error without partial output.
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return "", "", err
+		}
+		// For normal command failures, copy goroutines completed and buffers are safe to read
 		return buf.String(), errbuf.String(), err
 	}
 
 	return buf.String(), errbuf.String(), nil
+}
+
+// ExecCommand runs command in the pod and returns buffer output
+func RunExecCommand(cs *testclient.ClientSet, pod *corev1.Pod, command ...string) (string, string, error) {
+	return RunExecCommandWithContext(context.Background(), cs, pod, command...)
 }
 
 // ExecCommandWithStdin runs a command in the a pod and also injects a string to stdin.

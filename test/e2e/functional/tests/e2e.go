@@ -38,10 +38,6 @@ import (
 	goclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
-	daemonLabelSelector = "app=ingress-node-firewall-daemon"
-)
-
 var (
 	OperatorNameSpace        = inftestconsts.DefaultOperatorNameSpace
 	retryInterval            = time.Millisecond * 10
@@ -1284,6 +1280,11 @@ var _ = Describe("Ingress Node Firewall", func() {
 	// The test is marked [Serial] and [OCPFeatureGate:TLSAdherence] to ensure it runs on
 	// dedicated CI infrastructure that is destroyed after test completion.
 	Context("[OCPFeatureGate:TLSGroupPreferences][Serial] TLS Profile Compliance", func() {
+		const (
+			probeTestTimeout  = 15 * time.Minute
+			probeTestInterval = 3 * time.Second
+		)
+
 		var config *ingressnodefwv1alpha1.IngressNodeFirewallConfig
 
 		BeforeEach(func() {
@@ -1306,6 +1307,15 @@ var _ = Describe("Ingress Node Firewall", func() {
 			}
 		})
 
+		verifyWithRetries := func(ctx context.Context, verify func(ctx context.Context) error) {
+			retryCtx, cancel := context.WithTimeout(ctx, probeTestTimeout)
+			defer cancel()
+
+			Eventually(func(g Gomega, ctx context.Context) {
+				g.Expect(verify(ctx)).To(Succeed(), "Verification failed")
+			}).WithContext(retryCtx).Within(probeTestTimeout).WithPolling(probeTestInterval).Should(Succeed())
+		}
+
 		type tlsProfileTest struct {
 			profileType     configv1.TLSProfileType
 			adherencePolicy configv1.TLSAdherencePolicy
@@ -1318,30 +1328,25 @@ var _ = Describe("Ingress Node Firewall", func() {
 		}
 
 		It("should verify ingress-node-firewall TLS compliance across all profiles", func() {
+			ctx := context.Background()
+
 			for _, profile := range tlsProfiles {
 				By(fmt.Sprintf("Configuring %s TLS profile with %s", profile.profileType, profile.adherencePolicy))
-				err := tls.ConfigureTLSProfileWithAdherence(testclient.Client, profile.profileType, profile.adherencePolicy)
+				spec, err := tls.ConfigureTLSProfileWithAdherence(testclient.Client, profile.profileType, profile.adherencePolicy)
 				if tls.IsTLSAdherenceNotSupported(err) {
 					Skip(fmt.Sprintf("Skipping test - tlsAdherence API field not supported in this cluster version: %s", err.Error()))
 				}
 				Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Failed to configure %s TLS profile with %s", profile.profileType, profile.adherencePolicy))
 
-				By("Waiting for ingress-node-firewall-daemon DaemonSet to be ready after cluster stabilization")
-				infDaemonSet := &appsv1.DaemonSet{}
-				infDaemonSet.SetName("ingress-node-firewall-daemon")
-				infDaemonSet.SetNamespace(OperatorNameSpace)
-				// Use longer timeout after MCP rollout - nodes were rebooted, pods need time to recreate
-				daemonSetTimeout := time.Minute * 10
-				err = daemonset.WaitForDaemonSetReady(testclient.Client, infDaemonSet, retryInterval, daemonSetTimeout)
-				Expect(err).NotTo(HaveOccurred(), "DaemonSet not ready after cluster stabilization")
-
 				By(fmt.Sprintf("Testing TLS compliance for ingress-node-firewall-daemon in %s (port 9301)", OperatorNameSpace))
-				err = tls.VerifyIngressNodeFirewallTLSComplianceInPod(testclient.Client, OperatorNameSpace, daemonLabelSelector)
-				Expect(err).NotTo(HaveOccurred(), "TLS compliance verification failed")
+				verifyWithRetries(ctx, func(ctx context.Context) error {
+					return tls.VerifyIngressNodeFirewallTLSComplianceInPod(ctx, testclient.Client, OperatorNameSpace, spec)
+				})
 			}
 		})
 
 		It("should verify TLS group preferences compliance with restricted groups (secp521r1, secp256r1)", func() {
+			ctx := context.Background()
 			groups := []configv1.TLSGroup{configv1.TLSGroupSecP521r1, configv1.TLSGroupSecP256r1}
 
 			By("Enabling TLSGroupPreferences feature gate")
@@ -1349,32 +1354,21 @@ var _ = Describe("Ingress Node Firewall", func() {
 			Expect(err).NotTo(HaveOccurred(), "Failed to enable TLSGroupPreferences feature gate")
 
 			By("Configuring APIServer with custom TLS profile and groups")
-			ctx := context.Background()
-			updated, err := tls.ConfigureAPIServerWithTLSGroups(ctx, testclient.Client, groups)
+			err = tls.ConfigureAPIServerWithTLSGroups(ctx, testclient.Client, groups)
 			Expect(err).NotTo(HaveOccurred(), "Failed to configure APIServer with TLS groups")
 
-			if updated {
-				By("Restarting daemon pods to pick up new TLS configuration")
-				err = tls.RestartDaemonPods(testclient.Client, OperatorNameSpace, "app=ingress-node-firewall-daemon")
-				Expect(err).ShouldNot(HaveOccurred())
-			}
-
-			By("Verifying daemon is ready")
-			err = daemonset.WaitForDaemonSetReady(testclient.Client,
-				&appsv1.DaemonSet{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "ingress-node-firewall-daemon",
-						Namespace: OperatorNameSpace,
-					},
-				}, retryInterval, timeout)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			By("Testing TLS handshakes on worker node")
-			// Reuse groups from configuration to avoid duplication
 			allowedGroups := groups
 			rejectedGroup := configv1.TLSGroupSecP384r1
-			err = tls.VerifyTLSGroupsOnWorkerNode(ctx, testclient.Client, allowedGroups, rejectedGroup)
-			Expect(err).NotTo(HaveOccurred(), "TLS group preferences verification failed")
+
+			By("Testing TLS handshakes for operator webhook port 9443")
+			verifyWithRetries(ctx, func(ctx context.Context) error {
+				return tls.VerifyTLSGroupsForOperatorWebhook(ctx, testclient.Client, OperatorNameSpace, allowedGroups, rejectedGroup)
+			})
+
+			By("Testing TLS handshakes on worker node for daemon port 9301")
+			verifyWithRetries(ctx, func(ctx context.Context) error {
+				return tls.VerifyTLSGroupsOnWorkerNode(ctx, testclient.Client, allowedGroups, rejectedGroup)
+			})
 		})
 	})
 
@@ -1414,7 +1408,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 		})
 
 		It("should expose at least one endpoint via a daemon metrics service", func() {
-			err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, 10*time.Second, true, func(ctx context.Context) (done bool, err error) {
+			err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, 2*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 				endpointSliceList, err := testclient.Client.Endpoints(OperatorNameSpace).List(context.TODO(), metav1.ListOptions{
 					LabelSelector: "app=ingress-node-firewall-daemon",
 				})
@@ -1543,7 +1537,7 @@ var _ = Describe("Ingress Node Firewall", func() {
 			err = wait.PollUntilContextTimeout(context.Background(), 1*time.Second, 30*time.Second, true, func(ctx context.Context) (done bool, err error) {
 				stdOut, stdError, err = exec.RunExecCommand(testclient.Client, daemonSetPod,
 					"/bin/sh", "-c",
-					"curl -k -H \"Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)\" https://127.0.0.1:9301/metrics")
+					"curl -sS -k -H \"Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)\" https://127.0.0.1:9301/metrics")
 				if err != nil {
 					return false, err
 				}

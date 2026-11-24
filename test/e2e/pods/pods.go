@@ -101,3 +101,24 @@ func GetIPV6(ips []corev1.PodIP) string {
 	}
 	return ""
 }
+
+// GetReadyPodWithLabel returns a ready pod matching the label selector.
+func GetReadyPodWithLabel(ctx context.Context, client *testclient.ClientSet, namespace, labelSelector string) (*corev1.Pod, error) {
+	podList, err := client.Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range podList.Items {
+		pod := &podList.Items[i]
+		if pod.DeletionTimestamp == nil &&
+			pod.Status.Phase == corev1.PodRunning &&
+			podutil.IsPodReady(pod) {
+			return pod, nil
+		}
+	}
+
+	return nil, errors.NewNotFound(corev1.Resource("pod"), labelSelector)
+}
